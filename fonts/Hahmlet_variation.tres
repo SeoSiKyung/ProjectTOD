@@ -1,0 +1,7 @@
+[gd_resource type="FontVariation" format=3 uid="uid://jylcne16aphh"]
+
+[ext_resource type="FontFile" uid="uid://c1t31msa4j8vo" path="res://fonts/Hahmlet-SemiBold.ttf" id="1_00llk"]
+
+[resource]
+base_font = ExtResource("1_00llk")
+baseline_offset = -0.05

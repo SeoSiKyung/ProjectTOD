@@ -1,0 +1,7 @@
+[gd_resource type="Theme" format=3 uid="uid://3uwmj20fyh5t"]
+
+[ext_resource type="FontVariation" uid="uid://jylcne16aphh" path="res://fonts/Hahmlet_variation.tres" id="1_cv0mn"]
+
+[resource]
+default_font = ExtResource("1_cv0mn")
+default_font_size = 32

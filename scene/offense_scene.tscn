@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://dpkmyj5hdm0op"]
+
+[ext_resource type="Script" uid="uid://dipawoagdtblg" path="res://scene/map_maker.gd" id="1_ya4kn"]
+[ext_resource type="Texture2D" uid="uid://bv0b5cuwft3w2" path="res://maps/0.png" id="2_nipmi"]
+
+[node name="OffenseScene" type="Node2D" unique_id=2102705416]
+
+[node name="MapMaker" type="NavigationRegion2D" parent="." unique_id=2138246736]
+script = ExtResource("1_ya4kn")
+navigation_mask = ExtResource("2_nipmi")
+generate_navigation = true

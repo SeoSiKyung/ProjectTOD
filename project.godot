@@ -11,14 +11,27 @@ config_version=5
 [application]
 
 config/name="TOD"
+run/main_scene="uid://bhlssaa4wvtsw"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+ThemeManager="*uid://c8101a84yauok"
 
 [display]
 
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
+
+[gui]
+
+theme/custom="uid://3uwmj20fyh5t"
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://localization/ui.en.translation", "res://localization/ui.ko.translation")
 
 [physics]
 
