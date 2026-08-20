@@ -1,0 +1,55 @@
+[gd_scene format=3 uid="uid://bnpnyy5pnwxco"]
+
+[ext_resource type="Texture2D" uid="uid://dq7msfk8cc4xx" path="res://picture/button/mask.png" id="1_yaqkv"]
+[ext_resource type="Texture2D" uid="uid://bpv85qdm35kc4" path="res://picture/button/texture.png" id="2_6bnjb"]
+[ext_resource type="Shader" uid="uid://0v1dvtlqcfhy" path="res://parchment.gdshader" id="2_v4i60"]
+[ext_resource type="Texture2D" uid="uid://cibix0pph7f3w" path="res://picture/button/edge.png" id="3_6bnjb"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_nw27a"]
+shader = ExtResource("2_v4i60")
+shader_parameter/parchment_texture = ExtResource("2_6bnjb")
+
+[node name="BasicButton" type="Control" unique_id=592075297]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = -1219.0
+offset_bottom = -554.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="FillMask" type="NinePatchRect" parent="." unique_id=1064853930]
+material = SubResource("ShaderMaterial_nw27a")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1_yaqkv")
+patch_margin_left = 40
+patch_margin_top = 40
+patch_margin_right = 40
+patch_margin_bottom = 40
+
+[node name="Border" type="NinePatchRect" parent="." unique_id=208808716]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("3_6bnjb")
+patch_margin_left = 40
+patch_margin_top = 40
+patch_margin_right = 40
+patch_margin_bottom = 40
+
+[node name="Button" type="Button" parent="." unique_id=1028477832]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
