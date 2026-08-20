@@ -1,15 +1,18 @@
 [gd_scene format=3 uid="uid://bnpnyy5pnwxco"]
 
-[ext_resource type="Texture2D" uid="uid://dq7msfk8cc4xx" path="res://picture/button/mask.png" id="1_yaqkv"]
+[ext_resource type="Script" uid="uid://b8varqdnagcqo" path="res://basic_button.gd" id="1_6bnjb"]
+[ext_resource type="Theme" uid="uid://3uwmj20fyh5t" path="res://theme/ui.tres" id="1_nw27a"]
+[ext_resource type="Texture2D" uid="uid://62fwrl17byvt" path="res://picture/button/mask.png" id="1_yaqkv"]
 [ext_resource type="Texture2D" uid="uid://bpv85qdm35kc4" path="res://picture/button/texture.png" id="2_6bnjb"]
 [ext_resource type="Shader" uid="uid://0v1dvtlqcfhy" path="res://parchment.gdshader" id="2_v4i60"]
-[ext_resource type="Texture2D" uid="uid://cibix0pph7f3w" path="res://picture/button/edge.png" id="3_6bnjb"]
+[ext_resource type="Texture2D" uid="uid://u3lyvi3spd2i" path="res://picture/button/edge.png" id="3_6bnjb"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_nw27a"]
 shader = ExtResource("2_v4i60")
 shader_parameter/parchment_texture = ExtResource("2_6bnjb")
 
 [node name="BasicButton" type="Control" unique_id=592075297]
+custom_minimum_size = Vector2(160, 70)
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -18,8 +21,10 @@ offset_right = -1219.0
 offset_bottom = -554.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("1_nw27a")
+script = ExtResource("1_6bnjb")
 
-[node name="FillMask" type="NinePatchRect" parent="." unique_id=1064853930]
+[node name="Mask" type="NinePatchRect" parent="." unique_id=1064853930]
 material = SubResource("ShaderMaterial_nw27a")
 layout_mode = 1
 anchors_preset = 15
@@ -28,10 +33,10 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 texture = ExtResource("1_yaqkv")
-patch_margin_left = 40
-patch_margin_top = 40
-patch_margin_right = 40
-patch_margin_bottom = 40
+patch_margin_left = 15
+patch_margin_top = 15
+patch_margin_right = 15
+patch_margin_bottom = 15
 
 [node name="Border" type="NinePatchRect" parent="." unique_id=208808716]
 layout_mode = 1
@@ -41,10 +46,12 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 texture = ExtResource("3_6bnjb")
-patch_margin_left = 40
-patch_margin_top = 40
-patch_margin_right = 40
-patch_margin_bottom = 40
+patch_margin_left = 15
+patch_margin_top = 15
+patch_margin_right = 15
+patch_margin_bottom = 15
+axis_stretch_horizontal = 2
+axis_stretch_vertical = 2
 
 [node name="Button" type="Button" parent="." unique_id=1028477832]
 layout_mode = 1
@@ -53,3 +60,10 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_colors/font_color = Color(0.19257274, 0.115091555, 4.813075e-08, 1)
+theme_override_colors/font_focus_color = Color(0.19215687, 0.11372549, 0, 1)
+theme_override_colors/font_pressed_color = Color(0.11249294, 0.060981505, 6.016344e-09, 1)
+theme_override_colors/font_hover_color = Color(0.4641804, 0.3267931, 0.07373021, 1)
+theme_override_colors/font_hover_pressed_color = Color(0.11372549, 0.0627451, 0, 1)
+theme_override_colors/font_disabled_color = Color(0.17377526, 0.14514196, 0.066335864, 1)
+flat = true

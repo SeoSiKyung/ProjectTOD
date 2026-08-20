@@ -1,5 +1,10 @@
 [gd_scene format=3 uid="uid://bhlssaa4wvtsw"]
 
+[ext_resource type="Texture2D" uid="uid://bxhiftjqd5lr7" path="res://picture/title/0.png" id="1_2wach"]
+[ext_resource type="Script" uid="uid://7j8n2khj530f" path="res://scene/title_scene.gd" id="1_qyslj"]
+[ext_resource type="Texture2D" uid="uid://d078rpd45y6ed" path="res://picture/title/1.png" id="2_qyslj"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://basic_button.tscn" id="3_cbsd1"]
+
 [node name="TitleScene" type="Control" unique_id=1706279260]
 layout_mode = 3
 anchors_preset = 15
@@ -7,3 +12,65 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("1_qyslj")
+
+[node name="Background" type="TextureRect" parent="." unique_id=2078750194]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1_2wach")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Logo" type="TextureRect" parent="." unique_id=259601789]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -386.0
+offset_top = -376.0
+offset_right = 386.0
+offset_bottom = -22.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_qyslj")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1887142748]
+layout_mode = 0
+offset_left = 860.0
+offset_top = 544.0
+offset_right = 1020.0
+offset_bottom = 910.0
+theme_override_constants/separation = 13
+
+[node name="BNewGame" parent="VBoxContainer" unique_id=592075297 instance=ExtResource("3_cbsd1")]
+layout_mode = 2
+text_key = "TITLE_NEW_GAME"
+action_key = &"new_game"
+
+[node name="BContinue" parent="VBoxContainer" unique_id=184469901 instance=ExtResource("3_cbsd1")]
+layout_mode = 2
+text_key = "TITLE_CONTINUE"
+action_key = &"continue"
+
+[node name="BRecord" parent="VBoxContainer" unique_id=1691919176 instance=ExtResource("3_cbsd1")]
+layout_mode = 2
+text_key = "TITLE_RECORDS"
+action_key = &"records"
+
+[node name="BSetting" parent="VBoxContainer" unique_id=927307726 instance=ExtResource("3_cbsd1")]
+layout_mode = 2
+text_key = "TITLE_SETTINGS"
+action_key = &"settings"
+
+[node name="BQuit" parent="VBoxContainer" unique_id=1128499769 instance=ExtResource("3_cbsd1")]
+layout_mode = 2
+text_key = "TITLE_QUIT"
+action_key = &"quit"

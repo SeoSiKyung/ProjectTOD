@@ -1,3 +1,6 @@
+NavigationRegion2D
+Label
+VBoxContainer
 Button
 NinePatchRect
 Control
