@@ -1,0 +1,52 @@
+[gd_resource type="Resource" script_class="FacilityData" format=3 uid="uid://b3guw4t2kwc7g"]
+
+[ext_resource type="Script" uid="uid://cl42t74u4dou8" path="res://scripts/tycoon/data/facility_level_data.gd" id="1_xttv5"]
+[ext_resource type="Script" uid="uid://bm8a5bn2edil" path="res://scripts/tycoon/data/facility_effect_data.gd" id="2_ir86q"]
+[ext_resource type="Script" uid="uid://bd4hqd1pdyupk" path="res://scripts/tycoon/data/facility_data.gd" id="2_tykrw"]
+
+[sub_resource type="Resource" id="Resource_vum0x"]
+script = ExtResource("2_ir86q")
+type = 1
+value = 10.0
+metadata/_custom_type_script = "uid://bm8a5bn2edil"
+
+[sub_resource type="Resource" id="Resource_e0o28"]
+script = ExtResource("1_xttv5")
+construction_turns = 2
+gold_cost = 100
+food_cost = 50
+effects = Array[ExtResource("2_ir86q")]([SubResource("Resource_vum0x")])
+metadata/_custom_type_script = "uid://cl42t74u4dou8"
+
+[sub_resource type="Resource" id="Resource_e32g4"]
+script = ExtResource("2_ir86q")
+type = 1
+value = 18.0
+metadata/_custom_type_script = "uid://bm8a5bn2edil"
+
+[sub_resource type="Resource" id="Resource_qitjm"]
+script = ExtResource("1_xttv5")
+construction_turns = 3
+gold_cost = 180
+wood_cost = 80
+effects = Array[ExtResource("2_ir86q")]([SubResource("Resource_e32g4")])
+metadata/_custom_type_script = "uid://cl42t74u4dou8"
+
+[sub_resource type="Resource" id="Resource_5lssf"]
+script = ExtResource("2_ir86q")
+type = 1
+value = 30.0
+metadata/_custom_type_script = "uid://bm8a5bn2edil"
+
+[sub_resource type="Resource" id="Resource_dci7k"]
+script = ExtResource("1_xttv5")
+construction_turns = 4
+gold_cost = 300
+wood_cost = 120
+effects = Array[ExtResource("2_ir86q")]([SubResource("Resource_5lssf")])
+metadata/_custom_type_script = "uid://cl42t74u4dou8"
+
+[resource]
+script = ExtResource("2_tykrw")
+levels = Array[ExtResource("1_xttv5")]([SubResource("Resource_e0o28"), SubResource("Resource_qitjm"), SubResource("Resource_dci7k")])
+metadata/_custom_type_script = "uid://bd4hqd1pdyupk"
