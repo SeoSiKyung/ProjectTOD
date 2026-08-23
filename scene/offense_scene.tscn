@@ -1,156 +1,65 @@
 [gd_scene format=3 uid="uid://dpkmyj5hdm0op"]
 
-[ext_resource type="Script" uid="uid://dipawoagdtblg" path="res://scene/map_maker.gd" id="1_ya4kn"]
-[ext_resource type="Texture2D" uid="uid://bv0b5cuwft3w2" path="res://maps/0.png" id="2_nipmi"]
-[ext_resource type="Script" uid="uid://cberk80o5qfuv" path="res://scene/unit.gd" id="3_j8jmb"]
-[ext_resource type="Texture2D" uid="uid://by8f24ofm07iq" path="res://icon.svg" id="4_pho25"]
-[ext_resource type="PackedScene" uid="uid://yolbqsacm71q" path="res://click_effect_move.tscn" id="4_wohdj"]
-[ext_resource type="Script" uid="uid://e6ictg15nwt0" path="res://scene/rts_controller.gd" id="5_dgir3"]
-
-[sub_resource type="NavigationPolygon" id="NavigationPolygon_wohdj"]
-vertices = PackedVector2Array(2926, 1611, 2926, 2251, 2540.1172, 1902, 2537, 1876.9766, 2537, 1867, 2529, 1851.9922, 2529, 1845.6719, 2277, 1828, 2277, 1611, 2457, 1817.4219, 2514, 1955, 2277, 2251, 2277, 2032, 2472, 1955, 1811, 2032, 1811, 2942, 627, 2942, 627, 1048, 1811, 1048, 1811, 1828, 2444, 1932.2266, 2444, 1940.3672, 2423, 1917.2266, 2463, 1941.1328, 2463, 1945.5313, 2472, 1948.5313, 2457, 1825.4609, 2449.3984, 1828, 2441.8516, 1828, 2523.25, 1927, 2532.2422, 1902, 2509, 1831.6563, 2509, 1825.2188, 2514, 1928.3125, 2515.9297, 1927, 2423, 1910.5781, 2415, 1893.5781, 2415, 1872.0313, 2420.5078, 1850, 2425.8516, 1850)
-polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3, 4), PackedInt32Array(0, 4, 5, 6), PackedInt32Array(7, 8, 0, 9), PackedInt32Array(10, 1, 11, 12, 13), PackedInt32Array(14, 15, 16, 17), PackedInt32Array(17, 18, 19), PackedInt32Array(14, 17, 19), PackedInt32Array(20, 21, 12, 14, 19, 7, 22), PackedInt32Array(21, 23, 24, 12), PackedInt32Array(24, 25, 13, 12), PackedInt32Array(9, 26, 27, 28), PackedInt32Array(29, 30, 2, 1, 10), PackedInt32Array(0, 6, 31, 32), PackedInt32Array(10, 33, 34, 29), PackedInt32Array(35, 22, 7, 36), PackedInt32Array(37, 36, 7), PackedInt32Array(38, 37, 7), PackedInt32Array(28, 39, 38, 7), PackedInt32Array(0, 32, 9), PackedInt32Array(28, 7, 9)])
-agent_radius = 16.0
-
-[sub_resource type="CircleShape2D" id="CircleShape2D_pdnc6"]
-radius = 16.0
+[ext_resource type="Script" uid="uid://cooykx73a50w8" path="res://unit/navigation/navigation_baker.gd" id="1_dgir3"]
+[ext_resource type="Script" uid="uid://e48cbf160ggc" path="res://scene/offense_scene.gd" id="1_wohdj"]
+[ext_resource type="Texture2D" uid="uid://b0e4pyxomwk40" path="res://maps/0.png" id="2_nipmi"]
+[ext_resource type="Resource" uid="uid://bc5w8iksc1218" path="res://maps/0_navigation.res" id="4_dgir3"]
+[ext_resource type="Script" uid="uid://w6nsvxisxrdt" path="res://unit/movement_simulator.gd" id="4_jaojb"]
+[ext_resource type="Script" uid="uid://e6ictg15nwt0" path="res://unit/movement_controller.gd" id="5_dgir3"]
+[ext_resource type="Script" uid="uid://dnlnjlnj1aeyu" path="res://unit/navigation_service.gd" id="5_j4bn1"]
+[ext_resource type="PackedScene" uid="uid://6pdasnmpewu8" path="res://unit/unit.tscn" id="5_wohdj"]
 
 [node name="OffenseScene" type="Node2D" unique_id=2102705416]
+script = ExtResource("1_wohdj")
 
-[node name="MapMaker" type="NavigationRegion2D" parent="." unique_id=2138246736]
-navigation_polygon = SubResource("NavigationPolygon_wohdj")
-script = ExtResource("1_ya4kn")
-navigation_mask = ExtResource("2_nipmi")
-map_collision_layer = null
-
-[node name="GeneratedMapCollision" type="StaticBody2D" parent="MapMaker" unique_id=422251204]
-collision_mask = 0
-
-[node name="@CollisionPolygon2D@110831" type="CollisionPolygon2D" parent="MapMaker/GeneratedMapCollision" unique_id=2047231543]
-build_mode = 1
-polygon = PackedVector2Array(611, 2958, 1827, 2958, 1827, 2048, 2261, 2048, 2261, 2267, 2942, 2267, 2942, 1595, 2261, 1595, 2261, 1812, 1827, 1812, 1827, 1032, 611, 1032)
-
-[node name="@CollisionPolygon2D@110832" type="CollisionPolygon2D" parent="MapMaker/GeneratedMapCollision" unique_id=92928989]
-build_mode = 1
-polygon = PackedVector2Array(2473, 1837, 2452, 1844, 2450, 1844, 2434, 1866, 2433, 1866, 2431, 1874, 2431, 1890, 2439, 1907, 2439, 1909, 2460, 1924, 2460, 1925, 2485, 1926, 2489, 1926, 2511, 1911, 2512, 1911, 2521, 1886, 2522, 1886, 2521, 1878, 2521, 1871, 2513, 1856, 2513, 1854, 2493, 1840, 2493, 1839, 2473, 1836)
-
-[node name="@CollisionPolygon2D@110833" type="CollisionPolygon2D" parent="MapMaker/GeneratedMapCollision" unique_id=1608472372]
-build_mode = 1
-polygon = PackedVector2Array(2490, 1932, 2488, 1933, 2488, 1939, 2497, 1939, 2498, 1939, 2498, 1933, 2490, 1931)
-
-[node name="@CollisionPolygon2D@110834" type="CollisionPolygon2D" parent="MapMaker/GeneratedMapCollision" unique_id=1300524668]
-build_mode = 1
-polygon = PackedVector2Array(2479, 1934, 2482, 1935, 2483, 1935, 2479, 1933)
-
-[node name="0" type="Sprite2D" parent="." unique_id=1310164654]
-position = Vector2(3, -2)
+[node name="0" type="Sprite2D" parent="." unique_id=943179009]
 texture = ExtResource("2_nipmi")
 centered = false
 
-[node name="RTSController" type="Node2D" parent="." unique_id=68440326 node_paths=PackedStringArray("units")]
+[node name="NavigationBaker" type="Node" parent="." unique_id=1075321834]
+script = ExtResource("1_dgir3")
+navigation_mask = ExtResource("2_nipmi")
+metadata/_custom_type_script = "uid://cooykx73a50w8"
+
+[node name="MovementSimulator" type="Node" parent="." unique_id=1834251702]
+script = ExtResource("4_jaojb")
+
+[node name="NavigationService" type="Node" parent="." unique_id=1934783211]
+script = ExtResource("5_j4bn1")
+navigation_data = ExtResource("4_dgir3")
+
+[node name="MovementController" type="Node2D" parent="." unique_id=68440326]
 script = ExtResource("5_dgir3")
-units = [NodePath("../Unit0"), NodePath("../Unit1"), NodePath("../Unit2"), NodePath("../Unit3"), NodePath("../Unit4")]
-move_click_effect_scene = ExtResource("4_wohdj")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=573415892]
-position = Vector2(2048, 2048)
+position = Vector2(270, 269)
 
-[node name="Unit0" type="CharacterBody2D" parent="." unique_id=1207085281 groups=["rts_unit"]]
-position = Vector2(2048, 1920)
-collision_layer = 3
-script = ExtResource("3_j8jmb")
+[node name="Unit0" parent="." unique_id=1678754068 instance=ExtResource("5_wohdj")]
+position = Vector2(178, 125)
+unit_id = 0
+player_controllable = true
+footprint_size = Vector2(32, 32)
 
-[node name="Sprite2D" type="Sprite2D" parent="Unit0" unique_id=355041475]
-scale = Vector2(0.3, 0.3)
-texture = ExtResource("4_pho25")
-metadata/_edit_group_ = true
+[node name="Unit1" parent="." unique_id=1504537226 instance=ExtResource("5_wohdj")]
+position = Vector2(203, 212)
+unit_id = 1
+player_controllable = true
+footprint_size = Vector2(32, 32)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Unit0" unique_id=46916330]
-z_index = 1
-shape = SubResource("CircleShape2D_pdnc6")
-debug_color = Color(1, 0, 0.07450981, 1)
+[node name="Unit2" parent="." unique_id=902946586 instance=ExtResource("5_wohdj")]
+position = Vector2(106, 97)
+unit_id = 2
+player_controllable = true
+footprint_size = Vector2(32, 32)
 
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="Unit0" unique_id=1749925555]
-radius = 16.0
-neighbor_distance = 100.0
-max_speed = 200.0
+[node name="Unit3" parent="." unique_id=1187485307 instance=ExtResource("5_wohdj")]
+position = Vector2(264, 84)
+unit_id = 3
+player_controllable = true
+footprint_size = Vector2(32, 32)
 
-[node name="Unit1" type="CharacterBody2D" parent="." unique_id=1043355735]
-position = Vector2(2048, 1960)
-collision_layer = 3
-script = ExtResource("3_j8jmb")
-
-[node name="Sprite2D" type="Sprite2D" parent="Unit1" unique_id=366254112]
-scale = Vector2(0.3, 0.3)
-texture = ExtResource("4_pho25")
-metadata/_edit_group_ = true
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Unit1" unique_id=498618020]
-z_index = 1
-shape = SubResource("CircleShape2D_pdnc6")
-debug_color = Color(1, 0, 0.07450981, 1)
-
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="Unit1" unique_id=1450573188]
-radius = 16.0
-neighbor_distance = 100.0
-max_speed = 200.0
-
-[node name="Unit2" type="CharacterBody2D" parent="." unique_id=753286028]
-position = Vector2(2088, 1960)
-collision_layer = 3
-script = ExtResource("3_j8jmb")
-
-[node name="Sprite2D" type="Sprite2D" parent="Unit2" unique_id=1914034889]
-scale = Vector2(0.3, 0.3)
-texture = ExtResource("4_pho25")
-metadata/_edit_group_ = true
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Unit2" unique_id=1169865964]
-z_index = 1
-shape = SubResource("CircleShape2D_pdnc6")
-debug_color = Color(1, 0, 0.07450981, 1)
-
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="Unit2" unique_id=1003249896]
-radius = 16.0
-neighbor_distance = 100.0
-max_speed = 200.0
-
-[node name="Unit3" type="CharacterBody2D" parent="." unique_id=501238746]
-position = Vector2(2008, 1920)
-collision_layer = 3
-script = ExtResource("3_j8jmb")
-
-[node name="Sprite2D" type="Sprite2D" parent="Unit3" unique_id=719523614]
-scale = Vector2(0.3, 0.3)
-texture = ExtResource("4_pho25")
-metadata/_edit_group_ = true
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Unit3" unique_id=943334937]
-z_index = 1
-shape = SubResource("CircleShape2D_pdnc6")
-debug_color = Color(1, 0, 0.07450981, 1)
-
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="Unit3" unique_id=761538090]
-radius = 16.0
-neighbor_distance = 100.0
-max_speed = 200.0
-
-[node name="Unit4" type="CharacterBody2D" parent="." unique_id=148528380]
-position = Vector2(1860, 1960)
-collision_layer = 3
-script = ExtResource("3_j8jmb")
-
-[node name="Sprite2D" type="Sprite2D" parent="Unit4" unique_id=1302291082]
-scale = Vector2(0.3, 0.3)
-texture = ExtResource("4_pho25")
-metadata/_edit_group_ = true
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Unit4" unique_id=740797459]
-z_index = 1
-shape = SubResource("CircleShape2D_pdnc6")
-debug_color = Color(1, 0, 0.07450981, 1)
-
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="Unit4" unique_id=1558093994]
-radius = 16.0
-neighbor_distance = 100.0
-max_speed = 200.0
+[node name="Unit4" parent="." unique_id=22581196 instance=ExtResource("5_wohdj")]
+position = Vector2(349, 121)
+unit_id = 4
+player_controllable = true
+footprint_size = Vector2(32, 32)
