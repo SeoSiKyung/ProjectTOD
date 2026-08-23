@@ -6,7 +6,6 @@
 
 [node name="Unit" type="Node2D" unique_id=470747039]
 script = ExtResource("1_ctwoc")
-unit_id = null
 player_controllable = false
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=617625335]
@@ -18,5 +17,4 @@ scale = Vector2(0.25, 0.25)
 
 [node name="MovementComponent" type="Node" parent="." unique_id=262552955]
 script = ExtResource("3_hs7ws")
-move_speed = 200.0
 metadata/_custom_type_script = "uid://doh3kw715vylo"

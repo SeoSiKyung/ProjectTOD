@@ -11,7 +11,15 @@ enum MovementState {
 const EPSILON: float = 0.000001
 
 
-@export var move_speed: float = 96.0
+var move_speed: float:
+	get:
+		if unit == null:
+			return 0.0
+
+		return unit.move_speed
+	set(value):
+		if unit != null:
+			unit.move_speed = value
 
 
 var state: MovementState = MovementState.IDLE
@@ -153,10 +161,15 @@ func sync_path_progress(
 
 			break
 
-		var t: float = (unit.position - waypoint).dot(segment) / segment_length_squared
+		var t: float = (
+			(unit.position - waypoint).dot(segment)
+			/ segment_length_squared
+		)
+
 		var clamped_t: float = clampf(t, 0.0, 1.0)
 		var closest: Vector2 = waypoint + segment * clamped_t
 		var lateral_distance: float = unit.position.distance_to(closest)
+
 		var closer_to_next: bool = (
 			unit.position.distance_squared_to(next_waypoint)
 			< unit.position.distance_squared_to(waypoint)
@@ -178,7 +191,12 @@ func get_current_waypoint() -> Vector2:
 	if _path.is_empty():
 		return _effective_goal
 
-	var index: int = clampi(_path_index, 0, _path.size() - 1)
+	var index: int = clampi(
+		_path_index,
+		0,
+		_path.size() - 1
+	)
+
 	return _path[index]
 
 
@@ -192,7 +210,10 @@ func get_desired_direction() -> Vector2:
 	var target: Vector2 = _path[_path_index]
 	var delta: Vector2 = target - unit.position
 
-	if delta.length_squared() <= EPSILON and _path_index < _path.size() - 1:
+	if (
+		delta.length_squared() <= EPSILON
+		and _path_index < _path.size() - 1
+	):
 		target = _path[_path_index + 1]
 		delta = target - unit.position
 
@@ -224,7 +245,10 @@ func is_at_effective_goal(tolerance: float) -> bool:
 	if unit == null:
 		return true
 
-	return unit.position.distance_to(_effective_goal) <= maxf(tolerance, EPSILON)
+	return (
+		unit.position.distance_to(_effective_goal)
+		<= maxf(tolerance, EPSILON)
+	)
 
 
 func wants_final_tick(
@@ -237,7 +261,11 @@ func wants_final_tick(
 		return false
 
 	var normal_distance: float = move_speed * fixed_dt
-	return get_remaining_final_distance() <= normal_distance + EPSILON
+
+	return (
+		get_remaining_final_distance()
+		<= normal_distance + EPSILON
+	)
 
 
 func get_desired_velocity(
@@ -284,7 +312,11 @@ func _set_path(path: PackedVector2Array) -> void:
 		return
 
 	while _path_index < _path.size() - 1:
-		if unit.position.distance_squared_to(_path[_path_index]) > EPSILON:
+		if (
+			unit.position.distance_squared_to(
+				_path[_path_index]
+			) > EPSILON
+		):
 			break
 
 		_path_index += 1

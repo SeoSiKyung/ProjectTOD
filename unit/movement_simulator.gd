@@ -14,6 +14,10 @@ const AVOID_MEDIUM_ANGLE: float = 0.5235987756
 const AVOID_LARGE_ANGLE: float = 1.0471975512
 const AVOID_WIDE_ANGLE: float = 1.308996939
 const AVOID_SIDE_ANGLE: float = 1.57079632679
+const AVOID_REAR_SOFT_ANGLE: float = 2.09439510239
+const AVOID_REAR_MEDIUM_ANGLE: float = 2.35619449019
+const AVOID_REAR_WIDE_ANGLE: float = 2.61799387799
+const AVOID_REVERSE_ANGLE: float = 3.14159265359
 const ARRIVAL_MAX_AVOID_ANGLE: float = 1.0471975512
 const PLAN_SEPARATION_MARGIN: float = 4.0
 const STATIC_BYPASS_MARGIN: float = 4.0
@@ -25,11 +29,18 @@ const STATIC_BLOCKER_STEP_THRESHOLD: float = 0.25
 const CORRIDOR_DIRECTION_DOT: float = 0.75
 const CORRIDOR_PASS_MARGIN: float = 1.0
 const CORRIDOR_MIN_FORWARD_GAP: float = 0.5
+const CORRIDOR_MERGE_FORWARD_TOLERANCE: float = 4.0
+const CORRIDOR_QUEUE_GAP: float = 1.0
 const CORRIDOR_RELEASE_STEPS: float = 3.0
+const CORRIDOR_GATE_PROBE_MARGIN: float = 2.0
+const CORRIDOR_MERGE_RELEASE_STEPS: float = 1.5
 const NEIGHBOR_MARGIN: float = 8.0
 const REPATH_RETRY_TICKS: int = 4
 const REPATH_GOAL_TOLERANCE: float = 2.0
 const FINAL_REPAIR_PASSES: int = 2
+const JOINT_OPTION_LIMIT: int = 24
+const JOINT_RESOLVE_PASSES: int = 2
+const JOINT_CONSTRAINED_WEIGHT: float = 1.5
 const MOTION_BLOCKED: int = 0
 const MOTION_RESOLVED: int = 1
 const MOTION_MAP_BLOCKED: int = 2
@@ -42,8 +53,8 @@ var fixed_tick_rate: int = 60
 
 @export var simulation_quantum: float = 1.0 / 1024.0
 @export var candidate_spatial_cell_size: float = 64.0
-@export_range(0.05, 1.0, 0.05) var min_avoid_speed_ratio: float = 0.1
-@export_range(0.05, 0.5, 0.05) var avoid_speed_step: float = 0.1
+@export_range(0.9, 1.0, 0.1) var min_avoid_speed_ratio: float = 0.9
+@export_range(0.1, 0.1, 0.1) var avoid_speed_step: float = 0.1
 @export_range(0.0, 1.0, 0.05) var avoid_previous_velocity_weight: float = 0.45
 @export_range(0.0, 1.0, 0.05) var avoid_side_change_penalty: float = 0.2
 
@@ -80,6 +91,8 @@ class AvoidancePlan:
 	var bypass_lateral_target: Vector2 = Vector2.ZERO
 	var bypass_forward_target: Vector2 = Vector2.ZERO
 	var corridor_follow: bool = false
+	var corridor_yield: bool = false
+	var corridor_merge_yield: bool = false
 
 
 class PairMemory:
@@ -93,6 +106,14 @@ class PairMemory:
 class PairConflict:
 	var a_id: int = -1
 	var b_id: int = -1
+
+
+class VelocityOption:
+	var position: Vector2 = Vector2.ZERO
+	var velocity: Vector2 = Vector2.ZERO
+	var angle: float = 0.0
+	var speed_ratio: float = 1.0
+	var score: float = 0.0
 
 
 func _ready() -> void:
@@ -272,9 +293,7 @@ func _resolve_candidates(
 		candidate_by_id[candidate.unit_id] = candidate
 		candidate.desired_position = _quantize_vec(candidate.desired_position)
 		candidate.position = candidate.desired_position
-		candidate.velocity = (candidate.position - candidate.start_position) / dt
-
-	_validate_navigation_candidates(candidates, dt)
+		candidate.velocity = (candidate.position - candidate.start_position) / maxf(dt, EPSILON)
 
 	var max_move_distance: float = 0.0
 	var max_half: Vector2 = Vector2.ZERO
@@ -302,49 +321,79 @@ func _resolve_candidates(
 			candidate.unit_id
 		)
 
-	var desired_snapshots: Dictionary[int, Snapshot] = _build_snapshots(candidate_by_id, true)
-	_update_existing_plans(candidate_by_id, desired_snapshots, neighbors_by_id)
-	var conflicts: Array[PairConflict] = _collect_conflicts(candidates, desired_snapshots, neighbors_by_id)
-	_establish_new_plans(conflicts, candidate_by_id)
+	var freedom_by_id: Dictionary[int, int] = {}
+	var target_distance_by_id: Dictionary[int, float] = {}
 
-	var working_snapshots: Dictionary[int, Snapshot] = _build_snapshots(candidate_by_id, true)
+	for candidate: MovementCandidate in candidates:
+		freedom_by_id[candidate.unit_id] = _reservation_map_freedom(candidate, dt)
+		target_distance_by_id[candidate.unit_id] = _reservation_target_distance(candidate)
+
 	var sorted_candidates: Array[MovementCandidate] = candidates.duplicate()
 	sorted_candidates.sort_custom(
 		func(a: MovementCandidate, b: MovementCandidate) -> bool:
+			var a_freedom: int = freedom_by_id[a.unit_id]
+			var b_freedom: int = freedom_by_id[b.unit_id]
+
+			if a_freedom != b_freedom:
+				return a_freedom < b_freedom
+
+			var a_distance: float = target_distance_by_id[a.unit_id]
+			var b_distance: float = target_distance_by_id[b.unit_id]
+
+			if absf(a_distance - b_distance) > EPSILON:
+				return a_distance < b_distance
+
 			if a.priority != b.priority:
 				return a.priority < b.priority
+
 			return a.unit_id < b.unit_id
 	)
 
+	var working_snapshots: Dictionary[int, Snapshot] = _build_current_snapshots()
+
 	for candidate: MovementCandidate in sorted_candidates:
 		var neighbors: Array = neighbors_by_id[candidate.unit_id]
-		var direct_unit_clear: bool = _position_clear_of_units(
+		var direct_map_clear: bool = _map_segment_clear(
+			candidate,
+			candidate.desired_position
+		)
+		var blocker_id: int = _first_unit_blocker(
 			candidate,
 			candidate.desired_position,
 			working_snapshots,
 			neighbors
 		)
+
+		if direct_map_clear and blocker_id < 0:
+			_avoidance_by_unit.erase(candidate.unit_id)
+			_apply_position(
+				candidate,
+				candidate.desired_position,
+				dt,
+				candidate.finish_order
+			)
+			_update_snapshot(working_snapshots, candidate)
+			continue
+
+		_prepare_reservation_plan(
+			candidate,
+			blocker_id,
+			candidate_by_id,
+			dt
+		)
+
 		var near_arrival: bool = _candidate_near_arrival(candidate)
-
-		if near_arrival and direct_unit_clear and not _avoidance_by_unit.has(candidate.unit_id):
-			_apply_position(candidate, candidate.desired_position, dt, candidate.finish_order)
-			_update_snapshot(working_snapshots, candidate)
-			continue
-
-		if direct_unit_clear and not _avoidance_by_unit.has(candidate.unit_id):
-			_apply_position(candidate, candidate.desired_position, dt, candidate.finish_order)
-			_update_snapshot(working_snapshots, candidate)
-			continue
-
+		var restrict_arrival_avoidance: bool = near_arrival and direct_map_clear
 		var resolution: int = _resolve_unit_motion(
 			candidate,
 			working_snapshots,
 			neighbors,
 			dt,
-			near_arrival
+			restrict_arrival_avoidance
 		)
 
 		if resolution == MOTION_MAP_BLOCKED:
+			_avoidance_by_unit.erase(candidate.unit_id)
 			_handle_map_blocked_candidate(candidate, dt)
 			_stop_candidate(candidate, dt)
 		elif resolution != MOTION_RESOLVED:
@@ -352,12 +401,622 @@ func _resolve_candidates(
 
 		_update_snapshot(working_snapshots, candidate)
 
-	_repair_final_conflicts(
-		candidates,
+
+func _reservation_map_freedom(
+	candidate: MovementCandidate,
+	dt: float
+) -> int:
+	var base_direction: Vector2 = _candidate_base_direction(candidate)
+
+	if base_direction == Vector2.ZERO:
+		return 0
+
+	var step_distance: float = candidate.max_step_distance
+
+	if candidate.final_tick:
+		step_distance = candidate.desired_step_distance
+
+	if step_distance <= EPSILON:
+		return 0
+
+	var angles: Array[float] = [
+		0.0,
+		AVOID_MEDIUM_ANGLE,
+		-AVOID_MEDIUM_ANGLE,
+		AVOID_PRIMARY_ANGLE,
+		-AVOID_PRIMARY_ANGLE,
+		AVOID_SIDE_ANGLE,
+		-AVOID_SIDE_ANGLE,
+	]
+	var count: int = 0
+
+	for angle: float in angles:
+		var position: Vector2 = _quantize_vec(
+			candidate.start_position
+			+ base_direction.rotated(angle) * step_distance
+		)
+
+		if _map_segment_clear(candidate, position):
+			count += 1
+
+	return count
+
+
+func _reservation_target_distance(candidate: MovementCandidate) -> float:
+	var target: Vector2 = candidate.target_position
+
+	if target == Vector2.ZERO:
+		target = candidate.desired_position
+
+	return candidate.start_position.distance_squared_to(target)
+
+
+func _first_unit_blocker(
+	candidate: MovementCandidate,
+	position: Vector2,
+	snapshots: Dictionary[int, Snapshot],
+	neighbors: Array
+) -> int:
+	var blocker_id: int = -1
+	var best_distance: float = 1.0e30
+
+	for value: Variant in neighbors:
+		var other_id: int = int(value)
+
+		if not snapshots.has(other_id):
+			continue
+
+		var other: Snapshot = snapshots[other_id]
+
+		if not _rectangles_overlap_strict(
+			position,
+			candidate.half_size,
+			other.position,
+			other.half_size
+		):
+			continue
+
+		var distance: float = position.distance_squared_to(other.position)
+
+		if distance >= best_distance:
+			continue
+
+		best_distance = distance
+		blocker_id = other_id
+
+	return blocker_id
+
+
+func _prepare_reservation_plan(
+	candidate: MovementCandidate,
+	blocker_id: int,
+	candidate_by_id: Dictionary[int, MovementCandidate],
+	dt: float
+) -> void:
+	if blocker_id < 0:
+		_avoidance_by_unit.erase(candidate.unit_id)
+		return
+
+	var side: int = _reservation_preferred_side(
+		candidate,
+		blocker_id,
 		candidate_by_id,
-		neighbors_by_id,
 		dt
 	)
+
+	if _avoidance_by_unit.has(candidate.unit_id):
+		var existing: AvoidancePlan = _avoidance_by_unit[candidate.unit_id]
+
+		if existing.other_id == blocker_id and not existing.corridor_yield and not existing.corridor_follow:
+			existing.side = side
+
+			if absf(existing.selected_angle) <= EPSILON or existing.selected_angle * float(side) < 0.0:
+				existing.selected_angle = AVOID_PRIMARY_ANGLE * float(side)
+
+			existing.age_ticks += 1
+			existing.clear_ticks = 0
+			return
+
+	var plan: AvoidancePlan = AvoidancePlan.new()
+	plan.other_id = blocker_id
+	plan.side = side
+	plan.selected_angle = AVOID_PRIMARY_ANGLE * float(side)
+	plan.age_ticks = 0
+	plan.clear_ticks = 0
+	_avoidance_by_unit[candidate.unit_id] = plan
+
+
+func _reservation_preferred_side(
+	candidate: MovementCandidate,
+	blocker_id: int,
+	candidate_by_id: Dictionary[int, MovementCandidate],
+	dt: float
+) -> int:
+	var base_direction: Vector2 = _candidate_base_direction(candidate)
+
+	if base_direction == Vector2.ZERO:
+		return 1 if candidate.unit_id % 2 == 0 else -1
+
+	var right: Vector2 = Vector2(-base_direction.y, base_direction.x)
+
+	if _units.has(candidate.unit_id):
+		var movement: MovementComponent = _units[candidate.unit_id].movement
+		var previous_velocity: Vector2 = movement.sim_velocity
+		var lateral_speed: float = previous_velocity.dot(right)
+		var lateral_threshold: float = maxf(1.0, movement.move_speed * 0.08)
+
+		if absf(lateral_speed) >= lateral_threshold:
+			var previous_side: int = 1 if lateral_speed > 0.0 else -1
+
+			if _reservation_side_has_map_motion(
+				candidate,
+				base_direction,
+				previous_side,
+				dt
+			):
+				return previous_side
+
+	if _avoidance_by_unit.has(candidate.unit_id):
+		var existing: AvoidancePlan = _avoidance_by_unit[candidate.unit_id]
+
+		if existing.other_id == blocker_id:
+			var existing_side: int = 1 if existing.side >= 0 else -1
+
+			if _reservation_side_has_map_motion(
+				candidate,
+				base_direction,
+				existing_side,
+				dt
+			):
+				return existing_side
+
+	var memory: PairMemory = _get_pair_memory(
+		candidate.unit_id,
+		blocker_id,
+		candidate_by_id
+	)
+	var memory_side: int = memory.low_side if candidate.unit_id == memory.low_id else memory.high_side
+
+	if _reservation_side_has_map_motion(
+		candidate,
+		base_direction,
+		memory_side,
+		dt
+	):
+		return memory_side
+
+	var opposite_side: int = -memory_side
+
+	if _reservation_side_has_map_motion(
+		candidate,
+		base_direction,
+		opposite_side,
+		dt
+	):
+		return opposite_side
+
+	return memory_side
+
+
+func _reservation_side_has_map_motion(
+	candidate: MovementCandidate,
+	base_direction: Vector2,
+	side: int,
+	dt: float
+) -> bool:
+	var step_distance: float = candidate.max_step_distance
+
+	if candidate.final_tick:
+		step_distance = candidate.desired_step_distance
+
+	if step_distance <= EPSILON:
+		return false
+
+	var side_value: float = 1.0 if side >= 0 else -1.0
+	var angles: Array[float] = [
+		AVOID_SMALL_ANGLE,
+		AVOID_MEDIUM_ANGLE,
+		AVOID_PRIMARY_ANGLE,
+		AVOID_LARGE_ANGLE,
+		AVOID_WIDE_ANGLE,
+		AVOID_SIDE_ANGLE,
+		AVOID_REAR_SOFT_ANGLE,
+	]
+
+	for angle: float in angles:
+		for speed_ratio: float in _avoid_speed_ratios():
+			var position: Vector2 = _quantize_vec(
+				candidate.start_position
+				+ base_direction.rotated(angle * side_value)
+				* step_distance
+				* speed_ratio
+			)
+
+			if _map_segment_clear(candidate, position):
+				return true
+
+	return false
+
+func _build_current_snapshots() -> Dictionary[int, Snapshot]:
+	var result: Dictionary[int, Snapshot] = {}
+
+	for unit_id: int in _sorted_unit_ids:
+		var unit: Unit = _units[unit_id]
+		var snapshot: Snapshot = Snapshot.new()
+		snapshot.unit_id = unit_id
+		snapshot.position = unit.position
+		snapshot.half_size = unit.get_half_size()
+		result[unit_id] = snapshot
+
+	return result
+
+
+func _resolve_joint_conflicts(
+	conflicts: Array[PairConflict],
+	candidate_by_id: Dictionary[int, MovementCandidate],
+	working_snapshots: Dictionary[int, Snapshot],
+	neighbors_by_id: Dictionary[int, Array],
+	dt: float
+) -> Dictionary[int, bool]:
+	var resolved: Dictionary[int, bool] = {}
+
+	for _pass: int in range(JOINT_RESOLVE_PASSES):
+		var changed: bool = false
+
+		for conflict: PairConflict in conflicts:
+			if resolved.has(conflict.a_id) or resolved.has(conflict.b_id):
+				continue
+
+			if not candidate_by_id.has(conflict.a_id) or not candidate_by_id.has(conflict.b_id):
+				continue
+
+			if not _candidate_actively_moving(conflict.a_id, candidate_by_id):
+				continue
+
+			if not _candidate_actively_moving(conflict.b_id, candidate_by_id):
+				continue
+
+			if _joint_pair_uses_corridor_yield(conflict):
+				continue
+
+			var a: MovementCandidate = candidate_by_id[conflict.a_id]
+			var b: MovementCandidate = candidate_by_id[conflict.b_id]
+			var a_options: Array[VelocityOption] = _joint_velocity_options(a, dt)
+			var b_options: Array[VelocityOption] = _joint_velocity_options(b, dt)
+
+			if a_options.is_empty() or b_options.is_empty():
+				continue
+
+			var a_freedom: float = float(_joint_map_freedom(a, dt))
+			var b_freedom: float = float(_joint_map_freedom(b, dt))
+			var freedom_total: float = maxf(a_freedom + b_freedom, 1.0)
+			var a_weight: float = 1.0 + JOINT_CONSTRAINED_WEIGHT * (b_freedom / freedom_total)
+			var b_weight: float = 1.0 + JOINT_CONSTRAINED_WEIGHT * (a_freedom / freedom_total)
+			var best_a: VelocityOption = null
+			var best_b: VelocityOption = null
+			var best_score: float = 1.0e30
+
+			for a_option: VelocityOption in a_options:
+				if not _joint_option_clear_of_others(
+					a,
+					a_option.position,
+					working_snapshots,
+					neighbors_by_id[conflict.a_id],
+					conflict.b_id
+				):
+					continue
+
+				for b_option: VelocityOption in b_options:
+					if not _joint_option_clear_of_others(
+						b,
+						b_option.position,
+						working_snapshots,
+						neighbors_by_id[conflict.b_id],
+						conflict.a_id
+					):
+						continue
+
+					if _rectangles_overlap_strict(
+						a_option.position,
+						a.half_size,
+						b_option.position,
+						b.half_size
+					):
+						continue
+
+					var score: float = a_option.score * a_weight + b_option.score * b_weight
+					var relative: Vector2 = a_option.position - b_option.position
+					var normalized_dx: float = absf(relative.x) / maxf(a.half_size.x + b.half_size.x, EPSILON)
+					var normalized_dy: float = absf(relative.y) / maxf(a.half_size.y + b.half_size.y, EPSILON)
+					var clearance: float = maxf(normalized_dx, normalized_dy)
+					score -= minf(clearance, 2.0) * 0.03
+
+					if score < best_score - EPSILON:
+						best_score = score
+						best_a = a_option
+						best_b = b_option
+
+			if best_a == null or best_b == null:
+				continue
+
+			_apply_position(
+				a,
+				best_a.position,
+				dt,
+				_joint_option_finishes(a, best_a)
+			)
+			_apply_position(
+				b,
+				best_b.position,
+				dt,
+				_joint_option_finishes(b, best_b)
+			)
+			_update_joint_plan(a.unit_id, b.unit_id, best_a.angle)
+			_update_joint_plan(b.unit_id, a.unit_id, best_b.angle)
+			_update_snapshot(working_snapshots, a)
+			_update_snapshot(working_snapshots, b)
+			resolved[a.unit_id] = true
+			resolved[b.unit_id] = true
+			changed = true
+
+		if not changed:
+			break
+
+	return resolved
+
+
+func _joint_pair_uses_corridor_yield(conflict: PairConflict) -> bool:
+	if _avoidance_by_unit.has(conflict.a_id):
+		var a_plan: AvoidancePlan = _avoidance_by_unit[conflict.a_id]
+
+		if a_plan.corridor_yield and a_plan.other_id == conflict.b_id:
+			return true
+
+	if _avoidance_by_unit.has(conflict.b_id):
+		var b_plan: AvoidancePlan = _avoidance_by_unit[conflict.b_id]
+
+		if b_plan.corridor_yield and b_plan.other_id == conflict.a_id:
+			return true
+
+	return false
+
+
+func _joint_angles(
+	candidate: MovementCandidate,
+	plan: AvoidancePlan,
+	restrict_arrival: bool
+) -> Array[float]:
+	if plan == null:
+		return _angles_without_plan(candidate.unit_id, restrict_arrival)
+
+	var result: Array[float] = []
+	var used: Dictionary[int, bool] = {}
+	var primary: Array[float] = _angles_for_plan(plan, restrict_arrival)
+	var secondary: Array[float] = _angles_for_side(-plan.side, restrict_arrival)
+
+	for angle: float in primary:
+		var key: int = roundi(angle * 1000000.0)
+
+		if used.has(key):
+			continue
+
+		used[key] = true
+		result.append(angle)
+
+	for angle: float in secondary:
+		var key: int = roundi(angle * 1000000.0)
+
+		if used.has(key):
+			continue
+
+		used[key] = true
+		result.append(angle)
+
+	return result
+
+
+func _joint_map_freedom(
+	candidate: MovementCandidate,
+	dt: float
+) -> int:
+	var base_direction: Vector2 = _candidate_base_direction(candidate)
+
+	if base_direction == Vector2.ZERO:
+		return 0
+
+	var plan: AvoidancePlan = null
+
+	if _avoidance_by_unit.has(candidate.unit_id):
+		plan = _avoidance_by_unit[candidate.unit_id]
+
+	var near_arrival: bool = _candidate_near_arrival(candidate)
+	var direct_map_clear: bool = _map_segment_clear(candidate, candidate.desired_position)
+	var restrict_arrival: bool = near_arrival and direct_map_clear
+	var angles: Array[float] = _joint_angles(candidate, plan, restrict_arrival)
+
+	var ratios: Array[float] = _avoid_speed_ratios()
+	var step_distance: float = candidate.max_step_distance
+
+	if candidate.final_tick and near_arrival:
+		step_distance = candidate.desired_step_distance
+
+	if step_distance <= EPSILON:
+		return 0
+
+	var count: int = 0
+
+	for angle: float in angles:
+		var direction: Vector2 = base_direction.rotated(angle)
+
+		for ratio: float in ratios:
+			var position: Vector2 = _quantize_vec(
+				candidate.start_position
+				+ direction * step_distance * ratio
+			)
+
+			if restrict_arrival and not _makes_arrival_progress(candidate, position):
+				continue
+
+			if _map_segment_clear(candidate, position):
+				count += 1
+
+	return count
+
+
+func _joint_velocity_options(
+	candidate: MovementCandidate,
+	dt: float
+) -> Array[VelocityOption]:
+	var result: Array[VelocityOption] = []
+	var base_direction: Vector2 = _candidate_base_direction(candidate)
+
+	if base_direction == Vector2.ZERO:
+		return result
+
+	var plan: AvoidancePlan = null
+
+	if _avoidance_by_unit.has(candidate.unit_id):
+		plan = _avoidance_by_unit[candidate.unit_id]
+
+	var near_arrival: bool = _candidate_near_arrival(candidate)
+	var direct_map_clear: bool = _map_segment_clear(candidate, candidate.desired_position)
+	var restrict_arrival: bool = near_arrival and direct_map_clear
+	var angles: Array[float] = _joint_angles(candidate, plan, restrict_arrival)
+
+	var ratios: Array[float] = _avoid_speed_ratios()
+	var step_distance: float = candidate.max_step_distance
+
+	if candidate.final_tick and near_arrival:
+		step_distance = candidate.desired_step_distance
+
+	if step_distance <= EPSILON:
+		return result
+
+	var preferred_speed: float = step_distance / maxf(dt, EPSILON)
+	var preferred_velocity: Vector2 = base_direction * preferred_speed
+	var previous_velocity: Vector2 = Vector2.ZERO
+
+	if _units.has(candidate.unit_id):
+		previous_velocity = _units[candidate.unit_id].movement.sim_velocity
+
+	for angle: float in angles:
+		var direction: Vector2 = base_direction.rotated(angle)
+
+		for ratio: float in ratios:
+			var position: Vector2 = _quantize_vec(
+				candidate.start_position
+				+ direction * step_distance * ratio
+			)
+
+			if restrict_arrival and not _makes_arrival_progress(candidate, position):
+				continue
+
+			if not _map_segment_clear(candidate, position):
+				continue
+
+			var option: VelocityOption = VelocityOption.new()
+			option.position = position
+			option.velocity = (position - candidate.start_position) / maxf(dt, EPSILON)
+			option.angle = angle
+			option.speed_ratio = ratio
+			option.score = _velocity_candidate_score(
+				candidate,
+				option.velocity,
+				preferred_velocity,
+				previous_velocity,
+				angle,
+				ratio,
+				plan
+			)
+			result.append(option)
+
+	result.sort_custom(
+		func(a: VelocityOption, b: VelocityOption) -> bool:
+			if absf(a.score - b.score) > EPSILON:
+				return a.score < b.score
+
+			if absf(a.angle - b.angle) > EPSILON:
+				return absf(a.angle) < absf(b.angle)
+
+			return a.speed_ratio > b.speed_ratio
+	)
+
+	if result.size() > JOINT_OPTION_LIMIT:
+		result.resize(JOINT_OPTION_LIMIT)
+
+	return result
+
+
+func _joint_option_clear_of_others(
+	candidate: MovementCandidate,
+	position: Vector2,
+	snapshots: Dictionary[int, Snapshot],
+	neighbors: Array,
+	exclude_id: int
+) -> bool:
+	for value: Variant in neighbors:
+		var other_id: int = int(value)
+
+		if other_id == exclude_id:
+			continue
+
+		if not snapshots.has(other_id):
+			continue
+
+		var other: Snapshot = snapshots[other_id]
+
+		if _rectangles_overlap_strict(
+			position,
+			candidate.half_size,
+			other.position,
+			other.half_size
+		):
+			return false
+
+	return true
+
+
+func _joint_option_finishes(
+	candidate: MovementCandidate,
+	option: VelocityOption
+) -> bool:
+	return (
+		candidate.finish_order
+		and absf(option.angle) <= EPSILON
+		and option.speed_ratio >= 1.0 - EPSILON
+		and option.position.distance_squared_to(candidate.desired_position) <= EPSILON
+	)
+
+
+func _update_joint_plan(
+	unit_id: int,
+	other_id: int,
+	angle: float
+) -> void:
+	if not _avoidance_by_unit.has(unit_id):
+		return
+
+	var plan: AvoidancePlan = _avoidance_by_unit[unit_id]
+
+	if plan.other_id != other_id:
+		return
+
+	if absf(angle) > EPSILON:
+		plan.side = 1 if angle > 0.0 else -1
+		plan.selected_angle = angle
+		_set_pair_memory_side(unit_id, other_id, plan.side)
+
+
+func _resolution_order_rank(unit_id: int) -> int:
+	if not _avoidance_by_unit.has(unit_id):
+		return 1
+
+	var plan: AvoidancePlan = _avoidance_by_unit[unit_id]
+
+	if plan.corridor_follow or plan.corridor_yield:
+		return 0
+
+	return 1
 
 
 func _handle_map_blocked_candidate(
@@ -382,10 +1041,7 @@ func _validate_navigation_candidates(
 		if _map_segment_clear(candidate, candidate.desired_position):
 			continue
 
-		if _repath_candidate(candidate, dt):
-			continue
-
-		_stop_candidate_desire(candidate, dt)
+		_repath_candidate(candidate, dt)
 
 
 func _repath_candidate(
@@ -506,10 +1162,18 @@ func _update_existing_plans(
 			remove_ids.append(unit_id)
 			continue
 
-		if plan.corridor_follow:
-			if not _corridor_follow_plan_valid(unit_id, plan, candidate_by_id):
+		if plan.corridor_yield:
+			if plan.corridor_merge_yield:
+				remove_ids.append(unit_id)
+				continue
+
+			if not _corridor_yield_plan_valid(unit_id, plan, candidate_by_id):
 				remove_ids.append(unit_id)
 
+			continue
+
+		if plan.corridor_follow:
+			remove_ids.append(unit_id)
 			continue
 
 		if plan.static_blocker and _candidate_actively_moving(plan.other_id, candidate_by_id):
@@ -562,6 +1226,43 @@ func _update_existing_plans(
 	for unit_id: int in remove_ids:
 		_avoidance_by_unit.erase(unit_id)
 
+func _corridor_yield_plan_valid(
+	unit_id: int,
+	plan: AvoidancePlan,
+	candidate_by_id: Dictionary[int, MovementCandidate]
+) -> bool:
+	if not candidate_by_id.has(unit_id) or not candidate_by_id.has(plan.other_id):
+		return false
+
+	var yielder: MovementCandidate = candidate_by_id[unit_id]
+	var other: MovementCandidate = candidate_by_id[plan.other_id]
+	var forward: Vector2 = plan.pass_direction.normalized()
+
+	if forward == Vector2.ZERO:
+		return false
+
+	if _lateral_passing_space_available(yielder, other, forward):
+		return false
+
+	var other_direction: Vector2 = _candidate_base_direction(other)
+
+	if other_direction != Vector2.ZERO and forward.dot(other_direction) > -0.25:
+		return false
+
+	var relative: Vector2 = other.start_position - yielder.start_position
+	var forward_gap: float = relative.dot(forward)
+	var release_gap: float = (
+		_aabb_support(yielder.half_size, forward)
+		+ _aabb_support(other.half_size, forward)
+		+ PLAN_SEPARATION_MARGIN
+	)
+
+	if forward_gap < -release_gap:
+		return false
+
+	return true
+
+
 func _corridor_follow_plan_valid(
 	unit_id: int,
 	plan: AvoidancePlan,
@@ -572,38 +1273,75 @@ func _corridor_follow_plan_valid(
 
 	var follower: MovementCandidate = candidate_by_id[unit_id]
 	var leader: MovementCandidate = candidate_by_id[plan.other_id]
-	var direction: Vector2 = _candidate_base_direction(follower)
+	var direction: Vector2 = plan.pass_direction.normalized()
+
+	if direction == Vector2.ZERO:
+		direction = _candidate_base_direction(follower)
 
 	if direction == Vector2.ZERO:
 		return false
 
+	var follower_direction: Vector2 = _candidate_base_direction(follower)
 	var leader_direction: Vector2 = _candidate_base_direction(leader)
 
 	if (
-		_candidate_actively_moving(plan.other_id, candidate_by_id)
+		follower_direction != Vector2.ZERO
 		and leader_direction != Vector2.ZERO
-		and direction.dot(leader_direction) < CORRIDOR_DIRECTION_DOT
+		and follower_direction.dot(leader_direction) < CORRIDOR_DIRECTION_DOT
 	):
-		return false
-
-	var forward_gap: float = (leader.start_position - follower.start_position).dot(direction)
-
-	if forward_gap <= CORRIDOR_MIN_FORWARD_GAP:
 		return false
 
 	if _lateral_passing_space_available(follower, leader, direction):
 		return false
 
+	if _lateral_passing_space_available(leader, follower, direction):
+		return false
+
+	var forward_gap: float = (leader.start_position - follower.start_position).dot(direction)
 	var follower_forward: float = _aabb_support(follower.half_size, direction)
 	var leader_forward: float = _aabb_support(leader.half_size, direction)
+	var queue_gap: float = follower_forward + leader_forward + CORRIDOR_QUEUE_GAP
 	var release_gap: float = (
-		follower_forward
-		+ leader_forward
+		queue_gap
 		+ follower.max_step_distance * CORRIDOR_RELEASE_STEPS
 		+ PLAN_SEPARATION_MARGIN
 	)
 
+	if forward_gap < -queue_gap:
+		return false
+
 	if forward_gap > release_gap:
+		return false
+
+	return true
+
+func _corridor_merge_yield_plan_valid(
+	unit_id: int,
+	plan: AvoidancePlan,
+	candidate_by_id: Dictionary[int, MovementCandidate]
+) -> bool:
+	if not candidate_by_id.has(unit_id) or not candidate_by_id.has(plan.other_id):
+		return false
+
+	var yielder: MovementCandidate = candidate_by_id[unit_id]
+	var leader: MovementCandidate = candidate_by_id[plan.other_id]
+	var forward: Vector2 = plan.pass_direction.normalized()
+
+	if forward == Vector2.ZERO:
+		forward = _candidate_base_direction(yielder)
+
+	if forward == Vector2.ZERO:
+		return false
+
+	var forward_gap: float = (leader.start_position - yielder.start_position).dot(forward)
+	var required_gap: float = (
+		_aabb_support(yielder.half_size, forward)
+		+ _aabb_support(leader.half_size, forward)
+		+ CORRIDOR_QUEUE_GAP
+		+ yielder.max_step_distance * CORRIDOR_MERGE_RELEASE_STEPS
+	)
+
+	if forward_gap >= required_gap:
 		return false
 
 	return true
@@ -668,27 +1406,28 @@ func _establish_new_plans(
 		if not a_moving and not b_moving:
 			continue
 
-		var corridor_follower: int = _corridor_follow_follower(
+		var corridor_yielder: int = _corridor_opposing_yielder(
 			conflict.a_id,
 			conflict.b_id,
 			candidate_by_id
 		)
 
-		if corridor_follower >= 0:
-			var corridor_leader: int = conflict.b_id if corridor_follower == conflict.a_id else conflict.a_id
+		if corridor_yielder >= 0:
+			var corridor_winner: int = conflict.b_id if corridor_yielder == conflict.a_id else conflict.a_id
 
-			if _avoidance_by_unit.has(corridor_leader):
-				var leader_plan: AvoidancePlan = _avoidance_by_unit[corridor_leader]
+			if _avoidance_by_unit.has(corridor_winner):
+				var winner_plan: AvoidancePlan = _avoidance_by_unit[corridor_winner]
 
-				if leader_plan.other_id == corridor_follower:
-					_avoidance_by_unit.erase(corridor_leader)
+				if winner_plan.other_id == corridor_yielder:
+					_avoidance_by_unit.erase(corridor_winner)
 
-			if candidate_by_id.has(corridor_follower):
-				var follow_plan: AvoidancePlan = AvoidancePlan.new()
-				follow_plan.other_id = corridor_leader
-				follow_plan.selected_angle = 0.0
-				follow_plan.corridor_follow = true
-				_avoidance_by_unit[corridor_follower] = follow_plan
+			if candidate_by_id.has(corridor_yielder):
+				var yield_plan: AvoidancePlan = AvoidancePlan.new()
+				yield_plan.other_id = corridor_winner
+				yield_plan.corridor_yield = true
+				yield_plan.pass_direction = _candidate_base_direction(candidate_by_id[corridor_yielder])
+				yield_plan.selected_angle = PI
+				_avoidance_by_unit[corridor_yielder] = yield_plan
 
 			continue
 
@@ -717,6 +1456,131 @@ func _establish_new_plans(
 				a_moving
 			)
 			_avoidance_by_unit[conflict.b_id] = plan_b
+
+func _corridor_opposing_yielder(
+	a_id: int,
+	b_id: int,
+	candidate_by_id: Dictionary[int, MovementCandidate]
+) -> int:
+	if not candidate_by_id.has(a_id) or not candidate_by_id.has(b_id):
+		return -1
+
+	if not _candidate_actively_moving(a_id, candidate_by_id):
+		return -1
+
+	if not _candidate_actively_moving(b_id, candidate_by_id):
+		return -1
+
+	var a: MovementCandidate = candidate_by_id[a_id]
+	var b: MovementCandidate = candidate_by_id[b_id]
+	var a_direction: Vector2 = _candidate_base_direction(a)
+	var b_direction: Vector2 = _candidate_base_direction(b)
+
+	if a_direction == Vector2.ZERO or b_direction == Vector2.ZERO:
+		return -1
+
+	if a_direction.dot(b_direction) > -0.25:
+		return -1
+
+	if _lateral_passing_space_available(a, b, a_direction):
+		return -1
+
+	if _lateral_passing_space_available(b, a, b_direction):
+		return -1
+
+	var a_can_back: bool = _candidate_can_back_up(a, a_direction)
+	var b_can_back: bool = _candidate_can_back_up(b, b_direction)
+
+	if a_can_back and not b_can_back:
+		return a_id
+
+	if b_can_back and not a_can_back:
+		return b_id
+
+	if not a_can_back and not b_can_back:
+		return -1
+
+	if a.priority != b.priority:
+		return a_id if a.priority > b.priority else b_id
+
+	return maxi(a_id, b_id)
+
+
+func _candidate_can_back_up(
+	candidate: MovementCandidate,
+	forward: Vector2
+) -> bool:
+	var direction: Vector2 = forward.normalized()
+
+	if direction == Vector2.ZERO:
+		return false
+
+	var distance: float = maxf(candidate.max_step_distance, 1.0)
+	var target: Vector2 = candidate.start_position - direction * distance
+
+	return navigation_service.segment_clear(
+		candidate.start_position,
+		target,
+		candidate.half_size
+	)
+
+
+func _corridor_merge_yielder(
+	a_id: int,
+	b_id: int,
+	candidate_by_id: Dictionary[int, MovementCandidate]
+) -> int:
+	if not candidate_by_id.has(a_id) or not candidate_by_id.has(b_id):
+		return -1
+
+	if not _candidate_actively_moving(a_id, candidate_by_id):
+		return -1
+
+	if not _candidate_actively_moving(b_id, candidate_by_id):
+		return -1
+
+	var a: MovementCandidate = candidate_by_id[a_id]
+	var b: MovementCandidate = candidate_by_id[b_id]
+	var a_direction: Vector2 = _candidate_base_direction(a)
+	var b_direction: Vector2 = _candidate_base_direction(b)
+
+	if a_direction == Vector2.ZERO or b_direction == Vector2.ZERO:
+		return -1
+
+	if a_direction.dot(b_direction) < CORRIDOR_DIRECTION_DOT:
+		return -1
+
+	var forward: Vector2 = (a_direction + b_direction).normalized()
+
+	if forward == Vector2.ZERO:
+		forward = a_direction
+
+	var separation: float = (b.start_position - a.start_position).dot(forward)
+
+	if absf(separation) > CORRIDOR_MERGE_FORWARD_TOLERANCE:
+		return -1
+
+	if _lateral_passing_space_available(a, b, forward):
+		return -1
+
+	if _lateral_passing_space_available(b, a, forward):
+		return -1
+
+	var preferred_yielder: int = maxi(a_id, b_id)
+
+	if a.priority != b.priority:
+		preferred_yielder = a_id if a.priority > b.priority else b_id
+
+	if _candidate_can_back_up(candidate_by_id[preferred_yielder], forward):
+		return preferred_yielder
+
+	var other_yielder: int = b_id if preferred_yielder == a_id else a_id
+
+	if _candidate_can_back_up(candidate_by_id[other_yielder], forward):
+		return other_yielder
+
+	return -1
+
 
 func _corridor_follow_follower(
 	a_id: int,
@@ -751,15 +1615,16 @@ func _corridor_follow_follower(
 
 		var separation: float = (b.start_position - a.start_position).dot(forward)
 
-		if absf(separation) <= CORRIDOR_MIN_FORWARD_GAP:
+		if absf(separation) <= CORRIDOR_MERGE_FORWARD_TOLERANCE:
+			return -1
+
+		if _lateral_passing_space_available(a, b, forward):
+			return -1
+
+		if _lateral_passing_space_available(b, a, forward):
 			return -1
 
 		var follower: MovementCandidate = a if separation > 0.0 else b
-		var leader: MovementCandidate = b if separation > 0.0 else a
-
-		if _lateral_passing_space_available(follower, leader, forward):
-			return -1
-
 		return follower.unit_id
 
 	var moving: MovementCandidate = a if a_moving else b
@@ -779,6 +1644,27 @@ func _corridor_follow_follower(
 
 	return moving.unit_id
 
+func _corridor_pair_forward(
+	follower: MovementCandidate,
+	leader: MovementCandidate
+) -> Vector2:
+	var follower_direction: Vector2 = _candidate_base_direction(follower)
+	var leader_direction: Vector2 = _candidate_base_direction(leader)
+
+	if follower_direction != Vector2.ZERO and leader_direction != Vector2.ZERO:
+		var combined: Vector2 = follower_direction + leader_direction
+
+		if combined.length_squared() > EPSILON:
+			return combined.normalized()
+
+	if leader_direction != Vector2.ZERO:
+		return leader_direction
+
+	if follower_direction != Vector2.ZERO:
+		return follower_direction
+
+	return Vector2.ZERO
+
 
 func _lateral_passing_space_available(
 	follower: MovementCandidate,
@@ -791,20 +1677,31 @@ func _lateral_passing_space_available(
 		return true
 
 	var right: Vector2 = Vector2(-direction.y, direction.x)
-	var follower_support: float = _aabb_support(follower.half_size, right)
-	var leader_support: float = _aabb_support(leader.half_size, right)
-	var lateral_shift: float = follower_support + leader_support + CORRIDOR_PASS_MARGIN
-	var forward_gap: float = maxf(
+	var follower_lateral: float = _aabb_support(follower.half_size, right)
+	var leader_lateral: float = _aabb_support(leader.half_size, right)
+	var follower_forward: float = _aabb_support(follower.half_size, direction)
+	var leader_forward: float = _aabb_support(leader.half_size, direction)
+	var lateral_shift: float = follower_lateral + leader_lateral + CORRIDOR_PASS_MARGIN
+	var current_forward_gap: float = maxf(
 		0.0,
 		(leader.start_position - follower.start_position).dot(direction)
 	)
+	var gate_probe_distance: float = (
+		follower_forward
+		+ leader_forward
+		+ CORRIDOR_GATE_PROBE_MARGIN
+	)
+	var forward_probe: float = maxf(current_forward_gap, gate_probe_distance)
 
 	for side: float in [-1.0, 1.0]:
 		var target: Vector2 = (
 			follower.start_position
-			+ direction * forward_gap
+			+ direction * forward_probe
 			+ right * lateral_shift * side
 		)
+
+		if not navigation_service.can_place_static(target, follower.half_size):
+			continue
 
 		if navigation_service.segment_clear(
 			follower.start_position,
@@ -814,7 +1711,6 @@ func _lateral_passing_space_available(
 			return true
 
 	return false
-
 
 func _candidate_actively_moving(
 	unit_id: int,
@@ -1144,6 +2040,16 @@ func _resolve_unit_motion(
 	if step_distance <= EPSILON:
 		return MOTION_BLOCKED
 
+	if plan != null and plan.corridor_yield:
+		return _resolve_corridor_yield_motion(
+			candidate,
+			plan,
+			step_distance,
+			working_snapshots,
+			neighbors,
+			dt
+		)
+
 	if plan != null and plan.corridor_follow:
 		return _resolve_corridor_follow_motion(
 			candidate,
@@ -1175,6 +2081,7 @@ func _resolve_unit_motion(
 	var best_ratio: float = 0.0
 	var best_finish: bool = false
 	var map_blocked_candidate_found: bool = false
+	var map_clear_candidate_found: bool = false
 
 	for set_index: int in range(all_angle_sets.size()):
 		var angles: Array[float] = all_angle_sets[set_index]
@@ -1191,16 +2098,18 @@ func _resolve_unit_motion(
 				if near_arrival and not _makes_arrival_progress(candidate, position):
 					continue
 
+				if not _map_segment_clear(candidate, position):
+					map_blocked_candidate_found = true
+					continue
+
+				map_clear_candidate_found = true
+
 				if not _position_clear_of_units(
 					candidate,
 					position,
 					working_snapshots,
 					neighbors
 				):
-					continue
-
-				if not _map_segment_clear(candidate, position):
-					map_blocked_candidate_found = true
 					continue
 
 				var velocity: Vector2 = (position - candidate.start_position) / maxf(dt, EPSILON)
@@ -1232,6 +2141,9 @@ func _resolve_unit_motion(
 				)
 
 	if best_ratio <= EPSILON:
+		if map_clear_candidate_found:
+			return MOTION_BLOCKED
+
 		if map_blocked_candidate_found:
 			return MOTION_MAP_BLOCKED
 
@@ -1252,6 +2164,48 @@ func _resolve_unit_motion(
 	return MOTION_RESOLVED
 
 
+func _resolve_corridor_yield_motion(
+	candidate: MovementCandidate,
+	plan: AvoidancePlan,
+	step_distance: float,
+	working_snapshots: Dictionary[int, Snapshot],
+	neighbors: Array,
+	dt: float
+) -> int:
+	var forward: Vector2 = plan.pass_direction.normalized()
+
+	if forward == Vector2.ZERO:
+		forward = _candidate_base_direction(candidate)
+
+	if forward == Vector2.ZERO:
+		return MOTION_BLOCKED
+
+	var reverse_direction: Vector2 = -forward
+
+	for speed_ratio: float in _avoid_speed_ratios():
+		var position: Vector2 = _quantize_vec(
+			candidate.start_position
+			+ reverse_direction * step_distance * speed_ratio
+		)
+
+		if not _position_clear_of_units(
+			candidate,
+			position,
+			working_snapshots,
+			neighbors
+		):
+			continue
+
+		if not _map_segment_clear(candidate, position):
+			continue
+
+		_apply_position(candidate, position, dt, false)
+		plan.selected_angle = PI
+		return MOTION_RESOLVED
+
+	return MOTION_BLOCKED
+
+
 func _resolve_corridor_follow_motion(
 	candidate: MovementCandidate,
 	plan: AvoidancePlan,
@@ -1262,12 +2216,66 @@ func _resolve_corridor_follow_motion(
 	dt: float,
 	near_arrival: bool
 ) -> int:
+	if not working_snapshots.has(plan.other_id):
+		return MOTION_BLOCKED
+
+	var forward: Vector2 = plan.pass_direction.normalized()
+
+	if forward == Vector2.ZERO:
+		forward = base_direction.normalized()
+
+	if forward == Vector2.ZERO:
+		return MOTION_BLOCKED
+
+	var leader: Snapshot = working_snapshots[plan.other_id]
+	var follower_forward: float = _aabb_support(candidate.half_size, forward)
+	var leader_forward: float = _aabb_support(leader.half_size, forward)
+	var required_gap: float = follower_forward + leader_forward + CORRIDOR_QUEUE_GAP
+	var forward_gap: float = (leader.position - candidate.start_position).dot(forward)
+
+	if forward_gap < required_gap - EPSILON:
+		var needed_back: float = required_gap - forward_gap
+		var reverse_distance: float = minf(step_distance, needed_back)
+
+		for speed_ratio: float in _avoid_speed_ratios():
+			var move_distance: float = reverse_distance * speed_ratio
+
+			if move_distance <= EPSILON:
+				continue
+
+			var position: Vector2 = _quantize_vec(
+				candidate.start_position - forward * move_distance
+			)
+
+			if not _position_clear_of_units(
+				candidate,
+				position,
+				working_snapshots,
+				neighbors
+			):
+				continue
+
+			if not _map_segment_clear(candidate, position):
+				continue
+
+			_apply_position(candidate, position, dt, false)
+			plan.selected_angle = PI
+			return MOTION_RESOLVED
+
+		return MOTION_BLOCKED
+
+	var available_forward: float = maxf(0.0, forward_gap - required_gap)
 	var map_blocked: bool = false
 
 	for speed_ratio: float in _avoid_speed_ratios():
+		var delta: Vector2 = base_direction * step_distance * speed_ratio
+		var projected_advance: float = delta.dot(forward)
+
+		if projected_advance > available_forward + EPSILON:
+			continue
+
 		var position: Vector2 = _quantize_vec(
-			candidate.start_position
-			+ base_direction * step_distance * speed_ratio
+			candidate.start_position + delta
 		)
 
 		if near_arrival and not _makes_arrival_progress(candidate, position):
@@ -1387,6 +2395,10 @@ func _angles_for_plan(plan: AvoidancePlan, near_arrival: bool) -> Array[float]:
 	_append_angle(result, used, AVOID_LARGE_ANGLE * side, near_arrival)
 	_append_angle(result, used, AVOID_WIDE_ANGLE * side, near_arrival)
 	_append_angle(result, used, AVOID_SIDE_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_SOFT_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_WIDE_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REVERSE_ANGLE, near_arrival)
 	return result
 
 
@@ -1400,6 +2412,10 @@ func _angles_for_side(side_value: int, near_arrival: bool) -> Array[float]:
 	_append_angle(result, used, AVOID_WIDE_ANGLE * side, near_arrival)
 	_append_angle(result, used, AVOID_SMALL_ANGLE * side, near_arrival)
 	_append_angle(result, used, AVOID_SIDE_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_SOFT_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_WIDE_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REVERSE_ANGLE, near_arrival)
 	return result
 
 
@@ -1416,6 +2432,13 @@ func _angles_without_plan(unit_id: int, near_arrival: bool) -> Array[float]:
 	_append_angle(result, used, -AVOID_LARGE_ANGLE * side, near_arrival)
 	_append_angle(result, used, AVOID_SIDE_ANGLE * side, near_arrival)
 	_append_angle(result, used, -AVOID_SIDE_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_SOFT_ANGLE * side, near_arrival)
+	_append_angle(result, used, -AVOID_REAR_SOFT_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, near_arrival)
+	_append_angle(result, used, -AVOID_REAR_MEDIUM_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REAR_WIDE_ANGLE * side, near_arrival)
+	_append_angle(result, used, -AVOID_REAR_WIDE_ANGLE * side, near_arrival)
+	_append_angle(result, used, AVOID_REVERSE_ANGLE, near_arrival)
 	return result
 
 
@@ -1439,8 +2462,8 @@ func _append_angle(
 
 func _avoid_speed_ratios() -> Array[float]:
 	var result: Array[float] = []
-	var minimum: float = clampf(min_avoid_speed_ratio, 0.05, 1.0)
-	var step: float = clampf(avoid_speed_step, 0.05, 0.5)
+	var minimum: float = clampf(min_avoid_speed_ratio, 0.9, 1.0)
+	var step: float = 0.1
 	var ratio: float = 1.0
 
 	while ratio > minimum + EPSILON:
@@ -1515,12 +2538,6 @@ func _position_clear_of_units(
 
 		if not snapshots.has(other_id):
 			continue
-
-		if _avoidance_by_unit.has(other_id):
-			var other_plan: AvoidancePlan = _avoidance_by_unit[other_id]
-
-			if other_plan.corridor_follow and other_plan.other_id == candidate.unit_id:
-				continue
 
 		var other: Snapshot = snapshots[other_id]
 
@@ -1750,13 +2767,13 @@ func _choose_conflict_loser(
 	if _avoidance_by_unit.has(conflict.a_id):
 		var a_plan: AvoidancePlan = _avoidance_by_unit[conflict.a_id]
 
-		if a_plan.corridor_follow and a_plan.other_id == conflict.b_id:
+		if (a_plan.corridor_follow or a_plan.corridor_yield) and a_plan.other_id == conflict.b_id:
 			return conflict.a_id
 
 	if _avoidance_by_unit.has(conflict.b_id):
 		var b_plan: AvoidancePlan = _avoidance_by_unit[conflict.b_id]
 
-		if b_plan.corridor_follow and b_plan.other_id == conflict.a_id:
+		if (b_plan.corridor_follow or b_plan.corridor_yield) and b_plan.other_id == conflict.a_id:
 			return conflict.b_id
 
 	var a_moving: bool = candidate_by_id.has(conflict.a_id)

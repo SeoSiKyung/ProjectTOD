@@ -9,6 +9,7 @@ const SQRT_2: float = 1.41421356237
 
 
 @export var navigation_data: NavigationData
+@export_range(0.0, 2.0, 0.05) var static_contact_slop: float = 1.0
 
 
 var _navigation_ready: bool = false
@@ -214,106 +215,59 @@ func can_place_static(
 	center: Vector2,
 	half_size: Vector2
 ) -> bool:
-	var world_end: Vector2 = (
-		_world_rect.position
-		+ _world_rect.size
+	return _can_place_static_with_half(
+		center,
+		_static_half_size(half_size)
 	)
 
-	var rect_min: Vector2 = (
-		center - half_size
+
+func _static_half_size(half_size: Vector2) -> Vector2:
+	var slop: float = maxf(static_contact_slop, 0.0)
+
+	return Vector2(
+		maxf(0.0, half_size.x - slop),
+		maxf(0.0, half_size.y - slop)
 	)
 
-	var rect_max: Vector2 = (
-		center + half_size
-	)
 
-	if (
-		rect_min.x
-		< _world_rect.position.x - EPSILON
-	):
+func _can_place_static_with_half(
+	center: Vector2,
+	half_size: Vector2
+) -> bool:
+	var world_end: Vector2 = _world_rect.position + _world_rect.size
+	var rect_min: Vector2 = center - half_size
+	var rect_max: Vector2 = center + half_size
+
+	if rect_min.x < _world_rect.position.x - EPSILON:
 		return false
 
-	if (
-		rect_min.y
-		< _world_rect.position.y - EPSILON
-	):
+	if rect_min.y < _world_rect.position.y - EPSILON:
 		return false
 
-	if (
-		rect_max.x
-		> world_end.x + EPSILON
-	):
+	if rect_max.x > world_end.x + EPSILON:
 		return false
 
-	if (
-		rect_max.y
-		> world_end.y + EPSILON
-	):
+	if rect_max.y > world_end.y + EPSILON:
 		return false
 
-	var local_min: Vector2 = (
-		rect_min
-		- _world_rect.position
-	)
+	var local_min: Vector2 = rect_min - _world_rect.position
+	var local_max: Vector2 = rect_max - _world_rect.position
+	var min_x: int = floori((local_min.x + EPSILON) / _nav_cell_size)
+	var min_y: int = floori((local_min.y + EPSILON) / _nav_cell_size)
+	var max_x: int = floori((local_max.x - EPSILON) / _nav_cell_size)
+	var max_y: int = floori((local_max.y - EPSILON) / _nav_cell_size)
 
-	var local_max: Vector2 = (
-		rect_max
-		- _world_rect.position
-	)
+	min_x = clampi(min_x, 0, _grid_width - 1)
+	min_y = clampi(min_y, 0, _grid_height - 1)
+	max_x = clampi(max_x, 0, _grid_width - 1)
+	max_y = clampi(max_y, 0, _grid_height - 1)
 
-	var min_x: int = floori(
-		(local_min.x + EPSILON)
-		/ _nav_cell_size
-	)
-
-	var min_y: int = floori(
-		(local_min.y + EPSILON)
-		/ _nav_cell_size
-	)
-
-	var max_x: int = floori(
-		(local_max.x - EPSILON)
-		/ _nav_cell_size
-	)
-
-	var max_y: int = floori(
-		(local_max.y - EPSILON)
-		/ _nav_cell_size
-	)
-
-	min_x = clampi(
+	return _prefix_rect_count(
 		min_x,
-		0,
-		_grid_width - 1
-	)
-
-	min_y = clampi(
 		min_y,
-		0,
-		_grid_height - 1
-	)
-
-	max_x = clampi(
-		max_x,
-		0,
-		_grid_width - 1
-	)
-
-	max_y = clampi(
-		max_y,
-		0,
-		_grid_height - 1
-	)
-
-	return (
-		_prefix_rect_count(
-			min_x,
-			min_y,
-			max_x + 1,
-			max_y + 1
-		)
-		== 0
-	)
+		max_x + 1,
+		max_y + 1
+	) == 0
 
 
 func nearest_placeable_point(
@@ -1035,98 +989,100 @@ func _segment_static_clear(
 	end: Vector2,
 	half_size: Vector2
 ) -> bool:
-	if not can_place_static(
-		start,
-		half_size
-	):
+	var static_half: Vector2 = _static_half_size(half_size)
+	var start_valid: bool = _can_place_static_with_half(start, static_half)
+	var end_valid: bool = _can_place_static_with_half(end, static_half)
+
+	if not end_valid:
 		return false
 
-	if not can_place_static(
+	if not start_valid:
+		return _segment_static_clear_recovering(
+			start,
+			end,
+			static_half
+		)
+
+	return _segment_static_clear_valid_start(
+		start,
+		end,
+		static_half
+	)
+
+
+func _segment_static_clear_recovering(
+	start: Vector2,
+	end: Vector2,
+	half_size: Vector2
+) -> bool:
+	var delta: Vector2 = end - start
+
+	if delta.length_squared() <= EPSILON:
+		return false
+
+	var recovery_limit: float = maxf(
+		_nav_cell_size * 0.5,
+		maxf(static_contact_slop, 0.0) * 4.0
+	)
+
+	if delta.length() > recovery_limit + EPSILON:
+		return false
+
+	var first_valid: Vector2 = end
+	var found_valid: bool = false
+
+	for step: int in range(1, 9):
+		var t: float = float(step) / 8.0
+		var point: Vector2 = start.lerp(end, t)
+
+		if _can_place_static_with_half(point, half_size):
+			first_valid = point
+			found_valid = true
+			break
+
+	if not found_valid:
+		return false
+
+	return _segment_static_clear_valid_start(
+		first_valid,
 		end,
 		half_size
-	):
-		return false
-
-	var broad_min: Vector2 = (
-		Vector2(
-			minf(start.x, end.x),
-			minf(start.y, end.y)
-		)
-		- half_size
 	)
 
-	var broad_max: Vector2 = (
-		Vector2(
-			maxf(start.x, end.x),
-			maxf(start.y, end.y)
-		)
-		+ half_size
-	)
 
-	var min_cell: Vector2i = (
-		_world_to_cell_floor(
-			broad_min
-		)
-	)
+func _segment_static_clear_valid_start(
+	start: Vector2,
+	end: Vector2,
+	half_size: Vector2
+) -> bool:
+	var broad_min: Vector2 = Vector2(
+		minf(start.x, end.x),
+		minf(start.y, end.y)
+	) - half_size
 
-	var max_cell: Vector2i = (
-		_world_to_cell_floor(
-			broad_max
-		)
-	)
+	var broad_max: Vector2 = Vector2(
+		maxf(start.x, end.x),
+		maxf(start.y, end.y)
+	) + half_size
 
-	min_cell.x = clampi(
-		min_cell.x,
-		0,
-		_grid_width - 1
-	)
+	var min_cell: Vector2i = _world_to_cell_floor(broad_min)
+	var max_cell: Vector2i = _world_to_cell_floor(broad_max)
 
-	min_cell.y = clampi(
-		min_cell.y,
-		0,
-		_grid_height - 1
-	)
+	min_cell.x = clampi(min_cell.x, 0, _grid_width - 1)
+	min_cell.y = clampi(min_cell.y, 0, _grid_height - 1)
+	max_cell.x = clampi(max_cell.x, 0, _grid_width - 1)
+	max_cell.y = clampi(max_cell.y, 0, _grid_height - 1)
 
-	max_cell.x = clampi(
-		max_cell.x,
-		0,
-		_grid_width - 1
-	)
-
-	max_cell.y = clampi(
-		max_cell.y,
-		0,
-		_grid_height - 1
-	)
-
-	for y: int in range(
-		min_cell.y,
-		max_cell.y + 1
-	):
-		for x: int in range(
-			min_cell.x,
-			max_cell.x + 1
-		):
-			if not _is_blocked_cell(
-				x,
-				y
-			):
+	for y: int in range(min_cell.y, max_cell.y + 1):
+		for x: int in range(min_cell.x, max_cell.x + 1):
+			if not _is_blocked_cell(x, y):
 				continue
 
-			var rect: Rect2 = _cell_rect(
-				Vector2i(x, y)
-			)
-
-			var center: Vector2 = (
-				rect.position
-				+ rect.size * 0.5
-			)
-
-			var expanded_half: Vector2 = (
-				_collision_half(
-					half_size,
-					rect.size * 0.5
-				)
+			var rect: Rect2 = _cell_rect(Vector2i(x, y))
+			var center: Vector2 = rect.position + rect.size * 0.5
+			var expanded_half: Vector2 = _collision_half(
+				half_size,
+				rect.size * 0.5
 			)
 
 			if _segment_intersects_centered_aabb(
