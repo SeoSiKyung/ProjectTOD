@@ -45,6 +45,10 @@ func can_receive_commands() -> bool:
 	return current_state != State.STUN and current_state != State.DIE
 
 
+func can_act() -> bool:
+	return current_state != State.STUN and current_state != State.DIE
+
+
 func request_idle() -> bool:
 	if not can_receive_commands():
 		return false
