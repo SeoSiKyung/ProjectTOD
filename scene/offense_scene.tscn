@@ -3,11 +3,13 @@
 [ext_resource type="Script" uid="uid://cooykx73a50w8" path="res://maps/navigation/navigation_baker.gd" id="1_dgir3"]
 [ext_resource type="Script" uid="uid://e48cbf160ggc" path="res://scene/offense_scene.gd" id="1_wohdj"]
 [ext_resource type="Texture2D" uid="uid://cupxwvi5omkk5" path="res://maps/0.png" id="2_nipmi"]
+[ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/command_controller.gd" id="3_dlxae"]
 [ext_resource type="Resource" uid="uid://cxxppg8eoyppk" path="res://maps/0_navigation.res" id="4_dgir3"]
 [ext_resource type="Script" uid="uid://w6nsvxisxrdt" path="res://unit/movement_simulator.gd" id="4_jaojb"]
 [ext_resource type="Script" uid="uid://e6ictg15nwt0" path="res://unit/movement_controller.gd" id="5_dgir3"]
 [ext_resource type="Script" uid="uid://dnlnjlnj1aeyu" path="res://unit/navigation_service.gd" id="5_j4bn1"]
 [ext_resource type="PackedScene" uid="uid://6pdasnmpewu8" path="res://unit/unit.tscn" id="5_wohdj"]
+[ext_resource type="Script" uid="uid://br257xxqho68w" path="res://unit/select_controller.gd" id="8_u7dgu"]
 
 [node name="OffenseScene" type="Node2D" unique_id=2102705416]
 script = ExtResource("1_wohdj")
@@ -15,6 +17,13 @@ script = ExtResource("1_wohdj")
 [node name="0" type="Sprite2D" parent="." unique_id=943179009]
 texture = ExtResource("2_nipmi")
 centered = false
+
+[node name="CommandController" type="Node" parent="." unique_id=496005023]
+script = ExtResource("3_dlxae")
+
+[node name="NavigationService" type="Node" parent="." unique_id=1934783211]
+script = ExtResource("5_j4bn1")
+navigation_data = ExtResource("4_dgir3")
 
 [node name="NavigationBaker" type="Node" parent="." unique_id=1075321834]
 script = ExtResource("1_dgir3")
@@ -24,41 +33,31 @@ metadata/_custom_type_script = "uid://cooykx73a50w8"
 [node name="MovementSimulator" type="Node" parent="." unique_id=1834251702]
 script = ExtResource("4_jaojb")
 
-[node name="NavigationService" type="Node" parent="." unique_id=1934783211]
-script = ExtResource("5_j4bn1")
-navigation_data = ExtResource("4_dgir3")
-
 [node name="MovementController" type="Node2D" parent="." unique_id=68440326]
 script = ExtResource("5_dgir3")
+
+[node name="SelectController" type="Node2D" parent="." unique_id=877086300]
+script = ExtResource("8_u7dgu")
+metadata/_custom_type_script = "uid://br257xxqho68w"
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=573415892]
 position = Vector2(270, 269)
 
 [node name="Unit0" parent="." unique_id=1678754068 instance=ExtResource("5_wohdj")]
 position = Vector2(178, 125)
-player_controllable = true
-move_speed = 128.0
 
 [node name="Unit1" parent="." unique_id=1504537226 instance=ExtResource("5_wohdj")]
 position = Vector2(203, 212)
 unit_id = 1
-player_controllable = true
-move_speed = 192.0
 
 [node name="Unit2" parent="." unique_id=902946586 instance=ExtResource("5_wohdj")]
 position = Vector2(106, 97)
 unit_id = 2
-player_controllable = true
-move_speed = 92.0
 
 [node name="Unit3" parent="." unique_id=1187485307 instance=ExtResource("5_wohdj")]
 position = Vector2(264, 84)
 unit_id = 3
-player_controllable = true
-move_speed = 256.0
 
 [node name="Unit4" parent="." unique_id=22581196 instance=ExtResource("5_wohdj")]
 position = Vector2(349, 121)
 unit_id = 4
-player_controllable = true
-move_speed = 128.0

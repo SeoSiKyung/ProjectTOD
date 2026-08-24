@@ -27,6 +27,7 @@ var sim_velocity: Vector2 = Vector2.ZERO
 var active_move_order: MoveOrder = null
 var settled_order_id: int = -1
 var unit: Unit = null
+var _paused: bool = false
 
 var _path: PackedVector2Array = PackedVector2Array()
 var _path_index: int = 0
@@ -45,6 +46,19 @@ func is_idle() -> bool:
 	return state == MovementState.IDLE
 
 
+func is_paused() -> bool:
+	return _paused
+
+
+func pause() -> void:
+	_paused = true
+	sim_velocity = Vector2.ZERO
+
+
+func resume() -> void:
+	_paused = false
+
+
 func has_path() -> bool:
 	return not _path.is_empty()
 
@@ -59,6 +73,7 @@ func begin_move_order(
 
 	active_move_order = order
 	settled_order_id = -1
+	_paused = false
 	state = MovementState.MOVING
 	sim_velocity = Vector2.ZERO
 	_set_path(path)
@@ -91,6 +106,7 @@ func reset_sim_velocity() -> void:
 
 
 func stop() -> void:
+	_paused = false
 	active_move_order = null
 	settled_order_id = -1
 	_path.clear()
@@ -100,6 +116,7 @@ func stop() -> void:
 
 
 func complete_move_order() -> void:
+	_paused = false
 	var completed_order_id: int = -1
 
 	if active_move_order != null:
@@ -117,6 +134,9 @@ func sync_path_progress(
 	max_tick_distance: float,
 	navigation_service: NavigationService
 ) -> void:
+	if _paused:
+		return
+
 	if not is_moving():
 		return
 
@@ -201,6 +221,9 @@ func get_current_waypoint() -> Vector2:
 
 
 func get_desired_direction() -> Vector2:
+	if _paused:
+		return Vector2.ZERO
+
 	if not is_moving():
 		return Vector2.ZERO
 
@@ -254,6 +277,9 @@ func is_at_effective_goal(tolerance: float) -> bool:
 func wants_final_tick(
 	fixed_dt: float
 ) -> bool:
+	if _paused:
+		return false
+
 	if not is_moving():
 		return false
 
@@ -271,6 +297,9 @@ func wants_final_tick(
 func get_desired_velocity(
 	fixed_dt: float
 ) -> Vector2:
+	if _paused:
+		return Vector2.ZERO
+
 	if not is_moving():
 		return Vector2.ZERO
 
@@ -295,6 +324,10 @@ func commit_simulation(
 	new_velocity: Vector2,
 	finish_order: bool
 ) -> void:
+	if _paused:
+		sim_velocity = Vector2.ZERO
+		return
+
 	unit.position = new_position
 
 	if finish_order:

@@ -153,6 +153,10 @@ func simulate(
 		if not _owns_movement(movement):
 			continue
 
+		if movement.is_paused():
+			movement.reset_sim_velocity()
+			continue
+
 		movement.sync_path_progress(movement.move_speed * dt, _navigation_service)
 		result.append(_make_candidate(unit, movement, dt))
 

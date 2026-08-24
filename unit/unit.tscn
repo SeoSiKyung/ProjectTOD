@@ -3,18 +3,24 @@
 [ext_resource type="Script" uid="uid://brcdqvubmtv0s" path="res://unit/unit.gd" id="1_ctwoc"]
 [ext_resource type="Texture2D" uid="uid://by8f24ofm07iq" path="res://icon.svg" id="2_twhwq"]
 [ext_resource type="Script" uid="uid://doh3kw715vylo" path="res://unit/movement_component.gd" id="3_hs7ws"]
+[ext_resource type="Texture2D" uid="uid://b18e5tm3eps62" path="res://picture/unit/select.png" id="3_japly"]
+[ext_resource type="Script" uid="uid://gr8l4ywindlg" path="res://unit/unit_fsm.gd" id="5_s1ym6"]
 
 [node name="Unit" type="Node2D" unique_id=470747039]
 script = ExtResource("1_ctwoc")
-player_controllable = false
+
+[node name="select" type="Sprite2D" parent="." unique_id=2070701182]
+visible = false
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("3_japly")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=617625335]
 scale = Vector2(0.25, 0.25)
 texture = ExtResource("2_twhwq")
 
-[node name="select" type="Sprite2D" parent="." unique_id=765529185]
-scale = Vector2(0.25, 0.25)
-
 [node name="MovementComponent" type="Node" parent="." unique_id=262552955]
 script = ExtResource("3_hs7ws")
 metadata/_custom_type_script = "uid://doh3kw715vylo"
+
+[node name="UnitFSM" type="Node" parent="." unique_id=404963815]
+script = ExtResource("5_s1ym6")

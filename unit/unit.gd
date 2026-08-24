@@ -9,9 +9,11 @@ class_name Unit
 
 
 @onready var movement: MovementComponent = $MovementComponent
+@onready var fsm: UnitFSM = $UnitFSM
 
 
 func _ready() -> void:
+	fsm.bind_unit(self)
 	add_to_group("unit")
 
 
@@ -19,8 +21,19 @@ func get_half_size() -> Vector2:
 	return footprint_size * 0.5
 
 
-func set_selected(value: bool) -> void:
-	var selection_indicator: Node2D = get_node_or_null("select")
+func can_receive_commands() -> bool:
+	return fsm != null and fsm.can_receive_commands()
 
-	if selection_indicator != null:
-		selection_indicator.visible = value
+
+func apply_stun(duration: float) -> void:
+	if fsm == null:
+		return
+
+	fsm.apply_stun(duration)
+
+
+func die() -> void:
+	if fsm == null:
+		return
+
+	fsm.die()
