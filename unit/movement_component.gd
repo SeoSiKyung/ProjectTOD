@@ -25,7 +25,6 @@ var move_speed: float:
 var state: MovementState = MovementState.IDLE
 var sim_velocity: Vector2 = Vector2.ZERO
 var active_move_order: MoveOrder = null
-var settled_order_id: int = -1
 var unit: Unit = null
 var _paused: bool = false
 
@@ -59,10 +58,6 @@ func resume() -> void:
 	_paused = false
 
 
-func has_path() -> bool:
-	return not _path.is_empty()
-
-
 func begin_move_order(
 	order: MoveOrder,
 	path: PackedVector2Array
@@ -72,7 +67,6 @@ func begin_move_order(
 		return
 
 	active_move_order = order
-	settled_order_id = -1
 	_paused = false
 	state = MovementState.MOVING
 	sim_velocity = Vector2.ZERO
@@ -108,7 +102,6 @@ func reset_sim_velocity() -> void:
 func stop() -> void:
 	_paused = false
 	active_move_order = null
-	settled_order_id = -1
 	_path.clear()
 	_path_index = 0
 	sim_velocity = Vector2.ZERO
@@ -117,17 +110,11 @@ func stop() -> void:
 
 func complete_move_order() -> void:
 	_paused = false
-	var completed_order_id: int = -1
-
-	if active_move_order != null:
-		completed_order_id = active_move_order.order_id
-
 	active_move_order = null
 	_path.clear()
 	_path_index = 0
 	sim_velocity = Vector2.ZERO
 	state = MovementState.IDLE
-	settled_order_id = completed_order_id
 
 
 func sync_path_progress(
@@ -262,16 +249,6 @@ func get_remaining_final_distance() -> float:
 		return 0.0
 
 	return unit.position.distance_to(_effective_goal)
-
-
-func is_at_effective_goal(tolerance: float) -> bool:
-	if unit == null:
-		return true
-
-	return (
-		unit.position.distance_to(_effective_goal)
-		<= maxf(tolerance, EPSILON)
-	)
 
 
 func wants_final_tick(

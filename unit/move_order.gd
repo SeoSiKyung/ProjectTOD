@@ -18,7 +18,6 @@ var order_id: int = 0
 var issued_tick: int = 0
 var target_world: Vector2 = Vector2.ZERO
 var member_ids: Array[int] = []
-var arrival_radius: float = 0.0
 
 var _navigation_service: NavigationService
 var _arrival_center: Vector2 = Vector2.ZERO
@@ -134,8 +133,6 @@ func start(units: Dictionary[int, Unit]) -> void:
 
 		unit.movement.begin_move_order(self, path)
 
-	_update_arrival_radius(units)
-
 
 func simulate(
 	dt: float,
@@ -174,23 +171,8 @@ func is_finished(all_units: Dictionary[int, Unit]) -> bool:
 	return true
 
 
-func get_arrival_center() -> Vector2:
-	return _arrival_center
-
-
-func get_arrival_slot(unit_id: int) -> Vector2:
-	return _slot_by_unit.get(unit_id, _arrival_center)
-
-
 func get_unit_priority(unit_id: int) -> int:
 	return _priority_by_unit.get(unit_id, 2147483647)
-
-
-func is_unit_near_arrival(unit_id: int, position: Vector2, full_size: float) -> bool:
-	if not _slot_by_unit.has(unit_id):
-		return false
-
-	return position.distance_to(_slot_by_unit[unit_id]) <= maxf(full_size * 1.5, 12.0)
 
 
 func _make_candidate(
@@ -494,22 +476,3 @@ func _largest_member_half_size(units: Dictionary[int, Unit]) -> Vector2:
 		result.y = maxf(result.y, half_size.y)
 
 	return result
-
-
-func _update_arrival_radius(units: Dictionary[int, Unit]) -> void:
-	arrival_radius = 0.0
-
-	for unit_id: int in member_ids:
-		if not _slot_by_unit.has(unit_id):
-			continue
-
-		var half_extent: float = 0.0
-
-		if units.has(unit_id):
-			var half_size: Vector2 = units[unit_id].get_half_size()
-			half_extent = maxf(half_size.x, half_size.y)
-
-		arrival_radius = maxf(
-			arrival_radius,
-			_arrival_center.distance_to(_slot_by_unit[unit_id]) + half_extent
-		)
