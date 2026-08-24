@@ -1284,22 +1284,6 @@ func _world_to_nearest_path_cell(
 	)
 
 
-func _cell_center(
-	cell: Vector2i
-) -> Vector2:
-	return (
-		_world_rect.position
-		+ Vector2(
-			(
-				float(cell.x) + 0.5
-			) * _nav_cell_size,
-			(
-				float(cell.y) + 0.5
-			) * _nav_cell_size
-		)
-	)
-
-
 func _cell_rect(
 	cell: Vector2i
 ) -> Rect2:
@@ -1332,26 +1316,6 @@ func _world_to_cell_floor(
 		),
 		floori(
 			local.y / _nav_cell_size
-		)
-	)
-
-
-func _world_to_nearest_cell(
-	position: Vector2
-) -> Vector2i:
-	var local: Vector2 = (
-		position
-		- _world_rect.position
-	)
-
-	return Vector2i(
-		roundi(
-			local.x / _nav_cell_size
-				- 0.5
-		),
-		roundi(
-			local.y / _nav_cell_size
-				- 0.5
 		)
 	)
 

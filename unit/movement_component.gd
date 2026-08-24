@@ -303,18 +303,26 @@ func get_desired_velocity(
 	if not is_moving():
 		return Vector2.ZERO
 
+	if unit == null:
+		return Vector2.ZERO
+
+	if fixed_dt <= EPSILON:
+		return Vector2.ZERO
+
 	var direction: Vector2 = get_desired_direction()
 
 	if direction == Vector2.ZERO:
 		return Vector2.ZERO
 
-	if wants_final_tick(fixed_dt):
-		var remaining: float = get_remaining_final_distance()
+	var waypoint: Vector2 = get_current_waypoint()
+	var remaining_to_waypoint: float = unit.position.distance_to(waypoint)
+	var normal_distance: float = move_speed * fixed_dt
 
-		if remaining <= EPSILON:
+	if remaining_to_waypoint <= normal_distance + EPSILON:
+		if remaining_to_waypoint <= EPSILON:
 			return Vector2.ZERO
 
-		return direction * (remaining / fixed_dt)
+		return direction * (remaining_to_waypoint / fixed_dt)
 
 	return direction * move_speed
 
