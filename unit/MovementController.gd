@@ -152,7 +152,7 @@ func IssueStopOrder(
 	var command_id: int = _next_order_id
 	_next_order_id += 1
 
-	simulator.stop_units(
+	simulator.StopUnits(
 		unit_ids
 	)
 
