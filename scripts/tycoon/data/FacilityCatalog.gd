@@ -1,17 +1,16 @@
 class_name FacilityCatalog
 extends Resource
 
-
 @export var facilities: Array[FacilityData] = []
 
 
-func get_facility_data(facility_id: StringName) -> FacilityData:
+func GetFacilityData(facilityId: StringName) -> FacilityData:
 	for facility in facilities:
-		if facility.id == facility_id:
+		if facility.id == facilityId:
 			return facility
 
 	return null
 
 
-func has_facility(facility_id: StringName) -> bool:
-	return get_facility_data(facility_id) != null
+func HasFacility(facilityId: StringName) -> bool:
+	return GetFacilityData(facilityId) != null
