@@ -1,13 +1,11 @@
 class_name MovementController
 extends Node
 
-
 @export var simulator: MovementSimulator
-@export var select_controller: SelectController
+@export var selectController: SelectController
 
-
-var _next_order_id: int = 1
-var command_log: Array = []
+var _nextOrderId: int = 1
+var commandLog: Array = []
 
 
 func _ready() -> void:
@@ -17,168 +15,147 @@ func _ready() -> void:
 		return
 
 	if simulator == null:
-		var simulator_node: Node = parent.get_node_or_null(
-			"MovementSimulator"
-		)
+		var simulatorNode: Node = parent.get_node_or_null("MovementSimulator")
 
-		if simulator_node is MovementSimulator:
-			simulator = simulator_node as MovementSimulator
+		if simulatorNode is MovementSimulator:
+			simulator = simulatorNode as MovementSimulator
 
-	if select_controller == null:
-		var select_node: Node = parent.get_node_or_null(
-			"SelectController"
-		)
+	if selectController == null:
+		var selectNode: Node = parent.get_node_or_null("SelectController")
 
-		if select_node is SelectController:
-			select_controller = select_node as SelectController
+		if selectNode is SelectController:
+			selectController = selectNode as SelectController
 
 
 func IssueMoveOrder(
 	units: Array[Unit],
-	target_world: Vector2,
-	request_move_state: bool = true,
-	record_command: bool = true
+	targetWorld: Vector2,
+	requestMoveState: bool = true,
+	recordCommand: bool = true,
 ) -> int:
 	if simulator == null:
 		push_error("MovementSimulator가 지정되지 않았습니다.")
 		return -1
 
-	if simulator.navigation_service == null:
+	if simulator.navigationService == null:
 		push_error("NavigationService가 지정되지 않았습니다.")
 		return -1
 
-	var accepted_units: Array[Unit] = []
-	var unit_ids: Array[int] = []
-	var seen: Dictionary[int, bool] = {}
+	var acceptedUnits: Array[Unit] = []
+	var unitIds: Array[int] = []
+	var seen: Dictionary[int, bool] = { }
 
 	for unit: Unit in units:
-		if not _canIssueCommandTo(unit):
+		if not _CanIssueCommandTo(unit):
 			continue
 
-		if seen.has(unit.unit_id):
+		if seen.has(unit.unitId):
 			continue
 
-		seen[unit.unit_id] = true
-		accepted_units.append(unit)
-		unit_ids.append(unit.unit_id)
+		seen[unit.unitId] = true
+		acceptedUnits.append(unit)
+		unitIds.append(unit.unitId)
 
-	unit_ids.sort()
+	unitIds.sort()
 
-	if unit_ids.is_empty():
+	if unitIds.is_empty():
 		return -1
 
-	var order_id: int = _next_order_id
-	_next_order_id += 1
+	var orderId: int = _nextOrderId
+	_nextOrderId += 1
 
 	var order: MoveOrder = MoveOrder.new(
-		order_id,
-		simulator.simulation_tick + 1,
-		target_world,
-		unit_ids,
-		simulator.navigation_service
+		orderId,
+		simulator.simulationTick + 1,
+		targetWorld,
+		unitIds,
+		simulator.navigationService,
 	)
 
-	simulator.AddMoveOrder(
-		order
-	)
+	simulator.AddMoveOrder(order)
 
-	if request_move_state:
-		for unit: Unit in accepted_units:
+	if requestMoveState:
+		for unit: Unit in acceptedUnits:
 			unit.fsm.RequestMove()
 
-	if record_command:
-		command_log.append({
-			"type": "move",
-			"order_id": order_id,
-			"tick": simulator.simulation_tick + 1,
-			"unit_ids": unit_ids.duplicate(),
-			"target": target_world,
-		})
+	if recordCommand:
+		commandLog.append(
+			{
+				"type": "move",
+				"order_id": orderId,
+				"tick": simulator.simulationTick + 1,
+				"unit_ids": unitIds.duplicate(),
+				"target": targetWorld,
+			}
+		)
 
-	return order_id
+	return orderId
 
 
-func IssueSelectedMoveOrder(
-	target_world: Vector2
-) -> int:
-	if select_controller == null:
+func IssueSelectedMoveOrder(target_world: Vector2) -> int:
+	if selectController == null:
 		return -1
 
-	return IssueMoveOrder(
-		select_controller.GetSelectedFriendlyUnits(),
-		target_world
-	)
+	return IssueMoveOrder(selectController.GetSelectedFriendlyUnits(), target_world)
 
 
-func IssueTrackingMoveOrder(
-	units: Array[Unit],
-	target_world: Vector2
-) -> int:
-	return IssueMoveOrder(
-		units,
-		target_world,
-		false,
-		false
-	)
+func IssueTrackingMoveOrder(units: Array[Unit], target_world: Vector2) -> int:
+	return IssueMoveOrder(units, target_world, false, false)
 
 
-func IssueStopOrder(
-	units: Array[Unit]
-) -> int:
+func IssueStopOrder(units: Array[Unit]) -> int:
 	if simulator == null:
 		push_error("MovementSimulator가 지정되지 않았습니다.")
 		return -1
 
-	var accepted_units: Array[Unit] = []
-	var unit_ids: Array[int] = []
-	var seen: Dictionary[int, bool] = {}
+	var acceptedUnits: Array[Unit] = []
+	var unitIds: Array[int] = []
+	var seen: Dictionary[int, bool] = { }
 
 	for unit: Unit in units:
-		if not _canIssueCommandTo(unit):
+		if not _CanIssueCommandTo(unit):
 			continue
 
-		if seen.has(unit.unit_id):
+		if seen.has(unit.unitId):
 			continue
 
-		seen[unit.unit_id] = true
-		accepted_units.append(unit)
-		unit_ids.append(unit.unit_id)
+		seen[unit.unitId] = true
+		acceptedUnits.append(unit)
+		unitIds.append(unit.unitId)
 
-	unit_ids.sort()
+	unitIds.sort()
 
-	if unit_ids.is_empty():
+	if unitIds.is_empty():
 		return -1
 
-	var command_id: int = _next_order_id
-	_next_order_id += 1
+	var commandId: int = _nextOrderId
+	_nextOrderId += 1
 
-	simulator.StopUnits(
-		unit_ids
-	)
+	simulator.StopUnits(unitIds)
 
-	for unit: Unit in accepted_units:
+	for unit: Unit in acceptedUnits:
 		unit.fsm.RequestIdle()
 
-	command_log.append({
-		"type": "stop",
-		"order_id": command_id,
-		"tick": simulator.simulation_tick + 1,
-		"unit_ids": unit_ids.duplicate(),
-	})
+	commandLog.append(
+		{
+			"type": "stop",
+			"order_id": commandId,
+			"tick": simulator.simulationTick + 1,
+			"unit_ids": unitIds.duplicate(),
+		}
+	)
 
-	return command_id
+	return commandId
 
 
 func IssueSelectedStopOrder() -> int:
-	if select_controller == null:
+	if selectController == null:
 		return -1
 
-	return IssueStopOrder(
-		select_controller.GetSelectedFriendlyUnits()
-	)
+	return IssueStopOrder(selectController.GetSelectedFriendlyUnits())
 
 
-func _canIssueCommandTo(unit: Unit) -> bool:
+func _CanIssueCommandTo(unit: Unit) -> bool:
 	if unit == null:
 		return false
 

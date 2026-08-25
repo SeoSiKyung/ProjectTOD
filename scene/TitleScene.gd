@@ -15,22 +15,22 @@ func _unhandled_key_input(event: InputEvent) -> void:
 func _ready():
 	for child in $VBoxContainer.get_children():
 		if child is BasicButton:
-			child.action_pressed.connect(_on_menu_action)
+			child.action_pressed.connect(_OnMenuAction)
 
 
-func _on_menu_action(action_key: StringName):
+func _OnMenuAction(action_key: StringName):
 	match action_key:
 		&"new_game":
-			_start_new_game()
+			_StartNewGame()
 
 		&"continue":
-			_continue_game()
+			_ContinueGame()
 
 		&"records":
-			_open_records()
+			_OpenRecords()
 
 		&"settings":
-			_open_settings()
+			_OpenSettings()
 
 		&"quit":
 			get_tree().quit()
@@ -39,17 +39,17 @@ func _on_menu_action(action_key: StringName):
 			push_warning("알 수 없는 버튼 Action Key: " + str(action_key))
 
 
-func _start_new_game():
+func _StartNewGame():
 	print("새 게임")
 
 
-func _continue_game():
+func _ContinueGame():
 	print("이어하기")
 
 
-func _open_records():
+func _OpenRecords():
 	print("기록실")
 
 
-func _open_settings():
+func _OpenSettings():
 	print("설정")

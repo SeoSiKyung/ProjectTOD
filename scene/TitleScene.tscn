@@ -3,7 +3,7 @@
 [ext_resource type="Texture2D" uid="uid://bxhiftjqd5lr7" path="res://picture/title/0.png" id="1_2wach"]
 [ext_resource type="Script" uid="uid://bx1pj3sgkxeds" path="res://scene/TitleScene.gd" id="1_qyslj"]
 [ext_resource type="Texture2D" uid="uid://d078rpd45y6ed" path="res://picture/title/1.png" id="2_qyslj"]
-[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://basic_button.tscn" id="3_cbsd1"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://BasicButton.tscn" id="3_cbsd1"]
 
 [node name="TitleScene" type="Control" unique_id=1706279260]
 layout_mode = 3

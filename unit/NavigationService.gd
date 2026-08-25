@@ -71,12 +71,12 @@ func _loadNavigationData() -> void:
 		push_error("NavigationData가 지정되지 않았습니다.")
 		return
 
-	_nav_cell_size = float(NavigationData.cell_size)
-	_grid_width = NavigationData.grid_size.x
-	_grid_height = NavigationData.grid_size.y
+	_nav_cell_size = float(NavigationData.cellSize)
+	_grid_width = NavigationData.gridSize.x
+	_grid_height = NavigationData.gridSize.y
 	_world_rect = NavigationData.GetWorldRect()
 	_blocked = NavigationData.blocked
-	_prefix_sum = NavigationData.prefix_sum
+	_prefix_sum = NavigationData.prefixSum
 
 	if _nav_cell_size <= 0.0:
 		push_error("NavigationData의 cell_size가 잘못되었습니다.")

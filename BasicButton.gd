@@ -26,7 +26,7 @@ func _ready():
 	button.mouse_exited.connect(_on_mouse_exited)
 	button.button_down.connect(_on_button_down)
 	button.button_up.connect(_on_button_up)
-	
+
 	if not $Button.pressed.is_connected(_on_button_pressed):
 		$Button.pressed.connect(_on_button_pressed)
 
@@ -47,12 +47,9 @@ func update_text():
 	var available_width := button.size.x - horizontal_padding * 2.0
 
 	while font_size > min_font_size:
-		var text_width := font.get_string_size(
-			button.text,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			-1,
-			font_size
-		).x
+		var text_width := font \
+				.get_string_size(button.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size) \
+				.x
 
 		if text_width <= available_width:
 			break
@@ -76,7 +73,6 @@ func _on_mouse_entered():
 
 func _on_mouse_exited():
 	_set_normal()
-
 
 
 func _on_button_down():

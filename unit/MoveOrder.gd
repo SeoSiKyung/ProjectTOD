@@ -12,10 +12,10 @@ const SLOT_DEPTH_WEIGHT: float = 2.0
 const SLOT_LATERAL_WEIGHT: float = 0.7
 const SLOT_RADIUS_WEIGHT: float = 0.15
 
-var order_id: int = 0
+var orderId: int = 0
 var issued_tick: int = 0
 var target_world: Vector2 = Vector2.ZERO
-var member_ids: Array[int] = []
+var memberIds: Array[int] = []
 
 var _navigation_service: NavigationService
 var _arrival_center: Vector2 = Vector2.ZERO
@@ -44,18 +44,18 @@ class UnitOrderInfo:
 
 class MovementCandidate:
 	var order_id: int = -1
-	var unit_id: int = -1
-	var start_position: Vector2 = Vector2.ZERO
-	var desired_position: Vector2 = Vector2.ZERO
+	var unitId: int = -1
+	var startPosition: Vector2 = Vector2.ZERO
+	var desiredPosition: Vector2 = Vector2.ZERO
 	var position: Vector2 = Vector2.ZERO
 	var desired_velocity: Vector2 = Vector2.ZERO
 	var velocity: Vector2 = Vector2.ZERO
-	var target_position: Vector2 = Vector2.ZERO
-	var half_size: Vector2 = Vector2.ZERO
-	var max_step_distance: float = 0.0
-	var desired_step_distance: float = 0.0
+	var targetPosition: Vector2 = Vector2.ZERO
+	var halfSize: Vector2 = Vector2.ZERO
+	var maxStepDistance: float = 0.0
+	var desiredStepDistance: float = 0.0
 	var final_tick: bool = false
-	var finish_order: bool = false
+	var finishOrder: bool = false
 	var arrival_active: bool = false
 	var arrival_slot: Vector2 = Vector2.ZERO
 	var arrival_distance: float = 0.0
@@ -69,11 +69,11 @@ func _init(
 	p_member_ids: Array[int],
 	p_navigation_service: NavigationService,
 ) -> void:
-	order_id = p_order_id
+	orderId = p_order_id
 	issued_tick = p_issued_tick
 	target_world = p_target_world
-	member_ids = p_member_ids.duplicate()
-	member_ids.sort()
+	memberIds = p_member_ids.duplicate()
+	memberIds.sort()
 	_navigation_service = p_navigation_service
 
 
@@ -113,7 +113,7 @@ func Start(units: Dictionary[int, Unit]) -> void:
 	_prepareFormationMetrics(units)
 	_assignSlots(units)
 
-	for unit_id: int in member_ids:
+	for unit_id: int in memberIds:
 		if not units.has(unit_id):
 			continue
 
@@ -145,7 +145,7 @@ func Start(units: Dictionary[int, Unit]) -> void:
 func Simulate(dt: float, all_units: Dictionary[int, Unit]) -> Array[MovementCandidate]:
 	var result: Array[MovementCandidate] = []
 
-	for unit_id: int in member_ids:
+	for unit_id: int in memberIds:
 		if not all_units.has(unit_id):
 			continue
 
@@ -159,14 +159,14 @@ func Simulate(dt: float, all_units: Dictionary[int, Unit]) -> Array[MovementCand
 			movement.ResetSimVelocity()
 			continue
 
-		movement.SyncPathProgress(movement.move_speed * dt, _navigation_service)
+		movement.SyncPathProgress(movement.moveSpeed * dt, _navigation_service)
 		result.append(_makeCandidate(unit, movement, dt))
 
 	return result
 
 
 func IsFinished(all_units: Dictionary[int, Unit]) -> bool:
-	for unit_id: int in member_ids:
+	for unit_id: int in memberIds:
 		if not all_units.has(unit_id):
 			continue
 
@@ -182,7 +182,7 @@ func GetUnitPriority(unit_id: int) -> int:
 
 func _makeCandidate(unit: Unit, movement: MovementComponent, dt: float) -> MovementCandidate:
 	var candidate: MovementCandidate = MovementCandidate.new()
-	var slot: Vector2 = _slot_by_unit.get(unit.unit_id, movement.GetEffectiveGoal())
+	var slot: Vector2 = _slot_by_unit.get(unit.unitId, movement.GetEffectiveGoal())
 	var desired_velocity: Vector2 = movement.GetDesiredVelocity(dt)
 	var desired_position: Vector2 = unit.position + desired_velocity * dt
 	var final_tick: bool = movement.WantsFinalTick(dt)
@@ -193,23 +193,23 @@ func _makeCandidate(unit: Unit, movement: MovementComponent, dt: float) -> Movem
 		if dt > EPSILON:
 			desired_velocity = (desired_position - unit.position) / dt
 
-	candidate.order_id = order_id
-	candidate.unit_id = unit.unit_id
-	candidate.start_position = unit.position
-	candidate.desired_position = desired_position
+	candidate.order_id = orderId
+	candidate.unitId = unit.unitId
+	candidate.startPosition = unit.position
+	candidate.desiredPosition = desired_position
 	candidate.position = desired_position
 	candidate.desired_velocity = desired_velocity
 	candidate.velocity = desired_velocity
-	candidate.target_position = movement.GetCurrentWaypoint()
-	candidate.half_size = unit.GetHalfSize()
-	candidate.max_step_distance = movement.move_speed * dt
-	candidate.desired_step_distance = unit.position.distance_to(desired_position)
+	candidate.targetPosition = movement.GetCurrentWaypoint()
+	candidate.halfSize = unit.GetHalfSize()
+	candidate.maxStepDistance = movement.moveSpeed * dt
+	candidate.desiredStepDistance = unit.position.distance_to(desired_position)
 	candidate.final_tick = final_tick
-	candidate.finish_order = final_tick
+	candidate.finishOrder = final_tick
 	candidate.arrival_active = true
 	candidate.arrival_slot = slot
 	candidate.arrival_distance = unit.position.distance_to(slot)
-	candidate.priority = GetUnitPriority(unit.unit_id)
+	candidate.priority = GetUnitPriority(unit.unitId)
 	return candidate
 
 
@@ -217,10 +217,10 @@ func _ownsMovement(movement: MovementComponent) -> bool:
 	if movement == null:
 		return false
 
-	if movement.active_move_order == null:
+	if movement.activeMoveOrder == null:
 		return false
 
-	return movement.active_move_order.order_id == order_id
+	return movement.activeMoveOrder.orderId == orderId
 
 
 func _prepareFormationMetrics(units: Dictionary[int, Unit]) -> void:
@@ -228,7 +228,7 @@ func _prepareFormationMetrics(units: Dictionary[int, Unit]) -> void:
 	var max_full: float = 1.0
 	var valid_count: int = 0
 
-	for unit_id: int in member_ids:
+	for unit_id: int in memberIds:
 		if not units.has(unit_id):
 			continue
 
@@ -255,7 +255,7 @@ func _assignSlots(units: Dictionary[int, Unit]) -> void:
 
 	var infos: Array[UnitOrderInfo] = []
 
-	for unit_id: int in member_ids:
+	for unit_id: int in memberIds:
 		if not units.has(unit_id):
 			continue
 
@@ -470,7 +470,7 @@ func _averageMemberPosition(units: Dictionary[int, Unit]) -> Vector2:
 	var sum: Vector2 = Vector2.ZERO
 	var count: int = 0
 
-	for unit_id: int in member_ids:
+	for unit_id: int in memberIds:
 		if not units.has(unit_id):
 			continue
 
@@ -486,7 +486,7 @@ func _averageMemberPosition(units: Dictionary[int, Unit]) -> Vector2:
 func _largestMemberHalfSize(units: Dictionary[int, Unit]) -> Vector2:
 	var result: Vector2 = Vector2(8.0, 8.0)
 
-	for unit_id: int in member_ids:
+	for unit_id: int in memberIds:
 		if not units.has(unit_id):
 			continue
 

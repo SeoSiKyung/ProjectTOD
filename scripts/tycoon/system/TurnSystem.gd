@@ -1,20 +1,19 @@
 class_name TurnSystem
 extends Node
 
+signal TurnAdvanced(current_turn: int)
+signal CycleFinished(cycle: int)
 
-signal turn_advanced(current_turn: int)
-signal cycle_finished(cycle: int)
 
-
-func advance_turn(settlement: SettlementState) -> bool:
-	if settlement.is_cycle_finished():
+func AdvanceTurn(settlement: SettlementState) -> bool:
+	if settlement.IsCycleFinished():
 		return false
 
-	settlement.current_turn += 1
+	settlement.currentTurn += 1
 
-	turn_advanced.emit(settlement.current_turn)
+	TurnAdvanced.emit(settlement.currentTurn)
 
-	if settlement.is_cycle_finished():
-		cycle_finished.emit(settlement.cycle)
+	if settlement.IsCycleFinished():
+		CycleFinished.emit(settlement.cycle)
 
 	return true

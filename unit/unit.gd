@@ -1,7 +1,7 @@
 extends Node2D
 class_name Unit
 
-@export var unit_id: int = 0
+@export var unitId: int = 0
 @export var player_controllable: bool = true
 @export var footprint_size: Vector2 = Vector2(32.0, 32.0)
 @export var move_speed: float = 96.0

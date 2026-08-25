@@ -1,7 +1,6 @@
 class_name UnitFSM
 extends Node
 
-
 enum State {
 	IDLE,
 	MOVE,
@@ -13,11 +12,9 @@ enum State {
 	DIE,
 }
 
-
 signal state_changed(previous_state: State, current_state: State)
 
-
-var current_state: State = State.IDLE
+var currentState: State = State.IDLE
 var follow_target: Unit = null
 var chase_target: Unit = null
 var attack_target: Unit = null
@@ -33,7 +30,7 @@ func BindUnit(p_unit: Unit) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	match current_state:
+	match currentState:
 		State.MOVE:
 			_updateMove()
 		State.FOLLOW:
@@ -49,7 +46,7 @@ func _physics_process(delta: float) -> void:
 
 
 func CanReceiveCommands() -> bool:
-	return current_state != State.STUN and current_state != State.DIE
+	return currentState != State.STUN and currentState != State.DIE
 
 
 func RequestIdle() -> bool:
@@ -109,10 +106,7 @@ func RequestAttackMove() -> bool:
 	return true
 
 
-func RequestAttack(
-	target: Unit,
-	return_state: State = State.IDLE
-) -> bool:
+func RequestAttack(target: Unit, return_state: State = State.IDLE) -> bool:
 	if not CanReceiveCommands():
 		return false
 
@@ -120,8 +114,7 @@ func RequestAttack(
 		return false
 
 	if (
-		return_state != State.IDLE
-		and return_state != State.CHASE
+		return_state != State.IDLE and return_state != State.CHASE
 		and return_state != State.ATTACK_MOVE
 	):
 		return_state = State.IDLE
@@ -140,22 +133,17 @@ func RequestAttack(
 
 
 func ReturnFromAttackOutOfRange() -> void:
-	if current_state != State.ATTACK:
+	if currentState != State.ATTACK:
 		return
 
-	if (
-		attack_return_state == State.CHASE
-		and _isValidTarget(chase_target)
-	):
+	if (attack_return_state == State.CHASE and _isValidTarget(chase_target)):
 		attack_target = null
 		_changeState(State.CHASE)
 		return
 
 	if (
-		attack_return_state == State.ATTACK_MOVE
-		and unit != null
-		and unit.movement != null
-		and unit.movement.is_moving()
+		attack_return_state == State.ATTACK_MOVE and unit != null
+		and unit.movement != null and unit.movement.is_moving()
 	):
 		attack_target = null
 		_changeState(State.ATTACK_MOVE)
@@ -165,22 +153,17 @@ func ReturnFromAttackOutOfRange() -> void:
 
 
 func FinishAttack() -> void:
-	if current_state != State.ATTACK:
+	if currentState != State.ATTACK:
 		return
 
-	if (
-		attack_return_state == State.CHASE
-		and _isValidTarget(chase_target)
-	):
+	if (attack_return_state == State.CHASE and _isValidTarget(chase_target)):
 		attack_target = null
 		_changeState(State.CHASE)
 		return
 
 	if (
-		attack_return_state == State.ATTACK_MOVE
-		and unit != null
-		and unit.movement != null
-		and unit.movement.is_moving()
+		attack_return_state == State.ATTACK_MOVE and unit != null
+		and unit.movement != null and unit.movement.is_moving()
 	):
 		attack_target = null
 		_changeState(State.ATTACK_MOVE)
@@ -190,17 +173,17 @@ func FinishAttack() -> void:
 
 
 func ApplyStun(duration: float) -> void:
-	if current_state == State.DIE:
+	if currentState == State.DIE:
 		return
 
 	if duration <= 0.0:
 		return
 
-	if current_state == State.STUN:
+	if currentState == State.STUN:
 		stun_time_left = maxf(stun_time_left, duration)
 		return
 
-	_state_before_stun = current_state
+	_state_before_stun = currentState
 	stun_time_left = duration
 
 	if unit != null and unit.movement != null:
@@ -210,7 +193,7 @@ func ApplyStun(duration: float) -> void:
 
 
 func Die() -> void:
-	if current_state == State.DIE:
+	if currentState == State.DIE:
 		return
 
 	stun_time_left = 0.0
@@ -298,11 +281,7 @@ func _resumeAfterStun() -> void:
 
 
 func _hasActiveMovement() -> bool:
-	return (
-		unit != null
-		and unit.movement != null
-		and unit.movement.is_moving()
-	)
+	return (unit != null and unit.movement != null and unit.movement.is_moving())
 
 
 func _enterIdleInternal() -> void:
@@ -318,12 +297,12 @@ func _clearTargets() -> void:
 
 
 func _changeState(next_state: State) -> void:
-	if current_state == next_state:
+	if currentState == next_state:
 		return
 
-	var previous_state: State = current_state
-	current_state = next_state
-	state_changed.emit(previous_state, current_state)
+	var previous_state: State = currentState
+	currentState = next_state
+	state_changed.emit(previous_state, currentState)
 
 
 func _isValidTarget(target: Unit) -> bool:
@@ -339,7 +318,7 @@ func _isValidTarget(target: Unit) -> bool:
 	if target == unit:
 		return false
 
-	if target.fsm != null and target.fsm.current_state == State.DIE:
+	if target.fsm != null and target.fsm.currentState == State.DIE:
 		return false
 
 	return true
