@@ -10,7 +10,7 @@
 [ext_resource type="Script" uid="uid://buv0bc2brmm1j" path="res://maps/navigation/NavigationData.gd" id="5_nq1oc"]
 [ext_resource type="PackedScene" uid="uid://dd6c3nmhvvai0" path="res://unit/Unit.tscn" id="5_wohdj"]
 [ext_resource type="Script" uid="uid://dwb6dp01f41m8" path="res://unit/SelectController.gd" id="8_u7dgu"]
-[ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPannel.gd" id="11_o4skl"]
+[ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPanel.gd" id="11_o4skl"]
 
 [sub_resource type="Resource" id="Resource_8rkap"]
 script = ExtResource("5_nq1oc")
