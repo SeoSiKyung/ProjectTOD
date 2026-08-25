@@ -4,13 +4,13 @@ extends Resource
 @export var facilities: Array[FacilityData] = []
 
 
-func GetFacilityData(facility_id: StringName) -> FacilityData:
+func GetFacilityData(facilityId: StringName) -> FacilityData:
 	for facility in facilities:
-		if facility.id == facility_id:
+		if facility.id == facilityId:
 			return facility
 
 	return null
 
 
-func HasFacility(facility_id: StringName) -> bool:
-	return GetFacilityData(facility_id) != null
+func HasFacility(facilityId: StringName) -> bool:
+	return GetFacilityData(facilityId) != null

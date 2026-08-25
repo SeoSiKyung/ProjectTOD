@@ -1,29 +1,29 @@
 class_name StatSystem
 extends Node
 
-var facilityCatalog: FacilityCatalog
+var _facilityCatalog: FacilityCatalog
 
 
-func Setup(p_facility_catalog: FacilityCatalog) -> void:
-	facilityCatalog = p_facility_catalog
+func Setup(facilityCatalog: FacilityCatalog) -> void:
+	_facilityCatalog = facilityCatalog
 
 
 func Calculate(settlement: SettlementState) -> DerivedStats:
 	var stats := DerivedStats.new()
 
-	if facilityCatalog == null:
+	if _facilityCatalog == null:
 		push_error("StatSystem: FacilityCatalog이 설정되지 않았습니다.")
 		return stats
 
-	for facility_state in settlement.facilities:
+	for facilityState in settlement.facilities:
 		# 아직 완공되지 않은 시설은 효과 없음
-		if not facility_state.IsBuilt():
+		if not facilityState.IsBuilt():
 			continue
 
-		var facility_data := facilityCatalog.GetFacilityData(facility_state.facilityId)
+		var facilityData := _facilityCatalog.GetFacilityData(facilityState.facilityId)
 
-		if facility_data == null:
-			push_warning("StatSystem: 시설 데이터를 찾을 수 없습니다: %s" % facility_state.facilityId)
+		if facilityData == null:
+			push_warning("StatSystem: 시설 데이터를 찾을 수 없습니다: %s" % facilityState.facilityId)
 			continue
 
 		# 레벨 시설:
@@ -31,22 +31,22 @@ func Calculate(settlement: SettlementState) -> DerivedStats:
 		#
 		# 비레벨 시설:
 		#   base_data 반환
-		var effect_data := facility_data.GetEffectData(facility_state.level)
+		var effectData := facilityData.GetEffectData(facilityState.level)
 
-		if effect_data == null:
+		if effectData == null:
 			# 생산 / 발전 / 방어시설은 반드시
 			# 현재 레벨에 해당하는 데이터가 있어야 함
-			if facility_data.IsLevelBased():
+			if facilityData.IsLevelBased():
 				push_warning(
 					"StatSystem: 효과 데이터를 찾을 수 없습니다: %s Lv.%d"
-					% [facility_state.facilityId, facility_state.level]
+					% [facilityState.facilityId, facilityState.level]
 				)
 
 			# 기본 / 기능시설은 효과가 없는 시설일 수도 있으므로
 			# base_data가 없어도 그냥 넘어감
 			continue
 
-		for effect in effect_data.effects:
+		for effect in effectData.effects:
 			_ApplyEffect(stats, effect)
 
 	return stats

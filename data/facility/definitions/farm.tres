@@ -12,10 +12,10 @@ metadata/_custom_type_script = "uid://bm8a5bn2edil"
 
 [sub_resource type="Resource" id="Resource_e0o28"]
 script = ExtResource("1_xttv5")
-construction_turns = 2
-gold_cost = 100
-food_cost = 50
-wood_cost = 50
+constructionTurns = 2
+goldCost = 100
+foodCost = 50
+woodCost = 50
 effects = Array[ExtResource("2_ir86q")]([SubResource("Resource_vum0x")])
 metadata/_custom_type_script = "uid://cl42t74u4dou8"
 
@@ -27,9 +27,9 @@ metadata/_custom_type_script = "uid://bm8a5bn2edil"
 
 [sub_resource type="Resource" id="Resource_qitjm"]
 script = ExtResource("1_xttv5")
-construction_turns = 3
-gold_cost = 180
-wood_cost = 80
+constructionTurns = 3
+goldCost = 180
+woodCost = 80
 effects = Array[ExtResource("2_ir86q")]([SubResource("Resource_e32g4")])
 metadata/_custom_type_script = "uid://cl42t74u4dou8"
 
@@ -41,16 +41,16 @@ metadata/_custom_type_script = "uid://bm8a5bn2edil"
 
 [sub_resource type="Resource" id="Resource_dci7k"]
 script = ExtResource("1_xttv5")
-construction_turns = 4
-gold_cost = 300
-wood_cost = 120
+constructionTurns = 4
+goldCost = 300
+woodCost = 120
 effects = Array[ExtResource("2_ir86q")]([SubResource("Resource_5lssf")])
 metadata/_custom_type_script = "uid://cl42t74u4dou8"
 
 [resource]
 script = ExtResource("2_tykrw")
 id = &"farm"
-display_name = "농지"
+displayName = "농지"
 description = "식량 수급량을 증가시킨다."
 levels = Array[ExtResource("1_xttv5")]([SubResource("Resource_e0o28"), SubResource("Resource_qitjm"), SubResource("Resource_dci7k")])
 metadata/_custom_type_script = "uid://bd4hqd1pdyupk"

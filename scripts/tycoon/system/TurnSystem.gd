@@ -1,7 +1,7 @@
 class_name TurnSystem
 extends Node
 
-signal TurnAdvanced(current_turn: int)
+signal TurnAdvanced(currentTurn: int)
 signal CycleFinished(cycle: int)
 
 

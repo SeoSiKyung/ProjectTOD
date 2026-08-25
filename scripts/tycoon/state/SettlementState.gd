@@ -78,16 +78,16 @@ func IsCycleFinished() -> bool:
 # =========================================================
 
 
-func GetFacility(facility_id: StringName) -> FacilityState:
+func GetFacility(facilityId: StringName) -> FacilityState:
 	for facility in facilities:
-		if facility.facilityId == facility_id:
+		if facility.facilityId == facilityId:
 			return facility
 
 	return null
 
 
-func HasFacility(facility_id: StringName) -> bool:
-	var facility := GetFacility(facility_id)
+func HasFacility(facilityId: StringName) -> bool:
+	var facility := GetFacility(facilityId)
 
 	if facility == null:
 		return false
@@ -95,8 +95,8 @@ func HasFacility(facility_id: StringName) -> bool:
 	return facility.IsBuilt()
 
 
-func IsFacilityUnderConstruction(facility_id: StringName) -> bool:
-	var facility := GetFacility(facility_id)
+func IsFacilityUnderConstruction(facilityId: StringName) -> bool:
+	var facility := GetFacility(facilityId)
 
 	if facility == null:
 		return false
@@ -108,9 +108,9 @@ func IsFacilityUnderConstruction(facility_id: StringName) -> bool:
 # =========================================================
 
 
-func GetConstructionTask(facility_id: StringName) -> ConstructionTask:
+func GetConstructionTask(facilityId: StringName) -> ConstructionTask:
 	for task in constructionTasks:
-		if task.facilityId == facility_id:
+		if task.facilityId == facilityId:
 			return task
 
 	return null
@@ -128,22 +128,22 @@ func SetStoryFlag(flag: StringName, value: bool = true) -> void:
 	storyFlags[flag] = value
 
 
-func HasIntel(intel_id: StringName) -> bool:
-	return collectedIntel.has(intel_id)
+func HasIntel(intelId: StringName) -> bool:
+	return collectedIntel.has(intelId)
 
 
-func AddIntel(intel_id: StringName) -> void:
-	if not collectedIntel.has(intel_id):
-		collectedIntel.append(intel_id)
+func AddIntel(intelId: StringName) -> void:
+	if not collectedIntel.has(intelId):
+		collectedIntel.append(intelId)
 
 # =========================================================
 # 이벤트
 # =========================================================
 
 
-func AddPendingEvent(event_id: StringName) -> void:
-	if not pendingEvents.has(event_id):
-		pendingEvents.append(event_id)
+func AddPendingEvent(eventId: StringName) -> void:
+	if not pendingEvents.has(eventId):
+		pendingEvents.append(eventId)
 
 
 func PopPendingEvent() -> StringName:
