@@ -3,13 +3,14 @@
 [ext_resource type="Script" uid="uid://cooykx73a50w8" path="res://maps/navigation/navigation_baker.gd" id="1_dgir3"]
 [ext_resource type="Script" uid="uid://e48cbf160ggc" path="res://scene/offense_scene.gd" id="1_wohdj"]
 [ext_resource type="Texture2D" uid="uid://cupxwvi5omkk5" path="res://maps/0.png" id="2_nipmi"]
-[ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/command_controller.gd" id="3_dlxae"]
+[ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/CommandController.gd" id="3_dlxae"]
 [ext_resource type="Resource" uid="uid://cxxppg8eoyppk" path="res://maps/0_navigation.res" id="4_dgir3"]
 [ext_resource type="Script" uid="uid://w6nsvxisxrdt" path="res://unit/movement_simulator.gd" id="4_jaojb"]
 [ext_resource type="Script" uid="uid://e6ictg15nwt0" path="res://unit/movement_controller.gd" id="5_dgir3"]
 [ext_resource type="Script" uid="uid://dnlnjlnj1aeyu" path="res://unit/navigation_service.gd" id="5_j4bn1"]
 [ext_resource type="PackedScene" uid="uid://6pdasnmpewu8" path="res://unit/unit.tscn" id="5_wohdj"]
 [ext_resource type="Script" uid="uid://br257xxqho68w" path="res://unit/select_controller.gd" id="8_u7dgu"]
+[ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPannel.gd" id="11_o4skl"]
 
 [node name="OffenseScene" type="Node2D" unique_id=2102705416]
 script = ExtResource("1_wohdj")
@@ -61,3 +62,6 @@ unit_id = 3
 [node name="Unit4" parent="." unique_id=22581196 instance=ExtResource("5_wohdj")]
 position = Vector2(349, 121)
 unit_id = 4
+
+[node name="CommandPannel" type="CanvasLayer" parent="." unique_id=1036861275]
+script = ExtResource("11_o4skl")
