@@ -1,9 +1,9 @@
 class_name ConstructionSystem
 extends Node
 
-signal ConstructionCompleted(facility_id: StringName, level: int)
+signal ConstructionCompleted(facilityId: StringName, level: int)
 
-signal UpgradeCompleted(facility_id: StringName, level: int)
+signal UpgradeCompleted(facilityId: StringName, level: int)
 
 
 func ProcessTurnStart(settlement: SettlementState) -> void:
@@ -14,20 +14,20 @@ func ProcessTurnStart(settlement: SettlementState) -> void:
 		task.AdvanceTurn()
 
 		if task.IsCompleted():
-			CompleteTask(settlement, task)
+			_CompleteTask(settlement, task)
 
 			settlement.constructionTasks.remove_at(i)
 
 
-func CompleteTask(settlement: SettlementState, task: ConstructionTask) -> void:
-	var facility_state := settlement.GetFacility(task.facilityId)
+func _CompleteTask(settlement: SettlementState, task: ConstructionTask) -> void:
+	var facilityState := settlement.GetFacility(task.facilityId)
 
-	if facility_state == null:
+	if facilityState == null:
 		push_warning("ConstructionSystem: FacilityState를 찾을 수 없습니다: %s" % task.facilityId)
 		return
 
-	facility_state.level = task.targetLevel
-	facility_state.status = FacilityState.Status.BUILT
+	facilityState.level = task.targetLevel
+	facilityState.status = FacilityState.Status.BUILT
 
 	match task.taskType:
 		ConstructionTask.TaskType.BUILD:

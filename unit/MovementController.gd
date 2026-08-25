@@ -5,7 +5,7 @@ extends Node
 @export var selectController: SelectController
 
 var _nextOrderId: int = 1
-var commandLog: Array = []
+var _commandLog: Array = []
 
 
 func _ready() -> void:
@@ -79,7 +79,7 @@ func IssueMoveOrder(
 			unit.fsm.RequestMove()
 
 	if recordCommand:
-		commandLog.append(
+		_commandLog.append(
 			{
 				"type": "move",
 				"order_id": orderId,
@@ -92,15 +92,15 @@ func IssueMoveOrder(
 	return orderId
 
 
-func IssueSelectedMoveOrder(target_world: Vector2) -> int:
+func IssueSelectedMoveOrder(targetWorld: Vector2) -> int:
 	if selectController == null:
 		return -1
 
-	return IssueMoveOrder(selectController.GetSelectedFriendlyUnits(), target_world)
+	return IssueMoveOrder(selectController.GetSelectedFriendlyUnits(), targetWorld)
 
 
-func IssueTrackingMoveOrder(units: Array[Unit], target_world: Vector2) -> int:
-	return IssueMoveOrder(units, target_world, false, false)
+func IssueTrackingMoveOrder(units: Array[Unit], targetWorld: Vector2) -> int:
+	return IssueMoveOrder(units, targetWorld, false, false)
 
 
 func IssueStopOrder(units: Array[Unit]) -> int:
@@ -136,7 +136,7 @@ func IssueStopOrder(units: Array[Unit]) -> int:
 	for unit: Unit in acceptedUnits:
 		unit.fsm.RequestIdle()
 
-	commandLog.append(
+	_commandLog.append(
 		{
 			"type": "stop",
 			"order_id": commandId,
@@ -162,7 +162,7 @@ func _CanIssueCommandTo(unit: Unit) -> bool:
 	if not is_instance_valid(unit):
 		return false
 
-	if not unit.player_controllable:
+	if not unit.playerControllable:
 		return false
 
 	return unit.CanReceiveCommands()

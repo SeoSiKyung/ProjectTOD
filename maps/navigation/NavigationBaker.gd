@@ -30,7 +30,7 @@ func BakeNavigation() -> void:
 		return
 
 	if cellSize <= 0:
-		push_error("cell_size는 1 이상이어야 합니다.")
+		push_error("cellSize는 1 이상이어야 합니다.")
 		return
 
 	var image: Image = navigationMask.get_image()
@@ -47,11 +47,11 @@ func BakeNavigation() -> void:
 		return
 
 	if imageWidth % cellSize != 0:
-		push_error("Navigation Mask 가로 크기는 cell_size의 배수여야 합니다. 현재: %d" % imageWidth)
+		push_error("Navigation Mask 가로 크기는 cellSize의 배수여야 합니다. 현재: %d" % imageWidth)
 		return
 
 	if imageHeight % cellSize != 0:
-		push_error("Navigation Mask 세로 크기는 cell_size의 배수여야 합니다. 현재: %d" % imageHeight)
+		push_error("Navigation Mask 세로 크기는 cellSize의 배수여야 합니다. 현재: %d" % imageHeight)
 		return
 
 	var gridWidth: int = imageWidth / cellSize
@@ -114,11 +114,11 @@ func BakeNavigation() -> void:
 
 	var directory: String = outputPath.get_base_dir()
 
-	var absoluteDirectory: String = (ProjectSettings.globalize_path(directory))
+	var absoluteDirectory: String = ProjectSettings.globalize_path(directory)
 
-	var dirError: Error = (DirAccess.make_dir_recursive_absolute(absoluteDirectory))
+	var dirError: Error = DirAccess.make_dir_recursive_absolute(absoluteDirectory)
 
-	if (dirError != OK and dirError != ERR_ALREADY_EXISTS):
+	if dirError != OK and dirError != ERR_ALREADY_EXISTS:
 		push_error("Navigation 저장 폴더 생성 실패: %s" % directory)
 		return
 
@@ -154,11 +154,11 @@ func _GetOutputPath() -> String:
 	if navigationMask == null:
 		return ""
 
-	var texture_path: String = navigationMask.resource_path
+	var texturePath: String = navigationMask.resource_path
 
-	if texture_path.is_empty():
+	if texturePath.is_empty():
 		return ""
 
-	var file_name: String = (texture_path.get_file().get_basename())
+	var fileName: String = texturePath.get_file().get_basename()
 
-	return outputDirectory.path_join(file_name + "_navigation.res")
+	return outputDirectory.path_join(fileName + "_navigation.res")

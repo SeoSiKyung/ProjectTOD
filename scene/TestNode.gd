@@ -1,29 +1,29 @@
 extends Node
 
-@export var facility_catalog: FacilityCatalog
+@export var facilityCatalog: FacilityCatalog
 
-var facility_system: FacilitySystem
-var stat_system: StatSystem
-var turn_system: TurnSystem
-var construction_system: ConstructionSystem
+var _facilitySystem: FacilitySystem
+var _statSystem: StatSystem
+var _turnSystem: TurnSystem
+var _constructionSystem: ConstructionSystem
 
 
 func _ready() -> void:
 	# =====================================================
 	# 시스템 생성
 	# =====================================================
-	facility_system = FacilitySystem.new()
-	stat_system = StatSystem.new()
-	turn_system = TurnSystem.new()
-	construction_system = ConstructionSystem.new()
+	_facilitySystem = FacilitySystem.new()
+	_statSystem = StatSystem.new()
+	_turnSystem = TurnSystem.new()
+	_constructionSystem = ConstructionSystem.new()
 
-	add_child(facility_system)
-	add_child(stat_system)
-	add_child(turn_system)
-	add_child(construction_system)
+	add_child(_facilitySystem)
+	add_child(_statSystem)
+	add_child(_turnSystem)
+	add_child(_constructionSystem)
 
-	facility_system.Setup(facility_catalog)
-	stat_system.Setup(facility_catalog)
+	_facilitySystem.Setup(facilityCatalog)
+	_statSystem.Setup(facilityCatalog)
 
 	# =====================================================
 	# 테스트용 영지 생성
@@ -43,7 +43,7 @@ func _ready() -> void:
 	print("       타이쿤 시스템 테스트 시작")
 	print("====================================")
 
-	print_settlement(settlement)
+	_PrintSettlement(settlement)
 
 	# =====================================================
 	# 농지 Lv1 건설
@@ -51,13 +51,13 @@ func _ready() -> void:
 	print("")
 	print("========== 농지 건설 요청 ==========")
 
-	var build_success: bool = facility_system.RequestBuild(settlement, &"farm")
+	var buildSuccess: bool = _facilitySystem.RequestBuild(settlement, &"farm")
 
-	print("건설 성공: ", build_success)
+	print("건설 성공: ", buildSuccess)
 
-	print_settlement(settlement)
-	print_farm(settlement)
-	print_stats(settlement)
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	# =====================================================
 	# Turn 1
@@ -65,11 +65,11 @@ func _ready() -> void:
 	print("")
 	print("========== Turn 1 ==========")
 
-	process_one_turn(settlement)
+	_ProcessOneTurn(settlement)
 
-	print_settlement(settlement)
-	print_farm(settlement)
-	print_stats(settlement)
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	# =====================================================
 	# Turn 2
@@ -77,11 +77,11 @@ func _ready() -> void:
 	print("")
 	print("========== Turn 2 ==========")
 
-	process_one_turn(settlement)
+	_ProcessOneTurn(settlement)
 
-	print_settlement(settlement)
-	print_farm(settlement)
-	print_stats(settlement)
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	# =====================================================
 	# 농지 Lv2 업그레이드
@@ -89,13 +89,13 @@ func _ready() -> void:
 	print("")
 	print("========== 농지 Lv2 업그레이드 ==========")
 
-	var upgrade_success: bool = facility_system.RequestUpgrade(settlement, &"farm")
+	var upgradeSuccess: bool = _facilitySystem.RequestUpgrade(settlement, &"farm")
 
-	print("업그레이드 시작 성공: ", upgrade_success)
+	print("업그레이드 시작 성공: ", upgradeSuccess)
 
-	print_settlement(settlement)
-	print_farm(settlement)
-	print_stats(settlement)
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	# =====================================================
 	# Lv2 업그레이드 진행
@@ -106,11 +106,11 @@ func _ready() -> void:
 		print("")
 		print("========== Upgrade Turn ", i + 1, " ==========")
 
-		process_one_turn(settlement)
+		_ProcessOneTurn(settlement)
 
-		print_settlement(settlement)
-		print_farm(settlement)
-		print_stats(settlement)
+		_PrintSettlement(settlement)
+		_PrintFarm(settlement)
+		_PrintStats(settlement)
 
 	print("")
 	print("====================================")
@@ -122,22 +122,22 @@ func _ready() -> void:
 # =========================================================
 
 
-func process_one_turn(settlement: SettlementState) -> void:
-	var success := turn_system.AdvanceTurn(settlement)
+func _ProcessOneTurn(settlement: SettlementState) -> void:
+	var success := _turnSystem.AdvanceTurn(settlement)
 
 	if not success:
 		print("턴을 진행할 수 없습니다.")
 		return
 
 	# 새 턴 시작 시 건설 / 업그레이드 진행
-	construction_system.ProcessTurnStart(settlement)
+	_constructionSystem.ProcessTurnStart(settlement)
 
 # =========================================================
 # 영지 상태 출력
 # =========================================================
 
 
-func print_settlement(settlement: SettlementState) -> void:
+func _PrintSettlement(settlement: SettlementState) -> void:
 	print("--- Settlement ---")
 	print(
 		"Cycle: ",
@@ -157,7 +157,7 @@ func print_settlement(settlement: SettlementState) -> void:
 # =========================================================
 
 
-func print_farm(settlement: SettlementState) -> void:
+func _PrintFarm(settlement: SettlementState) -> void:
 	var farm := settlement.GetFacility(&"farm")
 
 	print("--- Farm ---")
@@ -182,8 +182,8 @@ func print_farm(settlement: SettlementState) -> void:
 # =========================================================
 
 
-func print_stats(settlement: SettlementState) -> void:
-	var stats := stat_system.Calculate(settlement)
+func _PrintStats(settlement: SettlementState) -> void:
+	var stats := _statSystem.Calculate(settlement)
 
 	print("--- Derived Stats ---")
 	print("Gold Income: ", stats.goldIncome)

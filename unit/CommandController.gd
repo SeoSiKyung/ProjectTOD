@@ -16,8 +16,8 @@ enum TrackingMode {
 signal commandModeChanged(mode: CommandMode)
 signal followCommandIssued(units, target)
 signal chaseCommandIssued(units, target)
-signal attackMoveCommandIssued(units, target_world)
-signal skillCommandIssued(units, target_world, target_unit, skill_slot)
+signal attackMoveCommandIssued(units, targetWorld)
+signal skillCommandIssued(units, targetWorld, targetUnit, skillSlot)
 
 @export var movementController: MovementController
 @export var selectController: SelectController
@@ -29,9 +29,9 @@ var commandMode: CommandMode = CommandMode.SMART
 var activeSkillSlot: int = 0
 
 var _trackingElapsed: float = 0.0
-var _TrackingTargetByUnit: Dictionary[int, Unit] = { }
-var _TrackingModeByUnit: Dictionary[int, int] = { }
-var _TrackingLastGoalByUnit: Dictionary[int, Vector2] = { }
+var _trackingTargetByUnit: Dictionary[int, Unit] = { }
+var _trackingModeByUnit: Dictionary[int, int] = { }
+var _trackingLastGoalByUnit: Dictionary[int, Vector2] = { }
 
 
 func _ready() -> void:
@@ -39,16 +39,16 @@ func _ready() -> void:
 
 	if parent != null:
 		if movementController == null:
-			var movement_node: Node = parent.get_node_or_null("MovementController")
+			var movementNode: Node = parent.get_node_or_null("MovementController")
 
-			if movement_node is MovementController:
-				movementController = movement_node as MovementController
+			if movementNode is MovementController:
+				movementController = movementNode as MovementController
 
 		if selectController == null:
-			var select_node: Node = parent.get_node_or_null("SelectController")
+			var selectNode: Node = parent.get_node_or_null("SelectController")
 
-			if select_node is SelectController:
-				selectController = select_node as SelectController
+			if selectNode is SelectController:
+				selectController = selectNode as SelectController
 
 	if selectController != null:
 		if not selectController.selection_changed.is_connected(_OnSelectionChanged):
@@ -90,11 +90,11 @@ func BeginAttackCommand() -> bool:
 	return _BeginTargetingMode(CommandMode.ATTACK)
 
 
-func BeginSkillCommand(skill_slot: int = 0) -> bool:
+func BeginSkillCommand(skillSlot: int = 0) -> bool:
 	if not _HasCommandableSelection():
 		return false
 
-	activeSkillSlot = maxi(skill_slot, 0)
+	activeSkillSlot = maxi(skillSlot, 0)
 	_SetCommandMode(CommandMode.SKILL)
 	return true
 
@@ -104,22 +104,22 @@ func CancelTargetingCommand() -> void:
 	_SetCommandMode(CommandMode.SMART)
 
 
-func IssueSmartCommandAt(target_world: Vector2) -> bool:
+func IssueSmartCommandAt(targetWorld: Vector2) -> bool:
 	if selectController == null:
 		return false
 
-	var clicked_unit: Unit = (selectController.GetUnitAtWorldPosition(target_world))
+	var clickedUnit: Unit = selectController.GetUnitAtWorldPosition(targetWorld)
 
-	if clicked_unit != null:
-		if _IsFriendlyTarget(clicked_unit):
-			return IssueFollowCommand(clicked_unit)
+	if clickedUnit != null:
+		if _IsFriendlyTarget(clickedUnit):
+			return IssueFollowCommand(clickedUnit)
 
-		if _IsHostileTarget(clicked_unit):
-			return IssueChaseCommand(clicked_unit)
+		if _IsHostileTarget(clickedUnit):
+			return IssueChaseCommand(clickedUnit)
 
 		return false
 
-	return IssueMoveCommand(target_world) >= 0
+	return IssueMoveCommand(targetWorld) >= 0
 
 
 func IssueMoveCommand(targetWorld: Vector2) -> int:
@@ -216,9 +216,9 @@ func IssueChaseCommand(target: Unit) -> bool:
 
 	_ClearTrackingForUnits(units)
 
-	var order_id: int = movementController.IssueTrackingMoveOrder(units, target.global_position)
+	var orderId: int = movementController.IssueTrackingMoveOrder(units, target.global_position)
 
-	if order_id < 0:
+	if orderId < 0:
 		return false
 
 	var acceptedUnits: Array[Unit] = []
@@ -244,7 +244,7 @@ func IssueAttackCommand(target: Unit) -> bool:
 	return IssueChaseCommand(target)
 
 
-func IssueAttackMoveCommand(target_world: Vector2) -> bool:
+func IssueAttackMoveCommand(targetWorld: Vector2) -> bool:
 	if movementController == null:
 		return false
 
@@ -255,12 +255,12 @@ func IssueAttackMoveCommand(target_world: Vector2) -> bool:
 
 	_ClearTrackingForUnits(units)
 
-	var order_id: int = movementController.IssueTrackingMoveOrder(units, target_world)
+	var orderId: int = movementController.IssueTrackingMoveOrder(units, targetWorld)
 
-	if order_id < 0:
+	if orderId < 0:
 		return false
 
-	var accepted_units: Array[Unit] = []
+	var acceptedUnits: Array[Unit] = []
 
 	for unit: Unit in units:
 		if unit.fsm == null:
@@ -269,34 +269,34 @@ func IssueAttackMoveCommand(target_world: Vector2) -> bool:
 		if not unit.fsm.RequestAttackMove():
 			continue
 
-		accepted_units.append(unit)
+		acceptedUnits.append(unit)
 
-	if accepted_units.is_empty():
+	if acceptedUnits.is_empty():
 		return false
 
-	_ShowMoveClickEffect(target_world)
-	attackMoveCommandIssued.emit(accepted_units.duplicate(), target_world)
+	_ShowMoveClickEffect(targetWorld)
+	attackMoveCommandIssued.emit(acceptedUnits.duplicate(), targetWorld)
 	return true
 
 
-func IssueSkillCommand(target_world: Vector2, target_unit: Unit = null) -> bool:
+func IssueSkillCommand(targetWorld: Vector2, targetUnit: Unit = null) -> bool:
 	var units: Array[Unit] = _GetCommandableSelectedUnits()
 
 	if units.is_empty():
 		return false
 
-	skillCommandIssued.emit(units.duplicate(), target_world, target_unit, activeSkillSlot)
+	skillCommandIssued.emit(units.duplicate(), targetWorld, targetUnit, activeSkillSlot)
 	return true
 
 
-func _HandleKeyInput(key_event: InputEventKey) -> void:
-	if not key_event.pressed:
+func _HandleKeyInput(keyEvent: InputEventKey) -> void:
+	if not keyEvent.pressed:
 		return
 
-	if key_event.echo:
+	if keyEvent.echo:
 		return
 
-	if _IsCancelKey(key_event):
+	if _IsCancelKey(keyEvent):
 		if not IsTargetingCommand():
 			return
 
@@ -304,63 +304,63 @@ func _HandleKeyInput(key_event: InputEventKey) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	if _IsStopKey(key_event):
+	if _IsStopKey(keyEvent):
 		if IssueStopCommand() < 0:
 			return
 
 		get_viewport().set_input_as_handled()
 		return
 
-	if _IsMoveKey(key_event):
+	if _IsMoveKey(keyEvent):
 		if not BeginMoveCommand():
 			return
 
 		get_viewport().set_input_as_handled()
 		return
 
-	if _IsAttackKey(key_event):
+	if _IsAttackKey(keyEvent):
 		if not BeginAttackCommand():
 			return
 
 		get_viewport().set_input_as_handled()
 		return
 
-	if _IsSkillKey(key_event):
+	if _IsSkillKey(keyEvent):
 		if not BeginSkillCommand():
 			return
 
 		get_viewport().set_input_as_handled()
 
 
-func _HandleMouseInput(mouse_event: InputEventMouseButton) -> void:
-	if not mouse_event.pressed:
+func _HandleMouseInput(mouseEvent: InputEventMouseButton) -> void:
+	if not mouseEvent.pressed:
 		return
 
-	if mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+	if mouseEvent.button_index == MOUSE_BUTTON_RIGHT:
 		if IsTargetingCommand():
 			CancelTargetingCommand()
 			get_viewport().set_input_as_handled()
 			return
 
-		var smart_target_world: Vector2 = _ScreenToWorld(mouse_event.position)
+		var smartTargetWorld: Vector2 = _ScreenToWorld(mouseEvent.position)
 
-		if not IssueSmartCommandAt(smart_target_world):
+		if not IssueSmartCommandAt(smartTargetWorld):
 			return
 
 		get_viewport().set_input_as_handled()
 		return
 
-	if mouse_event.button_index != MOUSE_BUTTON_LEFT:
+	if mouseEvent.button_index != MOUSE_BUTTON_LEFT:
 		return
 
 	if not IsTargetingCommand():
 		return
 
-	var target_world: Vector2 = _ScreenToWorld(mouse_event.position)
+	var targetWorld: Vector2 = _ScreenToWorld(mouseEvent.position)
 	var targetUnit: Unit = null
 
 	if selectController != null:
-		targetUnit = selectController.GetUnitAtWorldPosition(target_world)
+		targetUnit = selectController.GetUnitAtWorldPosition(targetWorld)
 
 	var commandSucceeded: bool = false
 
@@ -369,14 +369,16 @@ func _HandleMouseInput(mouse_event: InputEventMouseButton) -> void:
 			if targetUnit != null:
 				commandSucceeded = IssueFollowCommand(targetUnit)
 			else:
-				commandSucceeded = IssueMoveCommand(target_world) >= 0
+				commandSucceeded = IssueMoveCommand(targetWorld) >= 0
+
 		CommandMode.ATTACK:
 			if _IsHostileTarget(targetUnit):
 				commandSucceeded = IssueChaseCommand(targetUnit)
 			else:
-				commandSucceeded = IssueAttackMoveCommand(target_world)
+				commandSucceeded = IssueAttackMoveCommand(targetWorld)
+
 		CommandMode.SKILL:
-			commandSucceeded = IssueSkillCommand(target_world, targetUnit)
+			commandSucceeded = IssueSkillCommand(targetWorld, targetUnit)
 
 	if not commandSucceeded:
 		return
@@ -398,9 +400,9 @@ func _RefreshTrackingOrders() -> void:
 	var invalidTargetUnits: Array[Unit] = []
 	var repathDistance: float = maxf(trackingRepathDistance, 1.0)
 
-	for unitId: int in _TrackingTargetByUnit:
+	for unitId: int in _trackingTargetByUnit:
 		var unit: Unit = movementController.simulator.GetUnit(unitId)
-		var target: Unit = _TrackingTargetByUnit[unitId]
+		var target: Unit = _trackingTargetByUnit[unitId]
 
 		if unit == null or not is_instance_valid(unit):
 			removeIds.append(unitId)
@@ -421,12 +423,12 @@ func _RefreshTrackingOrders() -> void:
 		if unit.fsm.currentState == UnitFSM.State.ATTACK:
 			continue
 
-		var lastGoal: Vector2 = _TrackingLastGoalByUnit.get(unitId, target.global_position)
+		var lastGoal: Vector2 = _trackingLastGoalByUnit.get(unitId, target.global_position)
 
 		if lastGoal.distance_to(target.global_position) < repathDistance:
 			continue
 
-		var mode: int = _TrackingModeByUnit[unitId]
+		var mode: int = _trackingModeByUnit[unitId]
 		var groupKey: String = "%d:%d" % [mode, target.unitId]
 
 		if not groups.has(groupKey):
@@ -464,17 +466,17 @@ func _RefreshTrackingOrders() -> void:
 			continue
 
 		for unit: Unit in units:
-			_TrackingLastGoalByUnit[unit.unitId] = target.global_position
+			_trackingLastGoalByUnit[unit.unitId] = target.global_position
 
 
-func _TrackingStateActive(unit: Unit, unit_id: int) -> bool:
+func _TrackingStateActive(unit: Unit, unitId: int) -> bool:
 	if unit.fsm == null:
 		return false
 
 	if unit.fsm.currentState == UnitFSM.State.STUN:
 		return true
 
-	var mode: int = _TrackingModeByUnit.get(unit_id, -1)
+	var mode: int = _trackingModeByUnit.get(unitId, -1)
 
 	if mode == TrackingMode.FOLLOW:
 		return unit.fsm.currentState == UnitFSM.State.FOLLOW
@@ -487,14 +489,14 @@ func _TrackingStateActive(unit: Unit, unit_id: int) -> bool:
 
 	return (
 		unit.fsm.currentState == UnitFSM.State.ATTACK
-		and unit.fsm.attack_return_state == UnitFSM.State.CHASE
+		and unit.fsm.attackReturnState == UnitFSM.State.CHASE
 	)
 
 
 func _RegisterTracking(unit: Unit, target: Unit, mode: TrackingMode) -> void:
-	_TrackingTargetByUnit[unit.unitId] = target
-	_TrackingModeByUnit[unit.unitId] = mode
-	_TrackingLastGoalByUnit[unit.unitId] = target.global_position
+	_trackingTargetByUnit[unit.unitId] = target
+	_trackingModeByUnit[unit.unitId] = mode
+	_trackingLastGoalByUnit[unit.unitId] = target.global_position
 
 
 func _ClearTrackingForUnits(units: Array[Unit]) -> void:
@@ -502,10 +504,10 @@ func _ClearTrackingForUnits(units: Array[Unit]) -> void:
 		_RemoveTracking(unit.unitId)
 
 
-func _RemoveTracking(unit_id: int) -> void:
-	_TrackingTargetByUnit.erase(unit_id)
-	_TrackingModeByUnit.erase(unit_id)
-	_TrackingLastGoalByUnit.erase(unit_id)
+func _RemoveTracking(unitId: int) -> void:
+	_trackingTargetByUnit.erase(unitId)
+	_trackingModeByUnit.erase(unitId)
+	_trackingLastGoalByUnit.erase(unitId)
 
 
 func _BeginTargetingMode(mode: CommandMode) -> bool:
@@ -568,14 +570,14 @@ func _IsValidUnitTarget(target: Unit) -> bool:
 
 
 func _IsFriendlyTarget(target: Unit) -> bool:
-	return (_IsValidUnitTarget(target) and target.player_controllable)
+	return _IsValidUnitTarget(target) and target.playerControllable
 
 
 func _IsHostileTarget(target: Unit) -> bool:
-	return (_IsValidUnitTarget(target) and not target.player_controllable)
+	return _IsValidUnitTarget(target) and not target.playerControllable
 
 
-func _OnSelectionChanged(_selected_units: Variant) -> void:
+func _OnSelectionChanged(selectedUnits: Variant) -> void:
 	if _HasCommandableSelection():
 		return
 
@@ -603,10 +605,10 @@ func _IsCancelKey(event: InputEventKey) -> bool:
 
 
 func _MatchesKey(event: InputEventKey, key: int) -> bool:
-	return (event.keycode == key or event.physical_keycode == key)
+	return event.keycode == key or event.physical_keycode == key
 
 
-func _ShowMoveClickEffect(target_world: Vector2) -> void:
+func _ShowMoveClickEffect(targetWorld: Vector2) -> void:
 	if moveClickEffectScene == null:
 		return
 
@@ -624,8 +626,8 @@ func _ShowMoveClickEffect(target_world: Vector2) -> void:
 		return
 
 	scene.add_child(effect)
-	effect.global_position = target_world
+	effect.global_position = targetWorld
 
 
-func _ScreenToWorld(screen_position: Vector2) -> Vector2:
-	return (get_viewport().get_canvas_transform().affine_inverse() * screen_position)
+func _ScreenToWorld(screenPosition: Vector2) -> Vector2:
+	return get_viewport().get_canvas_transform().affine_inverse() * screenPosition

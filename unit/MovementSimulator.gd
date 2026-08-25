@@ -82,7 +82,7 @@ func _ready() -> void:
 	call_deferred("_RegisterSceneUnits")
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if navigationService == null:
 		return
 
@@ -93,27 +93,27 @@ func _physics_process(_delta: float) -> void:
 	simulationTick += 1
 	_CleanupPairMemory()
 
-	var order_ids: Array[int] = []
+	var orderIds: Array[int] = []
 
-	for order_id: int in _orders:
-		order_ids.append(order_id)
+	for orderId: int in _orders:
+		orderIds.append(orderId)
 
-	order_ids.sort()
+	orderIds.sort()
 
 	var candidates: Array[MoveOrder.MovementCandidate] = []
 
-	for order_id: int in order_ids:
-		if not _orders.has(order_id):
+	for orderId: int in orderIds:
+		if not _orders.has(orderId):
 			continue
 
-		var order: MoveOrder = _orders[order_id]
+		var order: MoveOrder = _orders[orderId]
 
-		if simulationTick < order.issued_tick:
+		if simulationTick < order.issuedTick:
 			continue
 
-		var order_candidates: Array[MoveOrder.MovementCandidate] = order.Simulate(dt, _units)
+		var orderCandidates: Array[MoveOrder.MovementCandidate] = order.Simulate(dt, _units)
 
-		for candidate: MoveOrder.MovementCandidate in order_candidates:
+		for candidate: MoveOrder.MovementCandidate in orderCandidates:
 			candidates.append(candidate)
 
 	_ResolveCandidates(candidates, dt)
@@ -144,8 +144,8 @@ func AddMoveOrder(order: MoveOrder) -> void:
 	order.Start(_units)
 
 
-func StopUnits(unit_ids: Array[int]) -> void:
-	for unitId: int in unit_ids:
+func StopUnits(unitIds: Array[int]) -> void:
+	for unitId: int in unitIds:
 		if not _units.has(unitId):
 			continue
 
@@ -212,23 +212,23 @@ func _RegisterSceneUnits() -> void:
 func _RebuildSortedUnitIds() -> void:
 	_sortedUnitIds.clear()
 
-	for unit_id: int in _units:
-		_sortedUnitIds.append(unit_id)
+	for unitId: int in _units:
+		_sortedUnitIds.append(unitId)
 
 	_sortedUnitIds.sort()
 
 
 func _CleanupFinishedOrders() -> void:
-	var remove_ids: Array[int] = []
+	var removeIds: Array[int] = []
 
-	for order_id: int in _orders:
-		var order: MoveOrder = _orders[order_id]
+	for orderId: int in _orders:
+		var order: MoveOrder = _orders[orderId]
 
 		if order.IsFinished(_units):
-			remove_ids.append(order_id)
+			removeIds.append(orderId)
 
-	for order_id: int in remove_ids:
-		_orders.erase(order_id)
+	for orderId: int in removeIds:
+		_orders.erase(orderId)
 
 
 func _ResolveCandidates(candidates: Array[MoveOrder.MovementCandidate], dt: float) -> void:
@@ -279,17 +279,17 @@ func _ResolveCandidates(candidates: Array[MoveOrder.MovementCandidate], dt: floa
 	var sortedCandidates: Array[MoveOrder.MovementCandidate] = candidates.duplicate()
 	sortedCandidates.sort_custom(
 		func(a: MoveOrder.MovementCandidate, b: MoveOrder.MovementCandidate) -> bool:
-			var a_freedom: int = freedomById[a.unitId]
-			var b_freedom: int = freedomById[b.unitId]
+			var aFreedom: int = freedomById[a.unitId]
+			var bFreedom: int = freedomById[b.unitId]
 
-			if a_freedom != b_freedom:
-				return a_freedom < b_freedom
+			if aFreedom != bFreedom:
+				return aFreedom < bFreedom
 
-			var a_distance: float = targetDistanceById[a.unitId]
-			var b_distance: float = targetDistanceById[b.unitId]
+			var aDistance: float = targetDistanceById[a.unitId]
+			var bDistance: float = targetDistanceById[b.unitId]
 
-			if absf(a_distance - b_distance) > EPSILON:
-				return a_distance < b_distance
+			if absf(aDistance - bDistance) > EPSILON:
+				return aDistance < bDistance
 
 			if a.priority != b.priority:
 				return a.priority < b.priority
@@ -352,7 +352,7 @@ func _ReservationMapFreedom(candidate: MoveOrder.MovementCandidate, dt: float) -
 
 	var stepDistance: float = candidate.maxStepDistance
 
-	if candidate.final_tick:
+	if candidate.finalTick:
 		stepDistance = candidate.desiredStepDistance
 
 	if stepDistance <= EPSILON:
@@ -410,7 +410,7 @@ func _FirstUnitBlocker(
 			position,
 			candidate.halfSize,
 			other.position,
-			other.half_size,
+			other.halfSize,
 		):
 			continue
 
@@ -440,7 +440,7 @@ func _PrepareReservationPlan(
 	if _avoidanceByUnit.has(candidate.unitId):
 		var existing: AvoidancePlan = _avoidanceByUnit[candidate.unitId]
 
-		if existing.other_id == blockerId:
+		if existing.otherId == blockerId:
 			existing.side = side
 
 			if (
@@ -452,7 +452,7 @@ func _PrepareReservationPlan(
 			return
 
 	var plan: AvoidancePlan = AvoidancePlan.new()
-	plan.other_id = blockerId
+	plan.otherId = blockerId
 	plan.side = side
 	plan.selectedAngle = AVOID_PRIMARY_ANGLE * float(side)
 	_avoidanceByUnit[candidate.unitId] = plan
@@ -486,11 +486,11 @@ func _ReservationPreferredSide(
 	if _avoidanceByUnit.has(candidate.unitId):
 		var existing: AvoidancePlan = _avoidanceByUnit[candidate.unitId]
 
-		if existing.other_id == blockerId:
-			var existing_side: int = 1 if existing.side >= 0 else -1
+		if existing.otherId == blockerId:
+			var existingSide: int = 1 if existing.side >= 0 else -1
 
-			if _ReservationSideHasMapMotion(candidate, baseDirection, existing_side, dt):
-				return existing_side
+			if _ReservationSideHasMapMotion(candidate, baseDirection, existingSide, dt):
+				return existingSide
 
 	var memory: PairMemory = _GetPairMemory(candidate.unitId, blockerId, candidateById)
 	var memorySide: int = memory.lowSide if candidate.unitId == memory.lowId else memory.highSide
@@ -508,13 +508,13 @@ func _ReservationPreferredSide(
 
 func _ReservationSideHasMapMotion(
 	candidate: MoveOrder.MovementCandidate,
-	base_direction: Vector2,
+	baseDirection: Vector2,
 	side: int,
 	dt: float,
 ) -> bool:
 	var stepDistance: float = candidate.maxStepDistance
 
-	if candidate.final_tick:
+	if candidate.finalTick:
 		stepDistance = candidate.desiredStepDistance
 
 	if stepDistance <= EPSILON:
@@ -535,7 +535,7 @@ func _ReservationSideHasMapMotion(
 		for speedRatio: float in _AvoidSpeedRatios():
 			var position: Vector2 = _QuantizeVec(
 				candidate.startPosition
-				+ base_direction.rotated(angle * sideValue) * stepDistance * speedRatio
+				+ baseDirection.rotated(angle * sideValue) * stepDistance * speedRatio
 			)
 
 			if _MapSegmentClear(candidate, position):
@@ -550,9 +550,9 @@ func _BuildCurrentSnapshots() -> Dictionary:
 	for unitId: int in _sortedUnitIds:
 		var unit: Unit = _units[unitId]
 		var snapshot: Snapshot = Snapshot.new()
-		snapshot.unit_id = unitId
+		snapshot.unitId = unitId
 		snapshot.position = unit.position
-		snapshot.half_size = unit.GetHalfSize()
+		snapshot.halfSize = unit.GetHalfSize()
 		result[unitId] = snapshot
 
 	return result
@@ -576,13 +576,13 @@ func _RepathCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> bool
 	if movement == null or movement.activeMoveOrder == null:
 		return false
 
-	if movement.activeMoveOrder.orderId != candidate.order_id:
+	if movement.activeMoveOrder.orderId != candidate.orderId:
 		return false
 
 	var goal: Vector2 = movement.GetEffectiveGoal()
 
-	if candidate.arrival_active:
-		goal = candidate.arrival_slot
+	if candidate.arrivalActive:
+		goal = candidate.arrivalSlot
 
 	var path: PackedVector2Array = navigationService.FindPath(
 		candidate.startPosition,
@@ -594,9 +594,9 @@ func _RepathCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> bool
 		_nextRepathTickByUnit[candidate.unitId] = simulationTick + REPATH_RETRY_TICKS
 		return false
 
-	var path_goal: Vector2 = path[path.size() - 1]
+	var pathGoal: Vector2 = path[path.size() - 1]
 
-	if path_goal.distance_to(goal) > REPATH_GOAL_TOLERANCE:
+	if pathGoal.distance_to(goal) > REPATH_GOAL_TOLERANCE:
 		_nextRepathTickByUnit[candidate.unitId] = simulationTick + REPATH_RETRY_TICKS
 		return false
 
@@ -617,25 +617,25 @@ func _RefreshCandidateFromMovement(
 	movement: MovementComponent,
 	dt: float,
 ) -> void:
-	var desired_velocity: Vector2 = movement.GetDesiredVelocity(dt)
-	var desired_position: Vector2 = candidate.startPosition + desired_velocity * dt
-	var final_tick: bool = movement.WantsFinalTick(dt)
+	var desiredVelocity: Vector2 = movement.GetDesiredVelocity(dt)
+	var desiredPosition: Vector2 = candidate.startPosition + desiredVelocity * dt
+	var finalTick: bool = movement.WantsFinalTick(dt)
 
-	if final_tick:
-		desired_position = movement.GetEffectiveGoal()
+	if finalTick:
+		desiredPosition = movement.GetEffectiveGoal()
 
 		if dt > EPSILON:
-			desired_velocity = (desired_position - candidate.startPosition) / dt
+			desiredVelocity = (desiredPosition - candidate.startPosition) / dt
 
-	candidate.desired_velocity = desired_velocity
-	candidate.desiredPosition = _QuantizeVec(desired_position)
+	candidate.desiredVelocity = desiredVelocity
+	candidate.desiredPosition = _QuantizeVec(desiredPosition)
 	candidate.position = candidate.desiredPosition
 	candidate.velocity = (candidate.position - candidate.startPosition) / dt
 	candidate.targetPosition = movement.GetCurrentWaypoint()
 	candidate.desiredStepDistance = candidate.startPosition.distance_to(candidate.desiredPosition)
-	candidate.final_tick = final_tick
-	candidate.finishOrder = final_tick
-	candidate.arrival_distance = candidate.startPosition.distance_to(candidate.arrival_slot)
+	candidate.finalTick = finalTick
+	candidate.finishOrder = finalTick
+	candidate.arrivalDistance = candidate.startPosition.distance_to(candidate.arrivalSlot)
 
 
 func _StopCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> void:
@@ -643,28 +643,28 @@ func _StopCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> void:
 
 
 func _CandidateActivelyMoving(
-	unit_id: int,
-	candidate_by_id: Dictionary[int, MoveOrder.MovementCandidate],
+	unitId: int,
+	candidateById: Dictionary[int, MoveOrder.MovementCandidate],
 ) -> bool:
-	if not candidate_by_id.has(unit_id):
+	if not candidateById.has(unitId):
 		return false
 
-	var candidate: MoveOrder.MovementCandidate = candidate_by_id[unit_id]
+	var candidate: MoveOrder.MovementCandidate = candidateById[unitId]
 
 	if candidate.desiredStepDistance > STATIC_BLOCKER_STEP_THRESHOLD:
 		return true
 
-	return candidate.desired_velocity.length() > STATIC_BLOCKER_STEP_THRESHOLD
+	return candidate.desiredVelocity.length() > STATIC_BLOCKER_STEP_THRESHOLD
 
 
 func _GetPairMemory(
-	a_id: int,
-	b_id: int,
-	candidate_by_id: Dictionary[int, MoveOrder.MovementCandidate],
+	aId: int,
+	bId: int,
+	candidateById: Dictionary[int, MoveOrder.MovementCandidate],
 ) -> PairMemory:
-	var low_id: int = mini(a_id, b_id)
-	var high_id: int = maxi(a_id, b_id)
-	var key: Vector2i = _PairKey(low_id, high_id)
+	var lowId: int = mini(aId, bId)
+	var highId: int = maxi(aId, bId)
+	var key: Vector2i = _PairKey(lowId, highId)
 
 	if _pairMemory.has(key):
 		var existing: PairMemory = _pairMemory[key]
@@ -672,12 +672,14 @@ func _GetPairMemory(
 		return existing
 
 	var memory: PairMemory = PairMemory.new()
-	memory.lowId = low_id
-	memory.highId = high_id
+	memory.lowId = lowId
+	memory.highId = highId
 	memory.lastTick = simulationTick
-	var sides: Vector2i = _ChoosePairSides(low_id, high_id, candidate_by_id)
+
+	var sides: Vector2i = _ChoosePairSides(lowId, highId, candidateById)
 	memory.lowSide = sides.x
 	memory.highSide = sides.y
+
 	_pairMemory[key] = memory
 	return memory
 
@@ -701,10 +703,11 @@ func _ChoosePairSides(
 
 	var a: MoveOrder.MovementCandidate = candidateById[lowId]
 	var b: MoveOrder.MovementCandidate = candidateById[highId]
-	var a_dir: Vector2 = _CandidateBaseDirection(a)
-	var b_dir: Vector2 = _CandidateBaseDirection(b)
 
-	if a_dir == Vector2.ZERO or b_dir == Vector2.ZERO:
+	var aDir: Vector2 = _CandidateBaseDirection(a)
+	var bDir: Vector2 = _CandidateBaseDirection(b)
+
+	if aDir == Vector2.ZERO or bDir == Vector2.ZERO:
 		return Vector2i(1, -1)
 
 	var combinations: Array[Vector2i] = [
@@ -713,34 +716,41 @@ func _ChoosePairSides(
 		Vector2i(-1, 1),
 		Vector2i(-1, -1),
 	]
+
 	var best: Vector2i = combinations[0]
 	var bestScore: float = -1.0e30
-	var a_step: float = maxf(a.maxStepDistance, a.desiredStepDistance)
-	var b_step: float = maxf(b.maxStepDistance, b.desiredStepDistance)
-	var a_mapClear: Dictionary[int, bool] = { }
-	var b_mapClear: Dictionary[int, bool] = { }
+	var aStep: float = maxf(a.maxStepDistance, a.desiredStepDistance)
+	var bStep: float = maxf(b.maxStepDistance, b.desiredStepDistance)
+	var aMapClear: Dictionary[int, bool] = { }
+	var bMapClear: Dictionary[int, bool] = { }
 
 	for side: int in [-1, 1]:
-		var a_test: Vector2 = a.startPosition + a_dir.rotated(AVOID_PRIMARY_ANGLE * float(side)) * a_step
-		var b_test: Vector2 = b.startPosition + b_dir.rotated(AVOID_PRIMARY_ANGLE * float(side)) * b_step
-		a_mapClear[side] = navigationService.SegmentClear(a.startPosition, a_test, a.halfSize)
-		b_mapClear[side] = navigationService.SegmentClear(b.startPosition, b_test, b.halfSize)
+		var aTest: Vector2 = (
+			a.startPosition + aDir.rotated(AVOID_PRIMARY_ANGLE * float(side)) * aStep
+		)
+		var bTest: Vector2 = (
+			b.startPosition + bDir.rotated(AVOID_PRIMARY_ANGLE * float(side)) * bStep
+		)
+
+		aMapClear[side] = navigationService.SegmentClear(a.startPosition, aTest, a.halfSize)
+		bMapClear[side] = navigationService.SegmentClear(b.startPosition, bTest, b.halfSize)
 
 	for combination: Vector2i in combinations:
-		var a_end: Vector2 = a.startPosition + a_dir.rotated(
-			AVOID_PRIMARY_ANGLE * float(combination.x)
-		) * a_step
-		var b_end: Vector2 = b.startPosition + b_dir.rotated(
-			AVOID_PRIMARY_ANGLE * float(combination.y)
-		) * b_step
-		var dx: float = absf(a_end.x - b_end.x) / maxf(a.halfSize.x + b.halfSize.x, EPSILON)
-		var dy: float = absf(a_end.y - b_end.y) / maxf(a.halfSize.y + b.halfSize.y, EPSILON)
+		var aEnd: Vector2 = (
+			a.startPosition + aDir.rotated(AVOID_PRIMARY_ANGLE * float(combination.x)) * aStep
+		)
+		var bEnd: Vector2 = (
+			b.startPosition + bDir.rotated(AVOID_PRIMARY_ANGLE * float(combination.y)) * bStep
+		)
+
+		var dx: float = (absf(aEnd.x - bEnd.x) / maxf(a.halfSize.x + b.halfSize.x, EPSILON))
+		var dy: float = (absf(aEnd.y - bEnd.y) / maxf(a.halfSize.y + b.halfSize.y, EPSILON))
 		var score: float = maxf(dx, dy) * 10.0 + minf(dx, dy)
 
-		if not a_mapClear[combination.x]:
+		if not aMapClear[combination.x]:
 			score -= 1000000.0
 
-		if not b_mapClear[combination.y]:
+		if not bMapClear[combination.y]:
 			score -= 1000000.0
 
 		if combination.x == combination.y:
@@ -753,36 +763,39 @@ func _ChoosePairSides(
 	return best
 
 
-func _SideAwayFromUnit(candidate: MoveOrder.MovementCandidate, other_id: int) -> int:
-	if not _units.has(other_id):
+func _SideAwayFromUnit(candidate: MoveOrder.MovementCandidate, otherId: int) -> int:
+	if not _units.has(otherId):
 		return 1
 
 	var direction: Vector2 = _CandidateBaseDirection(candidate)
 
 	if direction == Vector2.ZERO:
-		return 1 if candidate.unitId < other_id else -1
+		return 1 if candidate.unitId < otherId else -1
 
 	var right: Vector2 = Vector2(-direction.y, direction.x)
-	var lateral: float = (_units[other_id].position - candidate.startPosition).dot(right)
+	var lateral: float = (_units[otherId].position - candidate.startPosition).dot(right)
+
 	var preferred: int = 1
 
 	if absf(lateral) <= 0.25:
-		preferred = 1 if candidate.unitId < other_id else -1
+		preferred = 1 if candidate.unitId < otherId else -1
 	else:
 		preferred = -1 if lateral > 0.0 else 1
 
 	var stepDistance: float = maxf(candidate.maxStepDistance, candidate.desiredStepDistance)
-	var preferredEnd: Vector2 = candidate.startPosition + direction.rotated(
-		AVOID_PRIMARY_ANGLE * float(preferred)
-	) * stepDistance
+	var preferredEnd: Vector2 = (
+		candidate.startPosition
+		+ direction.rotated(AVOID_PRIMARY_ANGLE * float(preferred)) * stepDistance
+	)
 
 	if navigationService.SegmentClear(candidate.startPosition, preferredEnd, candidate.halfSize):
 		return preferred
 
 	var opposite: int = -preferred
-	var oppositeEnd: Vector2 = candidate.startPosition + direction.rotated(
-		AVOID_PRIMARY_ANGLE * float(opposite)
-	) * stepDistance
+	var oppositeEnd: Vector2 = (
+		candidate.startPosition
+		+ direction.rotated(AVOID_PRIMARY_ANGLE * float(opposite)) * stepDistance
+	)
 
 	if navigationService.SegmentClear(candidate.startPosition, oppositeEnd, candidate.halfSize):
 		return opposite
@@ -792,10 +805,10 @@ func _SideAwayFromUnit(candidate: MoveOrder.MovementCandidate, other_id: int) ->
 
 func _ResolveUnitMotion(
 	candidate: MoveOrder.MovementCandidate,
-	working_snapshots: Dictionary[int, Snapshot],
+	workingSnapshots: Dictionary[int, Snapshot],
 	neighbors: Array,
 	dt: float,
-	near_arrival: bool,
+	nearArrival: bool,
 ) -> int:
 	var plan: AvoidancePlan = null
 
@@ -809,7 +822,7 @@ func _ResolveUnitMotion(
 
 	var stepDistance: float = candidate.maxStepDistance
 
-	if candidate.final_tick and near_arrival:
+	if candidate.finalTick and nearArrival:
 		stepDistance = candidate.desiredStepDistance
 
 	if stepDistance <= EPSILON:
@@ -818,10 +831,10 @@ func _ResolveUnitMotion(
 	var angleSets: Array = []
 
 	if plan != null:
-		angleSets.append(_AnglesForPlan(plan, near_arrival))
-		angleSets.append(_AnglesForSide(-plan.side, near_arrival))
+		angleSets.append(_AnglesForPlan(plan, nearArrival))
+		angleSets.append(_AnglesForSide(-plan.side, nearArrival))
 	else:
-		angleSets.append(_AnglesWithoutPlan(candidate.unitId, near_arrival))
+		angleSets.append(_AnglesWithoutPlan(candidate.unitId, nearArrival))
 
 	var speedRatios: Array[float] = _AvoidSpeedRatios()
 	var preferredSpeed: float = stepDistance / maxf(dt, EPSILON)
@@ -846,8 +859,8 @@ func _ResolveUnitMotion(
 		var setBestRatio: float = 0.0
 		var setBestFinish: bool = false
 
-		for angle_value: Variant in angles:
-			var angle: float = float(angle_value)
+		for angleValue: Variant in angles:
+			var angle: float = float(angleValue)
 			var direction: Vector2 = baseDirection.rotated(angle)
 
 			for speedRatio: float in speedRatios:
@@ -855,7 +868,7 @@ func _ResolveUnitMotion(
 					candidate.startPosition + direction * stepDistance * speedRatio
 				)
 
-				if near_arrival and not _MakesArrivalProgress(candidate, position):
+				if nearArrival and not _MakesArrivalProgress(candidate, position):
 					continue
 
 				if not _MapSegmentClear(candidate, position):
@@ -864,10 +877,10 @@ func _ResolveUnitMotion(
 
 				mapClearCandidateFound = true
 
-				if not _PositionClearOfUnits(candidate, position, working_snapshots, neighbors):
+				if not _PositionClearOfUnits(candidate, position, workingSnapshots, neighbors):
 					continue
 
-				var velocity: Vector2 = (position - candidate.startPosition) / maxf(dt, EPSILON)
+				var velocity: Vector2 = ((position - candidate.startPosition) / maxf(dt, EPSILON))
 				var score: float = _VelocityCandidateScore(
 					candidate,
 					velocity,
@@ -913,7 +926,7 @@ func _ResolveUnitMotion(
 
 		if chosenSide != plan.side:
 			plan.side = chosenSide
-			_SetPairMemorySide(candidate.unitId, plan.other_id, plan.side)
+			_SetPairMemorySide(candidate.unitId, plan.otherId, plan.side)
 
 		plan.selectedAngle = bestAngle
 
@@ -922,32 +935,32 @@ func _ResolveUnitMotion(
 
 func _TryApplyStraightSlowdown(
 	candidate: MoveOrder.MovementCandidate,
-	working_snapshots: Dictionary[int, Snapshot],
+	workingSnapshots: Dictionary[int, Snapshot],
 	neighbors: Array,
 	dt: float,
 ) -> bool:
-	var base_direction: Vector2 = _CandidateBaseDirection(candidate)
+	var baseDirection: Vector2 = _CandidateBaseDirection(candidate)
 
-	if base_direction == Vector2.ZERO:
+	if baseDirection == Vector2.ZERO:
 		return false
 
-	var step_distance: float = candidate.maxStepDistance
+	var stepDistance: float = candidate.maxStepDistance
 
-	if candidate.final_tick:
-		step_distance = candidate.desiredStepDistance
+	if candidate.finalTick:
+		stepDistance = candidate.desiredStepDistance
 
-	if step_distance <= EPSILON:
+	if stepDistance <= EPSILON:
 		return false
 
-	for speed_ratio: float in _AvoidSpeedRatios():
-		if speed_ratio >= 1.0 - EPSILON:
+	for speedRatio: float in _AvoidSpeedRatios():
+		if speedRatio >= 1.0 - EPSILON:
 			continue
 
 		var position: Vector2 = _QuantizeVec(
-			candidate.startPosition + base_direction * step_distance * speed_ratio
+			candidate.startPosition + baseDirection * stepDistance * speedRatio
 		)
 
-		if not _PositionClearOfUnits(candidate, position, working_snapshots, neighbors):
+		if not _PositionClearOfUnits(candidate, position, workingSnapshots, neighbors):
 			continue
 
 		_ApplyPosition(candidate, position, dt, false)
@@ -956,7 +969,7 @@ func _TryApplyStraightSlowdown(
 	return false
 
 
-func _AnglesForPlan(plan: AvoidancePlan, near_arrival: bool) -> Array[float]:
+func _AnglesForPlan(plan: AvoidancePlan, nearArrival: bool) -> Array[float]:
 	var result: Array[float] = []
 	var used: Dictionary[int, bool] = { }
 	var side: float = 1.0 if plan.side >= 0 else -1.0
@@ -965,57 +978,62 @@ func _AnglesForPlan(plan: AvoidancePlan, near_arrival: bool) -> Array[float]:
 	if absf(selected) <= EPSILON or selected * side <= 0.0:
 		selected = AVOID_PRIMARY_ANGLE * side
 
-	_AppendAngle(result, used, selected, near_arrival)
-	_AppendAngle(result, used, AVOID_SMALL_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_WIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, near_arrival)
+	_AppendAngle(result, used, selected, nearArrival)
+	_AppendAngle(result, used, AVOID_SMALL_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_WIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, nearArrival)
+
 	return result
 
 
-func _AnglesForSide(side_value: int, near_arrival: bool) -> Array[float]:
+func _AnglesForSide(sideValue: int, nearArrival: bool) -> Array[float]:
 	var result: Array[float] = []
 	var used: Dictionary[int, bool] = { }
-	var side: float = 1.0 if side_value >= 0 else -1.0
-	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_WIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_SMALL_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, near_arrival)
+	var side: float = 1.0 if sideValue >= 0 else -1.0
+
+	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_WIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_SMALL_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, nearArrival)
+
 	return result
 
 
-func _AnglesWithoutPlan(unit_id: int, near_arrival: bool) -> Array[float]:
+func _AnglesWithoutPlan(unitId: int, nearArrival: bool) -> Array[float]:
 	var result: Array[float] = []
 	var used: Dictionary[int, bool] = { }
-	var side: float = 1.0 if unit_id % 2 == 0 else -1.0
-	_AppendAngle(result, used, 0.0, near_arrival)
-	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, -AVOID_MEDIUM_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, -AVOID_PRIMARY_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, -AVOID_LARGE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, -AVOID_SIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, -AVOID_REAR_SOFT_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, -AVOID_REAR_MEDIUM_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, -AVOID_REAR_WIDE_ANGLE * side, near_arrival)
-	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, near_arrival)
+	var side: float = 1.0 if unitId % 2 == 0 else -1.0
+
+	_AppendAngle(result, used, 0.0, nearArrival)
+	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, -AVOID_MEDIUM_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, -AVOID_PRIMARY_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, -AVOID_LARGE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, -AVOID_SIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, -AVOID_REAR_SOFT_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, -AVOID_REAR_MEDIUM_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, -AVOID_REAR_WIDE_ANGLE * side, nearArrival)
+	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, nearArrival)
+
 	return result
 
 
@@ -1023,9 +1041,9 @@ func _AppendAngle(
 	result: Array[float],
 	used: Dictionary[int, bool],
 	angle: float,
-	near_arrival: bool,
+	nearArrival: bool,
 ) -> void:
-	if near_arrival and absf(angle) > ARRIVAL_MAX_AVOID_ANGLE + EPSILON:
+	if nearArrival and absf(angle) > ARRIVAL_MAX_AVOID_ANGLE + EPSILON:
 		return
 
 	var key: int = roundi(angle * 1000000.0)
@@ -1068,23 +1086,27 @@ func _AvoidSpeedRatios() -> Array[float]:
 func _VelocityCandidateScore(
 	candidate: MoveOrder.MovementCandidate,
 	velocity: Vector2,
-	preferred_velocity: Vector2,
-	previous_velocity: Vector2,
+	preferredVelocity: Vector2,
+	previousVelocity: Vector2,
 	angle: float,
-	speed_ratio: float,
+	speedRatio: float,
 	plan: AvoidancePlan,
 ) -> float:
-	var speed_scale: float = maxf(
-		_units[candidate.unitId].movement.moveSpeed if _units.has(candidate.unitId) else preferred_velocity.length(),
+	var speedScale: float = maxf(
+		(
+			_units[candidate.unitId].movement.moveSpeed
+			if _units.has(candidate.unitId)
+			else preferredVelocity.length()
+		),
 		1.0,
 	)
-	var score: float = (velocity - preferred_velocity).length() / speed_scale
+	var score: float = ((velocity - preferredVelocity).length() / speedScale)
 
-	if previous_velocity.length_squared() > EPSILON:
-		score += (velocity - previous_velocity).length() / speed_scale * avoidPreviousVelocityWeight
+	if previousVelocity.length_squared() > EPSILON:
+		score += ((velocity - previousVelocity).length() / speedScale * avoidPreviousVelocityWeight)
 
 	score += absf(angle) / PI * 0.08
-	score += (1.0 - speed_ratio) * 0.03
+	score += (1.0 - speedRatio) * 0.03
 
 	if plan != null and absf(angle) > EPSILON:
 		var side: int = 1 if angle > 0.0 else -1
@@ -1096,10 +1118,10 @@ func _VelocityCandidateScore(
 
 
 func _CandidateBaseDirection(candidate: MoveOrder.MovementCandidate) -> Vector2:
-	if candidate.desired_velocity.length_squared() > EPSILON:
-		return candidate.desired_velocity.normalized()
+	if candidate.desiredVelocity.length_squared() > EPSILON:
+		return candidate.desiredVelocity.normalized()
 
-	var delta: Vector2 = candidate.targetPosition - candidate.startPosition
+	var delta: Vector2 = (candidate.targetPosition - candidate.startPosition)
 
 	if delta.length_squared() > EPSILON:
 		return delta.normalized()
@@ -1108,14 +1130,17 @@ func _CandidateBaseDirection(candidate: MoveOrder.MovementCandidate) -> Vector2:
 
 
 func _CandidateNearArrival(candidate: MoveOrder.MovementCandidate) -> bool:
-	var full_size: float = maxf(candidate.halfSize.x * 2.0, candidate.halfSize.y * 2.0)
-	return candidate.arrival_distance <= maxf(full_size * 1.75, 16.0)
+	var fullSize: float = maxf(candidate.halfSize.x * 2.0, candidate.halfSize.y * 2.0)
+
+	return candidate.arrivalDistance <= maxf(fullSize * 1.75, 16.0)
 
 
 func _MakesArrivalProgress(candidate: MoveOrder.MovementCandidate, position: Vector2) -> bool:
-	return position.distance_to(candidate.arrival_slot) < candidate.startPosition.distance_to(
-		candidate.arrival_slot
-	) - EPSILON
+	return (
+		position.distance_to(candidate.arrivalSlot) < candidate.startPosition.distance_to(
+			candidate.arrivalSlot
+		) - EPSILON
+	)
 
 
 func _PositionClearOfUnits(
@@ -1125,14 +1150,14 @@ func _PositionClearOfUnits(
 	neighbors: Array,
 ) -> bool:
 	for value: Variant in neighbors:
-		var other_id: int = int(value)
+		var otherId: int = int(value)
 
-		if not snapshots.has(other_id):
+		if not snapshots.has(otherId):
 			continue
 
-		var other: Snapshot = snapshots[other_id]
+		var other: Snapshot = snapshots[otherId]
 
-		if _RectanglesOverlapStrict(position, candidate.halfSize, other.position, other.half_size):
+		if _RectanglesOverlapStrict(position, candidate.halfSize, other.position, other.halfSize):
 			return false
 
 	return true
@@ -1146,11 +1171,11 @@ func _ApplyPosition(
 	candidate: MoveOrder.MovementCandidate,
 	position: Vector2,
 	dt: float,
-	finish_order: bool,
+	finishOrder: bool,
 ) -> void:
 	candidate.position = _QuantizeVec(position)
-	candidate.velocity = (candidate.position - candidate.startPosition) / dt
-	candidate.finishOrder = finish_order
+	candidate.velocity = ((candidate.position - candidate.startPosition) / dt)
+	candidate.finishOrder = finishOrder
 
 
 func _UpdateSnapshot(
@@ -1159,69 +1184,69 @@ func _UpdateSnapshot(
 ) -> void:
 	if not snapshots.has(candidate.unitId):
 		var snapshot: Snapshot = Snapshot.new()
-		snapshot.unit_id = candidate.unitId
-		snapshot.half_size = candidate.halfSize
+		snapshot.unitId = candidate.unitId
+		snapshot.halfSize = candidate.halfSize
 		snapshots[candidate.unitId] = snapshot
 
 	snapshots[candidate.unitId].position = candidate.position
-	snapshots[candidate.unitId].half_size = candidate.halfSize
+	snapshots[candidate.unitId].halfSize = candidate.halfSize
 
 
 func _RectanglesOverlapStrict(
-	a_position: Vector2,
-	a_half: Vector2,
-	b_position: Vector2,
-	b_half: Vector2,
+	aPosition: Vector2,
+	aHalf: Vector2,
+	bPosition: Vector2,
+	bHalf: Vector2,
 ) -> bool:
 	return (
-		absf(a_position.x - b_position.x) < a_half.x + b_half.x - COLLISION_EPSILON
-		and absf(a_position.y - b_position.y) < a_half.y + b_half.y - COLLISION_EPSILON
+		absf(aPosition.x - bPosition.x) < aHalf.x + bHalf.x - COLLISION_EPSILON
+		and absf(aPosition.y - bPosition.y) < aHalf.y + bHalf.y - COLLISION_EPSILON
 	)
 
 
-func _PairKey(a_id: int, b_id: int) -> Vector2i:
-	return Vector2i(mini(a_id, b_id), maxi(a_id, b_id))
+func _PairKey(aId: int, bId: int) -> Vector2i:
+	return Vector2i(mini(aId, bId), maxi(aId, bId))
 
 
-func _SetPairMemorySide(unit_id: int, other_id: int, side: int) -> void:
-	var key: Vector2i = _PairKey(unit_id, other_id)
+func _SetPairMemorySide(unitId: int, otherId: int, side: int) -> void:
+	var key: Vector2i = _PairKey(unitId, otherId)
 
 	if not _pairMemory.has(key):
 		return
 
 	var memory: PairMemory = _pairMemory[key]
 
-	if unit_id == memory.lowId:
+	if unitId == memory.lowId:
 		memory.lowSide = side
-	elif unit_id == memory.highId:
+	elif unitId == memory.highId:
 		memory.highSide = side
 
 	memory.lastTick = simulationTick
 
 
 func _CleanupPairMemory() -> void:
-	var remove_keys: Array[Vector2i] = []
+	var removeKeys: Array[Vector2i] = []
 
 	for key: Vector2i in _pairMemory:
-		if simulationTick - _pairMemory[key].lastTick > PAIR_MEMORY_TICKS:
-			remove_keys.append(key)
+		if (simulationTick - _pairMemory[key].lastTick > PAIR_MEMORY_TICKS):
+			removeKeys.append(key)
 
-	for key: Vector2i in remove_keys:
+	for key: Vector2i in removeKeys:
 		_pairMemory.erase(key)
 
 
 func _BuildStartSpatialHash() -> Dictionary:
 	var spatial: Dictionary = { }
 
-	for unit_id: int in _sortedUnitIds:
-		var unit: Unit = _units[unit_id]
+	for unitId: int in _sortedUnitIds:
+		var unit: Unit = _units[unitId]
 		var cell: Vector2i = _SpatialCell(unit.position)
 
 		if not spatial.has(cell):
 			spatial[cell] = []
 
 		var bucket: Array = spatial[cell]
-		bucket.append(unit_id)
+		bucket.append(unitId)
 
 	return spatial
 
@@ -1230,15 +1255,15 @@ func _QueryStartSpatial(
 	spatial: Dictionary,
 	position: Vector2,
 	extent: Vector2,
-	exclude_id: int,
+	excludeId: int,
 ) -> Array:
 	var result: Array = []
 	var seen: Dictionary[int, bool] = { }
-	var min_cell: Vector2i = _SpatialCell(position - extent)
-	var max_cell: Vector2i = _SpatialCell(position + extent)
+	var minCell: Vector2i = _SpatialCell(position - extent)
+	var maxCell: Vector2i = _SpatialCell(position + extent)
 
-	for y: int in range(min_cell.y, max_cell.y + 1):
-		for x: int in range(min_cell.x, max_cell.x + 1):
+	for y: int in range(minCell.y, maxCell.y + 1):
+		for x: int in range(minCell.x, maxCell.x + 1):
 			var key: Vector2i = Vector2i(x, y)
 
 			if not spatial.has(key):
@@ -1247,13 +1272,13 @@ func _QueryStartSpatial(
 			var bucket: Array = spatial[key]
 
 			for value: Variant in bucket:
-				var unit_id: int = int(value)
+				var unitId: int = int(value)
 
-				if unit_id == exclude_id or seen.has(unit_id):
+				if unitId == excludeId or seen.has(unitId):
 					continue
 
-				seen[unit_id] = true
-				result.append(unit_id)
+				seen[unitId] = true
+				result.append(unitId)
 
 	result.sort()
 	return result
@@ -1282,7 +1307,7 @@ func _CommitCandidates(candidates: Array[MoveOrder.MovementCandidate]) -> void:
 		if movement.activeMoveOrder == null:
 			continue
 
-		if movement.activeMoveOrder.orderId != candidate.order_id:
+		if movement.activeMoveOrder.orderId != candidate.orderId:
 			continue
 
 		movement.CommitSimulation(candidate.position, candidate.velocity, candidate.finishOrder)

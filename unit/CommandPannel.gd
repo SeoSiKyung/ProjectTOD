@@ -31,10 +31,10 @@ func _ResolveControllers() -> void:
 		return
 
 	if commandController == null:
-		var command_node: Node = parent.get_node_or_null("CommandController")
+		var commandNode: Node = parent.get_node_or_null("CommandController")
 
-		if command_node is CommandController:
-			commandController = command_node as CommandController
+		if commandNode is CommandController:
+			commandController = commandNode as CommandController
 
 	if selectController == null:
 		var selectNode: Node = parent.get_node_or_null("SelectController")
@@ -65,10 +65,10 @@ func _BuildPanel() -> void:
 	row.add_theme_constant_override("separation", 8)
 	margin.add_child(row)
 
-	_moveButton = _createButton("이동 [M]", true)
-	_stopButton = _createButton("정지 [S]", false)
-	_attackButton = _createButton("공격 [A]", true)
-	_skillButton = _createButton("스킬 [Q]", true)
+	_moveButton = _CreateButton("이동 [M]", true)
+	_stopButton = _CreateButton("정지 [S]", false)
+	_attackButton = _CreateButton("공격 [A]", true)
+	_skillButton = _CreateButton("스킬 [Q]", true)
 
 	row.add_child(_moveButton)
 	row.add_child(_stopButton)
@@ -81,7 +81,7 @@ func _BuildPanel() -> void:
 	_skillButton.pressed.connect(_OnSkillPressed)
 
 
-func _createButton(label: String, toggle: bool) -> Button:
+func _CreateButton(label: String, toggle: bool) -> Button:
 	var button: Button = Button.new()
 	button.text = label
 	button.custom_minimum_size = buttonMinimumSize
@@ -104,10 +104,10 @@ func _OnMovePressed() -> void:
 	if commandController == null:
 		return
 
-	if commandController.get_command_mode() == CommandController.CommandMode.MOVE:
-		commandController.cancel_targeting_command()
+	if commandController.GetCommandMode() == CommandController.CommandMode.MOVE:
+		commandController.CancelTargetingCommand()
 	else:
-		commandController.begin_move_command()
+		commandController.BeginMoveCommand()
 
 	_Refresh()
 
@@ -116,7 +116,7 @@ func _OnStopPressed() -> void:
 	if commandController == null:
 		return
 
-	commandController.issue_stop_command()
+	commandController.IssueStopCommand()
 	_Refresh()
 
 
@@ -124,10 +124,10 @@ func _OnAttackPressed() -> void:
 	if commandController == null:
 		return
 
-	if commandController.get_command_mode() == CommandController.CommandMode.ATTACK:
-		commandController.cancel_targeting_command()
+	if commandController.GetCommandMode() == CommandController.CommandMode.ATTACK:
+		commandController.CancelTargetingCommand()
 	else:
-		commandController.begin_attack_command()
+		commandController.BeginAttackCommand()
 
 	_Refresh()
 
@@ -136,19 +136,19 @@ func _OnSkillPressed() -> void:
 	if commandController == null:
 		return
 
-	if commandController.get_command_mode() == CommandController.CommandMode.SKILL:
-		commandController.cancel_targeting_command()
+	if commandController.GetCommandMode() == CommandController.CommandMode.SKILL:
+		commandController.CancelTargetingCommand()
 	else:
-		commandController.begin_skill_command(skillSlot)
+		commandController.BeginSkillCommand(skillSlot)
 
 	_Refresh()
 
 
-func _OnCommandModeChanged(_mode: int) -> void:
+func _OnCommandModeChanged(mode: int) -> void:
 	_Refresh()
 
 
-func _OnSelectionChanged(_selected_units: Variant) -> void:
+func _OnSelectionChanged(selectedUnits: Variant) -> void:
 	_Refresh()
 
 
@@ -156,21 +156,22 @@ func _Refresh() -> void:
 	if _panel == null:
 		return
 
-	var has_selection: bool = false
+	var hasSelection: bool = false
 
 	if selectController != null:
-		has_selection = selectController.HasFriendlySelection()
+		hasSelection = selectController.HasFriendlySelection()
 
-	_panel.visible = has_selection or not hideWithoutSelection
-	_moveButton.disabled = not has_selection
-	_stopButton.disabled = not has_selection
-	_attackButton.disabled = not has_selection
-	_skillButton.disabled = not has_selection
+	_panel.visible = hasSelection or not hideWithoutSelection
+	_moveButton.disabled = not hasSelection
+	_stopButton.disabled = not hasSelection
+	_attackButton.disabled = not hasSelection
+	_skillButton.disabled = not hasSelection
 
 	var mode: int = CommandController.CommandMode.SMART
 
 	if commandController != null:
 		mode = commandController.GetCommandMode()
+
 	_moveButton.button_pressed = mode == CommandController.CommandMode.MOVE
 	_attackButton.button_pressed = mode == CommandController.CommandMode.ATTACK
 	_skillButton.button_pressed = mode == CommandController.CommandMode.SKILL
