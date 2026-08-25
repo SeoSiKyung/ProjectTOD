@@ -77,14 +77,14 @@ func _init(
 	_navigation_service = p_navigation_service
 
 
-func start(units: Dictionary[int, Unit]) -> void:
+func Start(units: Dictionary[int, Unit]) -> void:
 	if _navigation_service == null:
 		push_error("MoveOrder에 NavigationService가 없습니다.")
 		return
 
-	_group_start_center = _average_member_position(units)
-	var largest_half: Vector2 = _largest_member_half_size(units)
-	var anchor_path: PackedVector2Array = _navigation_service.Find_path(
+	_group_start_center = _averageMemberPosition(units)
+	var largest_half: Vector2 = _largestMemberHalfSize(units)
+	var anchor_path: PackedVector2Array = _navigation_service.FindPath(
 		_group_start_center,
 		target_world,
 		largest_half,
@@ -110,8 +110,8 @@ func start(units: Dictionary[int, Unit]) -> void:
 		_approach_direction = Vector2.RIGHT
 
 	_approach_right = Vector2(-_approach_direction.y, _approach_direction.x)
-	_prepare_formation_metrics(units)
-	_assign_slots(units)
+	_prepareFormationMetrics(units)
+	_assignSlots(units)
 
 	for unit_id: int in member_ids:
 		if not units.has(unit_id):
@@ -119,7 +119,7 @@ func start(units: Dictionary[int, Unit]) -> void:
 
 		var unit: Unit = units[unit_id]
 		var slot: Vector2 = _slot_by_unit.get(unit_id, _arrival_center)
-		var path: PackedVector2Array = _navigation_service.Find_path(
+		var path: PackedVector2Array = _navigation_service.FindPath(
 			unit.position,
 			slot,
 			unit.GetHalfSize(),
@@ -131,7 +131,7 @@ func start(units: Dictionary[int, Unit]) -> void:
 				unit.GetHalfSize(),
 				unit.position,
 			)
-			path = _navigation_service.Find_path(unit.position, fallback, unit.GetHalfSize())
+			path = _navigation_service.FindPath(unit.position, fallback, unit.GetHalfSize())
 
 			if not path.is_empty():
 				_slot_by_unit[unit_id] = path[path.size() - 1]
@@ -142,7 +142,7 @@ func start(units: Dictionary[int, Unit]) -> void:
 		unit.movement.BeginMoveOrder(self, path)
 
 
-func simulate(dt: float, all_units: Dictionary[int, Unit]) -> Array[MovementCandidate]:
+func Simulate(dt: float, all_units: Dictionary[int, Unit]) -> Array[MovementCandidate]:
 	var result: Array[MovementCandidate] = []
 
 	for unit_id: int in member_ids:
@@ -152,7 +152,7 @@ func simulate(dt: float, all_units: Dictionary[int, Unit]) -> Array[MovementCand
 		var unit: Unit = all_units[unit_id]
 		var movement: MovementComponent = unit.movement
 
-		if not _owns_movement(movement):
+		if not _ownsMovement(movement):
 			continue
 
 		if movement.IsPaused():
@@ -160,27 +160,27 @@ func simulate(dt: float, all_units: Dictionary[int, Unit]) -> Array[MovementCand
 			continue
 
 		movement.SyncPathProgress(movement.move_speed * dt, _navigation_service)
-		result.append(_make_candidate(unit, movement, dt))
+		result.append(_makeCandidate(unit, movement, dt))
 
 	return result
 
 
-func is_finished(all_units: Dictionary[int, Unit]) -> bool:
+func IsFinished(all_units: Dictionary[int, Unit]) -> bool:
 	for unit_id: int in member_ids:
 		if not all_units.has(unit_id):
 			continue
 
-		if _owns_movement(all_units[unit_id].movement):
+		if _ownsMovement(all_units[unit_id].movement):
 			return false
 
 	return true
 
 
-func get_unit_priority(unit_id: int) -> int:
+func GetUnitPriority(unit_id: int) -> int:
 	return _priority_by_unit.get(unit_id, 2147483647)
 
 
-func _make_candidate(unit: Unit, movement: MovementComponent, dt: float) -> MovementCandidate:
+func _makeCandidate(unit: Unit, movement: MovementComponent, dt: float) -> MovementCandidate:
 	var candidate: MovementCandidate = MovementCandidate.new()
 	var slot: Vector2 = _slot_by_unit.get(unit.unit_id, movement.GetEffectiveGoal())
 	var desired_velocity: Vector2 = movement.GetDesiredVelocity(dt)
@@ -209,11 +209,11 @@ func _make_candidate(unit: Unit, movement: MovementComponent, dt: float) -> Move
 	candidate.arrival_active = true
 	candidate.arrival_slot = slot
 	candidate.arrival_distance = unit.position.distance_to(slot)
-	candidate.priority = get_unit_priority(unit.unit_id)
+	candidate.priority = GetUnitPriority(unit.unit_id)
 	return candidate
 
 
-func _owns_movement(movement: MovementComponent) -> bool:
+func _ownsMovement(movement: MovementComponent) -> bool:
 	if movement == null:
 		return false
 
@@ -223,7 +223,7 @@ func _owns_movement(movement: MovementComponent) -> bool:
 	return movement.active_move_order.order_id == order_id
 
 
-func _prepare_formation_metrics(units: Dictionary[int, Unit]) -> void:
+func _prepareFormationMetrics(units: Dictionary[int, Unit]) -> void:
 	var min_full: float = 1000000.0
 	var max_full: float = 1.0
 	var valid_count: int = 0
@@ -248,7 +248,7 @@ func _prepare_formation_metrics(units: Dictionary[int, Unit]) -> void:
 	_formation_span = maxf(max_full * 2.0, sqrt(float(valid_count)) * max_full * 1.1)
 
 
-func _assign_slots(units: Dictionary[int, Unit]) -> void:
+func _assignSlots(units: Dictionary[int, Unit]) -> void:
 	_slot_by_unit.clear()
 	_priority_by_unit.clear()
 	_claimed_slots.clear()
@@ -284,7 +284,7 @@ func _assign_slots(units: Dictionary[int, Unit]) -> void:
 		MIN_FORMATION_CANDIDATES,
 		MAX_FORMATION_CANDIDATES,
 	)
-	var offsets: Array[Vector2i] = _square_spiral_offsets(candidate_count)
+	var offsets: Array[Vector2i] = _squareSpiralOffsets(candidate_count)
 	var total: int = infos.size()
 
 	for rank: int in range(total):
@@ -301,7 +301,7 @@ func _assign_slots(units: Dictionary[int, Unit]) -> void:
 			-_formation_span * 0.6,
 			_formation_span * 0.6,
 		)
-		var slot: Vector2 = _find_slot_for_unit(unit, desired_depth, desired_lateral, offsets)
+		var slot: Vector2 = _findSlotForUnit(unit, desired_depth, desired_lateral, offsets)
 		_slot_by_unit[info.unit_id] = slot
 		_priority_by_unit[info.unit_id] = rank
 
@@ -312,7 +312,7 @@ func _assign_slots(units: Dictionary[int, Unit]) -> void:
 		_claimed_slots.append(claimed)
 
 
-func _insert_slot_candidate(
+func _insertSlotCandidate(
 	best_indices: Array[int],
 	best_scores: Array[float],
 	spiral_index: int,
@@ -344,7 +344,7 @@ func _insert_slot_candidate(
 		best_scores.pop_back()
 
 
-func _find_slot_for_unit(
+func _findSlotForUnit(
 	unit: Unit,
 	desired_depth: float,
 	desired_lateral: float,
@@ -363,7 +363,7 @@ func _find_slot_for_unit(
 		if not _navigation_service.CanPlaceStatic(position, half_size):
 			continue
 
-		if _overlaps_claimed(position, half_size):
+		if _overlapsClaimed(position, half_size):
 			continue
 
 		var relative: Vector2 = position - _arrival_center
@@ -375,7 +375,7 @@ func _find_slot_for_unit(
 			+ relative.length() * SLOT_RADIUS_WEIGHT + float(index) * 0.0001
 		)
 
-		_insert_slot_candidate(best_indices, best_scores, index, score)
+		_insertSlotCandidate(best_indices, best_scores, index, score)
 
 	for spiral_index: int in best_indices:
 		var offset: Vector2i = offsets[spiral_index]
@@ -393,8 +393,8 @@ func _find_slot_for_unit(
 		unit.position,
 	)
 
-	if not _overlaps_claimed(fallback, half_size):
-		var fallback_path: PackedVector2Array = _navigation_service.Find_path(
+	if not _overlapsClaimed(fallback, half_size):
+		var fallback_path: PackedVector2Array = _navigation_service.FindPath(
 			unit.position,
 			fallback,
 			half_size,
@@ -414,7 +414,7 @@ func _find_slot_for_unit(
 	return unit.position
 
 
-func _overlaps_claimed(position: Vector2, half_size: Vector2) -> bool:
+func _overlapsClaimed(position: Vector2, half_size: Vector2) -> bool:
 	for claimed: ClaimedSlot in _claimed_slots:
 		if (
 			absf(position.x - claimed.position.x)
@@ -427,7 +427,7 @@ func _overlaps_claimed(position: Vector2, half_size: Vector2) -> bool:
 	return false
 
 
-func _square_spiral_offsets(count: int) -> Array[Vector2i]:
+func _squareSpiralOffsets(count: int) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
 
 	if count <= 0:
@@ -466,7 +466,7 @@ func _square_spiral_offsets(count: int) -> Array[Vector2i]:
 	return result
 
 
-func _average_member_position(units: Dictionary[int, Unit]) -> Vector2:
+func _averageMemberPosition(units: Dictionary[int, Unit]) -> Vector2:
 	var sum: Vector2 = Vector2.ZERO
 	var count: int = 0
 
@@ -483,7 +483,7 @@ func _average_member_position(units: Dictionary[int, Unit]) -> Vector2:
 	return sum / float(count)
 
 
-func _largest_member_half_size(units: Dictionary[int, Unit]) -> Vector2:
+func _largestMemberHalfSize(units: Dictionary[int, Unit]) -> Vector2:
 	var result: Vector2 = Vector2(8.0, 8.0)
 
 	for unit_id: int in member_ids:

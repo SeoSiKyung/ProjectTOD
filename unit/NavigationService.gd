@@ -6,7 +6,7 @@ const CONTACT_EPSILON: float = 0.001
 const BIG_NUMBER: float = 1.0e30
 const SQRT_2: float = 1.41421356237
 
-@export var navigation_data: NavigationData
+@export var NavigationData: NavigationData
 @export_range(0.0, 2.0, 0.05) var static_contact_slop: float = 1.0
 
 var _navigation_ready: bool = false
@@ -67,16 +67,16 @@ func Reload() -> void:
 func _loadNavigationData() -> void:
 	_navigation_ready = false
 
-	if navigation_data == null:
+	if NavigationData == null:
 		push_error("NavigationData가 지정되지 않았습니다.")
 		return
 
-	_nav_cell_size = float(navigation_data.cell_size)
-	_grid_width = navigation_data.grid_size.x
-	_grid_height = navigation_data.grid_size.y
-	_world_rect = navigation_data.GetWorldRect()
-	_blocked = navigation_data.blocked
-	_prefix_sum = navigation_data.prefix_sum
+	_nav_cell_size = float(NavigationData.cell_size)
+	_grid_width = NavigationData.grid_size.x
+	_grid_height = NavigationData.grid_size.y
+	_world_rect = NavigationData.GetWorldRect()
+	_blocked = NavigationData.blocked
+	_prefix_sum = NavigationData.prefix_sum
 
 	if _nav_cell_size <= 0.0:
 		push_error("NavigationData의 cell_size가 잘못되었습니다.")
