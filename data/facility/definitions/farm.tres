@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="FacilityData" format=3 uid="uid://b3guw4t2kwc7g"]
 
-[ext_resource type="Script" uid="uid://cl42t74u4dou8" path="res://scripts/tycoon/data/facility_level_data.gd" id="1_xttv5"]
-[ext_resource type="Script" uid="uid://bm8a5bn2edil" path="res://scripts/tycoon/data/facility_effect_data.gd" id="2_ir86q"]
-[ext_resource type="Script" uid="uid://bd4hqd1pdyupk" path="res://scripts/tycoon/data/facility_data.gd" id="2_tykrw"]
+[ext_resource type="Script" uid="uid://cl42t74u4dou8" path="res://scripts/tycoon/data/FacilityLevelData.gd" id="1_xttv5"]
+[ext_resource type="Script" uid="uid://bm8a5bn2edil" path="res://scripts/tycoon/data/FacilityEffectData.gd" id="2_ir86q"]
+[ext_resource type="Script" uid="uid://bd4hqd1pdyupk" path="res://scripts/tycoon/data/FacilityData.gd" id="2_tykrw"]
 
 [sub_resource type="Resource" id="Resource_vum0x"]
 script = ExtResource("2_ir86q")

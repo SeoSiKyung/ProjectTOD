@@ -1,15 +1,15 @@
 [gd_scene format=3 uid="uid://dpkmyj5hdm0op"]
 
-[ext_resource type="Script" uid="uid://cooykx73a50w8" path="res://maps/navigation/navigation_baker.gd" id="1_dgir3"]
-[ext_resource type="Script" uid="uid://e48cbf160ggc" path="res://scene/offense_scene.gd" id="1_wohdj"]
+[ext_resource type="Script" uid="uid://cooykx73a50w8" path="res://maps/navigation/NavigationBaker.gd" id="1_dgir3"]
+[ext_resource type="Script" uid="uid://djxreqs452a78" path="res://scene/OffenseScene.gd" id="1_wohdj"]
 [ext_resource type="Texture2D" uid="uid://cupxwvi5omkk5" path="res://maps/0.png" id="2_nipmi"]
-[ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/command_controller.gd" id="3_dlxae"]
+[ext_resource type="Script" uid="uid://4hrd2aod8lcg" path="res://unit/CommandController.gd" id="3_dlxae"]
 [ext_resource type="Resource" uid="uid://cxxppg8eoyppk" path="res://maps/0_navigation.res" id="4_dgir3"]
-[ext_resource type="Script" uid="uid://w6nsvxisxrdt" path="res://unit/movement_simulator.gd" id="4_jaojb"]
-[ext_resource type="Script" uid="uid://e6ictg15nwt0" path="res://unit/movement_controller.gd" id="5_dgir3"]
-[ext_resource type="Script" uid="uid://dnlnjlnj1aeyu" path="res://unit/navigation_service.gd" id="5_j4bn1"]
-[ext_resource type="PackedScene" uid="uid://6pdasnmpewu8" path="res://unit/unit.tscn" id="5_wohdj"]
-[ext_resource type="Script" uid="uid://br257xxqho68w" path="res://unit/select_controller.gd" id="8_u7dgu"]
+[ext_resource type="Script" uid="uid://b7ert7hoc8245" path="res://unit/MovementSimulator.gd" id="4_jaojb"]
+[ext_resource type="Script" uid="uid://bhe58qkgp1ycw" path="res://unit/MovementController.gd" id="5_dgir3"]
+[ext_resource type="Script" uid="uid://u3wgqxb8j2fh" path="res://unit/NavigationService.gd" id="5_j4bn1"]
+[ext_resource type="PackedScene" uid="uid://dd6c3nmhvvai0" path="res://unit/Unit.tscn" id="5_wohdj"]
+[ext_resource type="Script" uid="uid://dwb6dp01f41m8" path="res://unit/SelectController.gd" id="8_u7dgu"]
 
 [node name="OffenseScene" type="Node2D" unique_id=2102705416]
 script = ExtResource("1_wohdj")
