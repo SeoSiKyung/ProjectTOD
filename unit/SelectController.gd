@@ -439,7 +439,7 @@ func _cleanupSelectedUnits() -> void:
 
 
 func _unitContainsPoint(unit: Unit, world_position: Vector2) -> bool:
-	var half_size: Vector2 = unit.getHalfSize()
+	var half_size: Vector2 = unit.GetHalfSize()
 
 	var unit_rect: Rect2 = Rect2(unit.global_position - half_size, half_size * 2.0)
 
@@ -447,7 +447,7 @@ func _unitContainsPoint(unit: Unit, world_position: Vector2) -> bool:
 
 
 func _unitInsideSelectionRect(unit: Unit, selection_rect: Rect2) -> bool:
-	var half_size: Vector2 = unit.getHalfSize()
+	var half_size: Vector2 = unit.GetHalfSize()
 
 	var unit_rect: Rect2 = Rect2(unit.global_position - half_size, half_size * 2.0)
 

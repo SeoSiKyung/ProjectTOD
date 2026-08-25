@@ -27,7 +27,7 @@ func _ready() -> void:
 			select_controller = select_node as SelectController
 
 
-func IssueMovePrder(units: Array[Unit], target_world: Vector2) -> int:
+func IssueMoveOrder(units: Array[Unit], target_world: Vector2) -> int:
 	if simulator == null:
 		push_error("MovementSimulator가 지정되지 않았습니다.")
 		return -1
@@ -89,7 +89,7 @@ func IssueSelectedMoveOrder(target_world: Vector2) -> int:
 	if select_controller == null:
 		return -1
 
-	return IssueMovePrder(select_controller.GetSelectedFriendlyUnits(), target_world)
+	return IssueMoveOrder(select_controller.GetSelectedFriendlyUnits(), target_world)
 
 
 func IssueStopOrder(units: Array[Unit]) -> int:
@@ -154,4 +154,4 @@ func _canIssueCommandTo(unit: Unit) -> bool:
 	if not unit.player_controllable:
 		return false
 
-	return unit.canReceiveCommands()
+	return unit.CanReceiveCommands()

@@ -148,7 +148,7 @@ func SyncPathProgress(max_tick_distance: float, navigation_service: NavigationSe
 			next_clear = navigation_service.SegmentClear(
 				unit.position,
 				next_waypoint,
-				unit.getHalfSize(),
+				unit.GetHalfSize(),
 			)
 
 		if unit.position.distance_to(waypoint) <= reach_distance:

@@ -56,11 +56,11 @@ func _ready() -> void:
 	_loadNavigationData()
 
 
-func is_ready() -> bool:
+func IsReady() -> bool:
 	return _navigation_ready
 
 
-func reload() -> void:
+func Reload() -> void:
 	_loadNavigationData()
 
 
@@ -295,7 +295,7 @@ func NearestPlaceablePoint(
 	return world_position
 
 
-func Find_path(
+func FindPath(
 	start_world: Vector2,
 	target_world: Vector2,
 	half_size: Vector2,

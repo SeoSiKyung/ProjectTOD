@@ -86,7 +86,7 @@ func _physics_process(_delta: float) -> void:
 	if navigation_service == null:
 		return
 
-	if not navigation_service.is_ready():
+	if not navigation_service.IsReady():
 		return
 
 	var dt: float = 1.0 / float(fixed_tick_rate)
@@ -111,7 +111,7 @@ func _physics_process(_delta: float) -> void:
 		if simulation_tick < order.issued_tick:
 			continue
 
-		var order_candidates: Array[MoveOrder.MovementCandidate] = order.simulate(dt, _units)
+		var order_candidates: Array[MoveOrder.MovementCandidate] = order.Simulate(dt, _units)
 
 		for candidate: MoveOrder.MovementCandidate in order_candidates:
 			candidates.append(candidate)
@@ -141,7 +141,7 @@ func AddMoveOrder(order: MoveOrder) -> void:
 			unit.movement.Stop()
 
 	_orders[order.order_id] = order
-	order.start(_units)
+	order.Start(_units)
 
 
 func StopUnits(unit_ids: Array[int]) -> void:
@@ -224,7 +224,7 @@ func _cleanupFinishedOrders() -> void:
 	for order_id: int in _orders:
 		var order: MoveOrder = _orders[order_id]
 
-		if order.is_finished(_units):
+		if order.IsFinished(_units):
 			remove_ids.append(order_id)
 
 	for order_id: int in remove_ids:
@@ -249,7 +249,7 @@ func _resolveCandidates(candidates: Array[MoveOrder.MovementCandidate], dt: floa
 	for unit_id: int in _sorted_unit_ids:
 		var unit: Unit = _units[unit_id]
 		max_move_distance = maxf(max_move_distance, unit.movement.move_speed * dt)
-		var half_size: Vector2 = unit.getHalfSize()
+		var half_size: Vector2 = unit.GetHalfSize()
 		max_half.x = maxf(max_half.x, half_size.x)
 		max_half.y = maxf(max_half.y, half_size.y)
 
@@ -337,7 +337,7 @@ func _resolveCandidates(candidates: Array[MoveOrder.MovementCandidate], dt: floa
 
 		if resolution == MOTION_MAP_BLOCKED:
 			_avoidance_by_unit.erase(candidate.unit_id)
-			_handle_MapBlockedCandidate(candidate, dt)
+			_handleMapBlockedCandidate(candidate, dt)
 			_stopCandidate(candidate, dt)
 		elif resolution != MOTION_RESOLVED:
 			_stopCandidate(candidate, dt)
@@ -553,13 +553,13 @@ func _buildCurrentSnapshots() -> Dictionary:
 		var snapshot: Snapshot = Snapshot.new()
 		snapshot.unit_id = unit_id
 		snapshot.position = unit.position
-		snapshot.half_size = unit.getHalfSize()
+		snapshot.half_size = unit.GetHalfSize()
 		result[unit_id] = snapshot
 
 	return result
 
 
-func _handle_MapBlockedCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> void:
+func _handleMapBlockedCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> void:
 	_repathCandidate(candidate, dt)
 
 
@@ -585,7 +585,7 @@ func _repathCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> bool
 	if candidate.arrival_active:
 		goal = candidate.arrival_slot
 
-	var path: PackedVector2Array = navigation_service.Find_path(
+	var path: PackedVector2Array = navigation_service.FindPath(
 		candidate.start_position,
 		goal,
 		candidate.half_size,

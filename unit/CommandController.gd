@@ -50,7 +50,7 @@ func IssueMoveCommand(target_world: Vector2) -> int:
 	if movement_controller == null:
 		return -1
 
-	var order_id: int = (movement_controller.issue_selected_move_order(target_world))
+	var order_id: int = (movement_controller.IssueSelectedMoveOrder(target_world))
 
 	if order_id >= 0:
 		_showMoveClickEffect(target_world)
@@ -62,7 +62,7 @@ func IssueStopCommand() -> int:
 	if movement_controller == null:
 		return -1
 
-	return movement_controller.issue_selected_stop_order()
+	return movement_controller.IssueSelectedStopOrder()
 
 
 func _handleKeyInput(key_event: InputEventKey) -> void:

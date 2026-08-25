@@ -15,15 +15,15 @@ func _ready() -> void:
 	add_to_group("unit")
 
 
-func getHalfSize() -> Vector2:
+func GetHalfSize() -> Vector2:
 	return footprint_size * 0.5
 
 
-func canReceiveCommands() -> bool:
+func CanReceiveCommands() -> bool:
 	return fsm != null and fsm.CanReceiveCommands()
 
 
-func applyStun(duration: float) -> void:
+func ApplyStun(duration: float) -> void:
 	if fsm == null:
 		return
 
