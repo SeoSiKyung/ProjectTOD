@@ -1,9 +1,7 @@
 class_name SelectController
 extends Node2D
 
-
 signal selection_changed(selected_units)
-
 
 @export var drag_threshold: float = 6.0
 @export var selection_fill_color: Color = Color(0.2, 0.8, 0.3, 0.12)
@@ -13,9 +11,8 @@ signal selection_changed(selected_units)
 @export var enemy_select_color: Color = Color(1.0, 0.2, 0.2, 1.0)
 @export var command_controller: Node
 
-
 var _selected_units: Array[Unit] = []
-var _control_groups: Dictionary = {}
+var _control_groups: Dictionary = { }
 
 var _left_pressed: bool = false
 var _drag_active: bool = false
@@ -30,9 +27,7 @@ func _ready() -> void:
 		var parent: Node = get_parent()
 
 		if parent != null:
-			command_controller = parent.get_node_or_null(
-				"CommandController"
-			)
+			command_controller = parent.get_node_or_null("CommandController")
 
 	get_tree().node_added.connect(_onNodeAdded)
 	call_deferred("_initializeUnits")
@@ -56,19 +51,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		if key_event.echo:
 			return
 
-		var slot: int = _getControlGroupSlot(
-			key_event
-		)
+		var slot: int = _getControlGroupSlot(key_event)
 
 		if slot > 0:
 			if key_event.ctrl_pressed:
-				_assignControlGroup(
-					slot
-				)
+				_assignControlGroup(slot)
 			else:
-				_selectControlGroup(
-					slot
-				)
+				_selectControlGroup(slot)
 
 			get_viewport().set_input_as_handled()
 			return
@@ -79,9 +68,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if mouse_event.button_index != MOUSE_BUTTON_LEFT:
 			return
 
-		var world_position: Vector2 = _screenToWorld(
-			mouse_event.position
-		)
+		var world_position: Vector2 = _screenToWorld(mouse_event.position)
 
 		if mouse_event.pressed:
 			_left_pressed = true
@@ -100,14 +87,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_drag_current_world = world_position
 
 		if _drag_active:
-			_handleDragSelection(
-				_additive_selection
-			)
+			_handleDragSelection(_additive_selection)
 		else:
-			_handleClickSelection(
-				_drag_start_world,
-				_additive_selection
-			)
+			_handleClickSelection(_drag_start_world, _additive_selection)
 
 		_left_pressed = false
 		_drag_active = false
@@ -123,16 +105,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 		var motion_event: InputEventMouseMotion = event as InputEventMouseMotion
 
-		_drag_current_world = _screenToWorld(
-			motion_event.position
-		)
+		_drag_current_world = _screenToWorld(motion_event.position)
 
-		if (
-			_drag_start_world.distance_to(
-				_drag_current_world
-			)
-			>= drag_threshold
-		):
+		if (_drag_start_world.distance_to(_drag_current_world) >= drag_threshold):
 			_drag_active = true
 
 		queue_redraw()
@@ -143,16 +118,10 @@ func _commandTargetingActive() -> bool:
 	if command_controller == null:
 		return false
 
-	if not command_controller.has_method(
-		"is_targeting_command"
-	):
+	if not command_controller.has_method("is_targeting_command"):
 		return false
 
-	return bool(
-		command_controller.call(
-			"is_targeting_command"
-		)
-	)
+	return bool(command_controller.call("is_targeting_command"))
 
 
 func GetSelectedUnits() -> Array[Unit]:
@@ -190,9 +159,7 @@ func HasFriendlySelection() -> bool:
 	return not GetSelectedFriendlyUnits().is_empty()
 
 
-func GetControlGroupUnits(
-	slot: int
-) -> Array[Unit]:
+func GetControlGroupUnits(slot: int) -> Array[Unit]:
 	if slot < 1 or slot > 9:
 		return []
 
@@ -226,24 +193,15 @@ func GetControlGroupUnits(
 	return valid_units
 
 
-func GetUnitAtWorldPosition(
-	world_position: Vector2
-) -> Unit:
+func GetUnitAtWorldPosition(world_position: Vector2) -> Unit:
 	var best_unit: Unit = null
 	var best_distance: float = INF
 
 	for unit: Unit in _getUnits():
-		if not _unitContainsPoint(
-			unit,
-			world_position
-		):
+		if not _unitContainsPoint(unit, world_position):
 			continue
 
-		var distance: float = (
-			unit.global_position.distance_squared_to(
-				world_position
-			)
-		)
+		var distance: float = (unit.global_position.distance_squared_to(world_position))
 
 		if distance < best_distance:
 			best_distance = distance
@@ -251,11 +209,8 @@ func GetUnitAtWorldPosition(
 			continue
 
 		if (
-			absf(
-				distance - best_distance
-			) <= 0.001
-			and best_unit != null
-			and unit.unit_id < best_unit.unit_id
+			absf(distance - best_distance) <= 0.001
+			and best_unit != null and unit.unitId < best_unit.unitId
 		):
 			best_unit = unit
 
@@ -267,21 +222,14 @@ func ClearSelection() -> void:
 		if not is_instance_valid(unit):
 			continue
 
-		_setSelectionVisual(
-			unit,
-			false
-		)
+		_setSelectionVisual(unit, false)
 
 	_selected_units.clear()
 
-	selection_changed.emit(
-		GetSelectedUnits()
-	)
+	selection_changed.emit(GetSelectedUnits())
 
 
-func _assignControlGroup(
-	slot: int
-) -> void:
+func _assignControlGroup(slot: int) -> void:
 	var selected_units: Array[Unit] = GetSelectedUnits()
 
 	if selected_units.is_empty():
@@ -298,25 +246,16 @@ func _assignControlGroup(
 	_control_groups[slot] = group
 
 
-func _selectControlGroup(
-	slot: int
-) -> void:
-	var units: Array[Unit] = GetControlGroupUnits(
-		slot
-	)
+func _selectControlGroup(slot: int) -> void:
+	var units: Array[Unit] = GetControlGroupUnits(slot)
 
 	if units.is_empty():
 		return
 
-	_applySelection(
-		units,
-		false
-	)
+	_applySelection(units, false)
 
 
-func _getControlGroupSlot(
-	event: InputEventKey
-) -> int:
+func _getControlGroupSlot(event: InputEventKey) -> int:
 	match event.keycode:
 		KEY_1:
 			return 1
@@ -360,43 +299,25 @@ func _getControlGroupSlot(
 	return 0
 
 
-func _handleClickSelection(
-	world_position: Vector2,
-	additive: bool
-) -> void:
-	var unit: Unit = GetUnitAtWorldPosition(
-		world_position
-	)
+func _handleClickSelection(world_position: Vector2, additive: bool) -> void:
+	var unit: Unit = GetUnitAtWorldPosition(world_position)
 
 	if unit == null:
 		return
 
-	var units: Array[Unit] = [
-		unit,
-	]
+	var units: Array[Unit] = [unit]
 
-	_applySelection(
-		units,
-		additive
-	)
+	_applySelection(units, additive)
 
 
-func _handleDragSelection(
-	additive: bool
-) -> void:
-	var selection_rect: Rect2 = _makeRect(
-		_drag_start_world,
-		_drag_current_world
-	)
+func _handleDragSelection(additive: bool) -> void:
+	var selection_rect: Rect2 = _makeRect(_drag_start_world, _drag_current_world)
 
 	var friendly_units: Array[Unit] = []
 	var enemy_units: Array[Unit] = []
 
 	for unit: Unit in _getUnits():
-		if not _unitInsideSelectionRect(
-			unit,
-			selection_rect
-		):
+		if not _unitInsideSelectionRect(unit, selection_rect):
 			continue
 
 		if unit.player_controllable:
@@ -407,33 +328,23 @@ func _handleDragSelection(
 	if not friendly_units.is_empty():
 		friendly_units.sort_custom(
 			func(a: Unit, b: Unit) -> bool:
-				return a.unit_id < b.unit_id
+				return a.unitId < b.unitId,
 		)
 
-		_applySelection(
-			friendly_units,
-			additive
-		)
+		_applySelection(friendly_units, additive)
 
 		return
 
 	if enemy_units.is_empty():
 		return
 
-	var center: Vector2 = (
-		selection_rect.position
-		+ selection_rect.size * 0.5
-	)
+	var center: Vector2 = (selection_rect.position + selection_rect.size * 0.5)
 
 	var selected_enemy: Unit = null
 	var best_distance: float = INF
 
 	for unit: Unit in enemy_units:
-		var distance: float = (
-			unit.global_position.distance_squared_to(
-				center
-			)
-		)
+		var distance: float = (unit.global_position.distance_squared_to(center))
 
 		if distance < best_distance:
 			best_distance = distance
@@ -441,31 +352,20 @@ func _handleDragSelection(
 			continue
 
 		if (
-			absf(
-				distance - best_distance
-			) <= 0.001
-			and selected_enemy != null
-			and unit.unit_id < selected_enemy.unit_id
+			absf(distance - best_distance) <= 0.001 and selected_enemy != null
+			and unit.unitId < selected_enemy.unitId
 		):
 			selected_enemy = unit
 
 	if selected_enemy == null:
 		return
 
-	var units: Array[Unit] = [
-		selected_enemy,
-	]
+	var units: Array[Unit] = [selected_enemy]
 
-	_applySelection(
-		units,
-		additive
-	)
+	_applySelection(units, additive)
 
 
-func _applySelection(
-	units: Array[Unit],
-	additive: bool
-) -> void:
+func _applySelection(units: Array[Unit], additive: bool) -> void:
 	if units.is_empty():
 		return
 
@@ -473,10 +373,7 @@ func _applySelection(
 
 	if not additive:
 		for unit: Unit in _selected_units:
-			_setSelectionVisual(
-				unit,
-				false
-			)
+			_setSelectionVisual(unit, false)
 
 		_selected_units.clear()
 
@@ -492,14 +389,9 @@ func _applySelection(
 
 			_selected_units.append(unit)
 
-			_setSelectionVisual(
-				unit,
-				true
-			)
+			_setSelectionVisual(unit, true)
 
-		selection_changed.emit(
-			GetSelectedUnits()
-		)
+		selection_changed.emit(GetSelectedUnits())
 
 		return
 
@@ -530,21 +422,14 @@ func _applySelection(
 			if not is_instance_valid(unit):
 				continue
 
-			var index: int = _selected_units.find(
-				unit
-			)
+			var index: int = _selected_units.find(unit)
 
 			if index < 0:
 				continue
 
-			_selected_units.remove_at(
-				index
-			)
+			_selected_units.remove_at(index)
 
-			_setSelectionVisual(
-				unit,
-				false
-			)
+			_setSelectionVisual(unit, false)
 	else:
 		for unit: Unit in units:
 			if unit == null:
@@ -558,14 +443,9 @@ func _applySelection(
 
 			_selected_units.append(unit)
 
-			_setSelectionVisual(
-				unit,
-				true
-			)
+			_setSelectionVisual(unit, true)
 
-	selection_changed.emit(
-		GetSelectedUnits()
-	)
+	selection_changed.emit(GetSelectedUnits())
 
 
 func _cleanupSelectedUnits() -> void:
@@ -583,97 +463,58 @@ func _cleanupSelectedUnits() -> void:
 	_selected_units = valid_units
 
 
-func _unitContainsPoint(
-	unit: Unit,
-	world_position: Vector2
-) -> bool:
+func _unitContainsPoint(unit: Unit, world_position: Vector2) -> bool:
 	var half_size: Vector2 = unit.GetHalfSize()
 
-	var unit_rect: Rect2 = Rect2(
-		unit.global_position - half_size,
-		half_size * 2.0
-	)
+	var unit_rect: Rect2 = Rect2(unit.global_position - half_size, half_size * 2.0)
 
-	return unit_rect.has_point(
-		world_position
-	)
+	return unit_rect.has_point(world_position)
 
 
-func _unitInsideSelectionRect(
-	unit: Unit,
-	selection_rect: Rect2
-) -> bool:
+func _unitInsideSelectionRect(unit: Unit, selection_rect: Rect2) -> bool:
 	var half_size: Vector2 = unit.GetHalfSize()
 
-	var unit_rect: Rect2 = Rect2(
-		unit.global_position - half_size,
-		half_size * 2.0
-	)
+	var unit_rect: Rect2 = Rect2(unit.global_position - half_size, half_size * 2.0)
 
-	return selection_rect.intersects(
-		unit_rect
-	)
+	return selection_rect.intersects(unit_rect)
 
 
 func _getUnits() -> Array[Unit]:
 	var result: Array[Unit] = []
 
-	var nodes: Array[Node] = (
-		get_tree().get_nodes_in_group("unit")
-	)
+	var nodes: Array[Node] = (get_tree().get_nodes_in_group("unit"))
 
 	for node: Node in nodes:
 		if node is Unit:
-			result.append(
-				node as Unit
-			)
+			result.append(node as Unit)
 
 	return result
 
 
 func _initializeUnits() -> void:
 	for unit: Unit in _getUnits():
-		_initializeUnit(
-			unit
-		)
+		_initializeUnit(unit)
 
 
-func _initializeUnit(
-	unit: Unit
-) -> void:
+func _initializeUnit(unit: Unit) -> void:
 	if unit == null:
 		return
 
-	var select_node: Sprite2D = (
-		unit.get_node_or_null("select")
-		as Sprite2D
-	)
+	var select_node: Sprite2D = (unit.get_node_or_null("select") as Sprite2D)
 
 	if select_node == null:
 		return
 
 	if unit.player_controllable:
-		select_node.self_modulate = (
-			friendly_select_color
-		)
+		select_node.self_modulate = (friendly_select_color)
 	else:
-		select_node.self_modulate = (
-			enemy_select_color
-		)
+		select_node.self_modulate = (enemy_select_color)
 
-	select_node.visible = (
-		_selected_units.has(unit)
-	)
+	select_node.visible = (_selected_units.has(unit))
 
 
-func _setSelectionVisual(
-	unit: Unit,
-	selected: bool
-) -> void:
-	var select_node: Sprite2D = (
-		unit.get_node_or_null("select")
-		as Sprite2D
-	)
+func _setSelectionVisual(unit: Unit, selected: bool) -> void:
+	var select_node: Sprite2D = (unit.get_node_or_null("select") as Sprite2D)
 
 	if select_node == null:
 		return
@@ -681,63 +522,27 @@ func _setSelectionVisual(
 	select_node.visible = selected
 
 
-func _onNodeAdded(
-	node: Node
-) -> void:
+func _onNodeAdded(node: Node) -> void:
 	if not node is Unit:
 		return
 
-	call_deferred(
-		"_initializeUnit",
-		node as Unit
-	)
+	call_deferred("_initializeUnit", node as Unit)
 
 
-func _screenToWorld(
-	screen_position: Vector2
-) -> Vector2:
-	return (
-		get_viewport()
-		.get_canvas_transform()
-		.affine_inverse()
-		* screen_position
-	)
+func _screenToWorld(screen_position: Vector2) -> Vector2:
+	return (get_viewport().get_canvas_transform().affine_inverse() * screen_position)
 
 
-func _makeRect(
-	a: Vector2,
-	b: Vector2
-) -> Rect2:
-	var left: float = minf(
-		a.x,
-		b.x
-	)
+func _makeRect(a: Vector2, b: Vector2) -> Rect2:
+	var left: float = minf(a.x, b.x)
 
-	var top: float = minf(
-		a.y,
-		b.y
-	)
+	var top: float = minf(a.y, b.y)
 
-	var right: float = maxf(
-		a.x,
-		b.x
-	)
+	var right: float = maxf(a.x, b.x)
 
-	var bottom: float = maxf(
-		a.y,
-		b.y
-	)
+	var bottom: float = maxf(a.y, b.y)
 
-	return Rect2(
-		Vector2(
-			left,
-			top
-		),
-		Vector2(
-			right - left,
-			bottom - top
-		)
-	)
+	return Rect2(Vector2(left, top), Vector2(right - left, bottom - top))
 
 
 func _draw() -> void:
@@ -747,28 +552,12 @@ func _draw() -> void:
 	if not _drag_active:
 		return
 
-	var start_local: Vector2 = to_local(
-		_drag_start_world
-	)
+	var start_local: Vector2 = to_local(_drag_start_world)
 
-	var current_local: Vector2 = to_local(
-		_drag_current_world
-	)
+	var current_local: Vector2 = to_local(_drag_current_world)
 
-	var rect: Rect2 = _makeRect(
-		start_local,
-		current_local
-	)
+	var rect: Rect2 = _makeRect(start_local, current_local)
 
-	draw_rect(
-		rect,
-		selection_fill_color,
-		true
-	)
+	draw_rect(rect, selection_fill_color, true)
 
-	draw_rect(
-		rect,
-		selection_border_color,
-		false,
-		selection_border_width
-	)
+	draw_rect(rect, selection_border_color, false, selection_border_width)

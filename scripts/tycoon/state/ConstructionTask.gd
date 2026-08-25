@@ -1,36 +1,34 @@
 class_name ConstructionTask
 extends RefCounted
 
-
 enum TaskType {
 	BUILD,
-	UPGRADE
+	UPGRADE,
 }
 
+var facilityId: StringName = &""
+var taskType: TaskType = TaskType.BUILD
 
-var facility_id: StringName = &""
-var task_type: TaskType = TaskType.BUILD
-
-var target_level: int = 1
-var remaining_turns: int = 0
+var targetLevel: int = 1
+var remainingTurns: int = 0
 
 
 func _init(
-	p_facility_id: StringName = &"",
-	p_task_type: TaskType = TaskType.BUILD,
-	p_target_level: int = 1,
-	p_remaining_turns: int = 0
+	pFacilityId: StringName = &"",
+	pTaskType: TaskType = TaskType.BUILD,
+	pTargetLevel: int = 1,
+	pRemainingTurns: int = 0,
 ):
-	facility_id = p_facility_id
-	task_type = p_task_type
-	target_level = p_target_level
-	remaining_turns = p_remaining_turns
+	facilityId = pFacilityId
+	taskType = pTaskType
+	targetLevel = pTargetLevel
+	remainingTurns = pRemainingTurns
 
 
-func advance_turn() -> void:
-	if remaining_turns > 0:
-		remaining_turns -= 1
+func AdvanceTurn() -> void:
+	if remainingTurns > 0:
+		remainingTurns -= 1
 
 
-func is_completed() -> bool:
-	return remaining_turns <= 0
+func IsCompleted() -> bool:
+	return remainingTurns <= 0
