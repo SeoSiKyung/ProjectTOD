@@ -2,7 +2,6 @@
 class_name NavigationBaker
 extends Node
 
-
 @export var navigation_mask: Texture2D
 @export var cell_size: int = 8
 @export var world_origin: Vector2 = Vector2.ZERO
@@ -13,14 +12,14 @@ var blocked_threshold: float = 0.5
 @export_dir var output_directory: String = "res://maps"
 
 @export_tool_button("Bake Navigation")
-var bake_button: Callable = bake_navigation
+var bake_button: Callable = BakeNavigation
 
 
-func bake_navigation() -> void:
+func BakeNavigation() -> void:
 	if not Engine.is_editor_hint():
 		return
 
-	var output_path: String = _get_output_path()
+	var output_path: String = _getOutputPath()
 
 	if output_path.is_empty():
 		push_error("현재 맵 씬의 파일 경로를 찾을 수 없습니다. 씬을 먼저 저장하세요.")
@@ -48,17 +47,11 @@ func bake_navigation() -> void:
 		return
 
 	if image_width % cell_size != 0:
-		push_error(
-			"Navigation Mask 가로 크기는 cell_size의 배수여야 합니다. 현재: %d"
-			% image_width
-		)
+		push_error("Navigation Mask 가로 크기는 cell_size의 배수여야 합니다. 현재: %d" % image_width)
 		return
 
 	if image_height % cell_size != 0:
-		push_error(
-			"Navigation Mask 세로 크기는 cell_size의 배수여야 합니다. 현재: %d"
-			% image_height
-		)
+		push_error("Navigation Mask 세로 크기는 cell_size의 배수여야 합니다. 현재: %d" % image_height)
 		return
 
 	var grid_width: int = image_width / cell_size
@@ -75,30 +68,18 @@ func bake_navigation() -> void:
 			var start_x: int = grid_x * cell_size
 			var start_y: int = grid_y * cell_size
 
-			for pixel_y: int in range(
-				start_y,
-				start_y + cell_size
-			):
+			for pixel_y: int in range(start_y, start_y + cell_size):
 				if is_blocked:
 					break
 
-				for pixel_x: int in range(
-					start_x,
-					start_x + cell_size
-				):
-					var color: Color = image.get_pixel(
-						pixel_x,
-						pixel_y
-					)
+				for pixel_x: int in range(start_x, start_x + cell_size):
+					var color: Color = image.get_pixel(pixel_x, pixel_y)
 
-					if _is_blocked_pixel(color):
+					if _isBlockedPixel(color):
 						is_blocked = true
 						break
 
-			var index: int = (
-				grid_y * grid_width
-				+ grid_x
-			)
+			var index: int = (grid_y * grid_width + grid_x)
 
 			blocked[index] = 1 if is_blocked else 0
 
@@ -106,81 +87,45 @@ func bake_navigation() -> void:
 	var prefix_height: int = grid_height + 1
 
 	var prefix_sum: PackedInt32Array = PackedInt32Array()
-	prefix_sum.resize(
-		prefix_width * prefix_height
-	)
+	prefix_sum.resize(prefix_width * prefix_height)
 	prefix_sum.fill(0)
 
 	for y: int in range(grid_height):
 		var row_sum: int = 0
 
 		for x: int in range(grid_width):
-			var blocked_index: int = (
-				y * grid_width + x
-			)
+			var blocked_index: int = (y * grid_width + x)
 
 			row_sum += blocked[blocked_index]
 
-			var prefix_index: int = (
-				(y + 1) * prefix_width
-				+ (x + 1)
-			)
+			var prefix_index: int = ((y + 1) * prefix_width + (x + 1))
 
-			var previous_row_index: int = (
-				y * prefix_width
-				+ (x + 1)
-			)
+			var previous_row_index: int = (y * prefix_width + (x + 1))
 
-			prefix_sum[prefix_index] = (
-				prefix_sum[previous_row_index]
-				+ row_sum
-			)
+			prefix_sum[prefix_index] = (prefix_sum[previous_row_index] + row_sum)
 
 	var data: NavigationData = NavigationData.new()
 
 	data.cell_size = cell_size
-	data.grid_size = Vector2i(
-		grid_width,
-		grid_height
-	)
+	data.grid_size = Vector2i(grid_width, grid_height)
 	data.world_origin = world_origin
 	data.blocked = blocked
 	data.prefix_sum = prefix_sum
 
 	var directory: String = output_path.get_base_dir()
 
-	var absolute_directory: String = (
-		ProjectSettings.globalize_path(
-			directory
-		)
-	)
+	var absolute_directory: String = (ProjectSettings.globalize_path(directory))
 
-	var dir_error: Error = (
-		DirAccess.make_dir_recursive_absolute(
-			absolute_directory
-		)
-	)
+	var dir_error: Error = (DirAccess.make_dir_recursive_absolute(absolute_directory))
 
-	if (
-		dir_error != OK
-		and dir_error != ERR_ALREADY_EXISTS
-	):
-		push_error(
-			"Navigation 저장 폴더 생성 실패: %s"
-			% directory
-		)
+	if (dir_error != OK and dir_error != ERR_ALREADY_EXISTS):
+		push_error("Navigation 저장 폴더 생성 실패: %s" % directory)
 		return
 
-	var save_error: Error = ResourceSaver.save(
-		data,
-		output_path
-	)
+	var save_error: Error = ResourceSaver.save(data, output_path)
 
 	if save_error != OK:
-		push_error(
-			"Navigation Data 저장 실패: %s"
-			% error_string(save_error)
-		)
+		push_error("Navigation Data 저장 실패: %s" % error_string(save_error))
 		return
 
 	print(
@@ -195,23 +140,17 @@ func bake_navigation() -> void:
 		" | Cell: ",
 		cell_size,
 		" | ",
-		output_path
+		output_path,
 	)
 
 
-func _is_blocked_pixel(
-	color: Color
-) -> bool:
-	var brightness: float = (
-		color.r
-		+ color.g
-		+ color.b
-	) / 3.0
+func _isBlockedPixel(color: Color) -> bool:
+	var brightness: float = (color.r + color.g + color.b) / 3.0
 
 	return brightness < blocked_threshold
 
 
-func _get_output_path() -> String:
+func _getOutputPath() -> String:
 	if navigation_mask == null:
 		return ""
 
@@ -220,12 +159,6 @@ func _get_output_path() -> String:
 	if texture_path.is_empty():
 		return ""
 
-	var file_name: String = (
-		texture_path
-		.get_file()
-		.get_basename()
-	)
+	var file_name: String = (texture_path.get_file().get_basename())
 
-	return output_directory.path_join(
-		file_name + "_navigation.res"
-	)
+	return output_directory.path_join(file_name + "_navigation.res")

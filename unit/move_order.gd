@@ -1,7 +1,6 @@
 class_name MoveOrder
 extends RefCounted
 
-
 const EPSILON: float = 0.00001
 const FORMATION_GAP: float = 1.0
 const MIN_GRID_STEP: float = 8.0
@@ -13,7 +12,6 @@ const SLOT_DEPTH_WEIGHT: float = 2.0
 const SLOT_LATERAL_WEIGHT: float = 0.7
 const SLOT_RADIUS_WEIGHT: float = 0.15
 
-
 var order_id: int = 0
 var issued_tick: int = 0
 var target_world: Vector2 = Vector2.ZERO
@@ -24,8 +22,8 @@ var _arrival_center: Vector2 = Vector2.ZERO
 var _group_start_center: Vector2 = Vector2.ZERO
 var _approach_direction: Vector2 = Vector2.RIGHT
 var _approach_right: Vector2 = Vector2.DOWN
-var _slot_by_unit: Dictionary[int, Vector2] = {}
-var _priority_by_unit: Dictionary[int, int] = {}
+var _slot_by_unit: Dictionary[int, Vector2] = { }
+var _priority_by_unit: Dictionary[int, int] = { }
 var _claimed_slots: Array[ClaimedSlot] = []
 var _grid_step: float = MIN_GRID_STEP
 var _formation_span: float = 32.0
@@ -37,12 +35,6 @@ class ClaimedSlot:
 	var half_size: Vector2 = Vector2.ZERO
 
 
-class SlotOption:
-	var position: Vector2 = Vector2.ZERO
-	var score: float = 0.0
-	var spiral_index: int = 0
-
-
 class UnitOrderInfo:
 	var unit_id: int = -1
 	var front: float = 0.0
@@ -50,12 +42,32 @@ class UnitOrderInfo:
 	var distance_to_target: float = 0.0
 
 
+class MovementCandidate:
+	var order_id: int = -1
+	var unit_id: int = -1
+	var start_position: Vector2 = Vector2.ZERO
+	var desired_position: Vector2 = Vector2.ZERO
+	var position: Vector2 = Vector2.ZERO
+	var desired_velocity: Vector2 = Vector2.ZERO
+	var velocity: Vector2 = Vector2.ZERO
+	var target_position: Vector2 = Vector2.ZERO
+	var half_size: Vector2 = Vector2.ZERO
+	var max_step_distance: float = 0.0
+	var desired_step_distance: float = 0.0
+	var final_tick: bool = false
+	var finish_order: bool = false
+	var arrival_active: bool = false
+	var arrival_slot: Vector2 = Vector2.ZERO
+	var arrival_distance: float = 0.0
+	var priority: int = 2147483647
+
+
 func _init(
 	p_order_id: int,
 	p_issued_tick: int,
 	p_target_world: Vector2,
 	p_member_ids: Array[int],
-	p_navigation_service: NavigationService
+	p_navigation_service: NavigationService,
 ) -> void:
 	order_id = p_order_id
 	issued_tick = p_issued_tick
@@ -72,19 +84,19 @@ func start(units: Dictionary[int, Unit]) -> void:
 
 	_group_start_center = _average_member_position(units)
 	var largest_half: Vector2 = _largest_member_half_size(units)
-	var anchor_path: PackedVector2Array = _navigation_service.find_path(
+	var anchor_path: PackedVector2Array = _navigation_service.Find_path(
 		_group_start_center,
 		target_world,
-		largest_half
+		largest_half,
 	)
 
 	if not anchor_path.is_empty():
 		_arrival_center = anchor_path[anchor_path.size() - 1]
 	else:
-		_arrival_center = _navigation_service.nearest_placeable_point(
+		_arrival_center = _navigation_service.NearestPlaceablePoint(
 			target_world,
 			largest_half,
-			_group_start_center
+			_group_start_center,
 		)
 
 	var approach_delta: Vector2 = _arrival_center - _group_start_center
@@ -107,23 +119,19 @@ func start(units: Dictionary[int, Unit]) -> void:
 
 		var unit: Unit = units[unit_id]
 		var slot: Vector2 = _slot_by_unit.get(unit_id, _arrival_center)
-		var path: PackedVector2Array = _navigation_service.find_path(
+		var path: PackedVector2Array = _navigation_service.Find_path(
 			unit.position,
 			slot,
-			unit.get_half_size()
+			unit.getHalfSize(),
 		)
 
 		if path.is_empty():
-			var fallback: Vector2 = _navigation_service.nearest_placeable_point(
+			var fallback: Vector2 = _navigation_service.NearestPlaceablePoint(
 				slot,
-				unit.get_half_size(),
-				unit.position
-			)
-			path = _navigation_service.find_path(
+				unit.getHalfSize(),
 				unit.position,
-				fallback,
-				unit.get_half_size()
 			)
+			path = _navigation_service.Find_path(unit.position, fallback, unit.getHalfSize())
 
 			if not path.is_empty():
 				_slot_by_unit[unit_id] = path[path.size() - 1]
@@ -131,13 +139,10 @@ func start(units: Dictionary[int, Unit]) -> void:
 		if path.is_empty():
 			path.append(unit.position)
 
-		unit.movement.begin_move_order(self, path)
+		unit.movement.BeginMoveOrder(self, path)
 
 
-func simulate(
-	dt: float,
-	all_units: Dictionary[int, Unit]
-) -> Array[MovementCandidate]:
+func simulate(dt: float, all_units: Dictionary[int, Unit]) -> Array[MovementCandidate]:
 	var result: Array[MovementCandidate] = []
 
 	for unit_id: int in member_ids:
@@ -150,11 +155,11 @@ func simulate(
 		if not _owns_movement(movement):
 			continue
 
-		if movement.is_paused():
-			movement.reset_sim_velocity()
+		if movement.IsPaused():
+			movement.ResetSimVelocity()
 			continue
 
-		movement.sync_path_progress(movement.move_speed * dt, _navigation_service)
+		movement.SyncPathProgress(movement.move_speed * dt, _navigation_service)
 		result.append(_make_candidate(unit, movement, dt))
 
 	return result
@@ -175,19 +180,15 @@ func get_unit_priority(unit_id: int) -> int:
 	return _priority_by_unit.get(unit_id, 2147483647)
 
 
-func _make_candidate(
-	unit: Unit,
-	movement: MovementComponent,
-	dt: float
-) -> MovementCandidate:
+func _make_candidate(unit: Unit, movement: MovementComponent, dt: float) -> MovementCandidate:
 	var candidate: MovementCandidate = MovementCandidate.new()
-	var slot: Vector2 = _slot_by_unit.get(unit.unit_id, movement.get_effective_goal())
-	var desired_velocity: Vector2 = movement.get_desired_velocity(dt)
+	var slot: Vector2 = _slot_by_unit.get(unit.unit_id, movement.GetEffectiveGoal())
+	var desired_velocity: Vector2 = movement.GetDesiredVelocity(dt)
 	var desired_position: Vector2 = unit.position + desired_velocity * dt
-	var final_tick: bool = movement.wants_final_tick(dt)
+	var final_tick: bool = movement.WantsFinalTick(dt)
 
 	if final_tick:
-		desired_position = movement.get_effective_goal()
+		desired_position = movement.GetEffectiveGoal()
 
 		if dt > EPSILON:
 			desired_velocity = (desired_position - unit.position) / dt
@@ -199,8 +200,8 @@ func _make_candidate(
 	candidate.position = desired_position
 	candidate.desired_velocity = desired_velocity
 	candidate.velocity = desired_velocity
-	candidate.target_position = movement.get_current_waypoint()
-	candidate.half_size = unit.get_half_size()
+	candidate.target_position = movement.GetCurrentWaypoint()
+	candidate.half_size = unit.getHalfSize()
 	candidate.max_step_distance = movement.move_speed * dt
 	candidate.desired_step_distance = unit.position.distance_to(desired_position)
 	candidate.final_tick = final_tick
@@ -244,10 +245,7 @@ func _prepare_formation_metrics(units: Dictionary[int, Unit]) -> void:
 		return
 
 	_grid_step = maxf(MIN_GRID_STEP, min_full * 0.5 + FORMATION_GAP)
-	_formation_span = maxf(
-		max_full * 2.0,
-		sqrt(float(valid_count)) * max_full * 1.1
-	)
+	_formation_span = maxf(max_full * 2.0, sqrt(float(valid_count)) * max_full * 1.1)
 
 
 func _assign_slots(units: Dictionary[int, Unit]) -> void:
@@ -278,13 +276,13 @@ func _assign_slots(units: Dictionary[int, Unit]) -> void:
 			if absf(a.distance_to_target - b.distance_to_target) > EPSILON:
 				return a.distance_to_target < b.distance_to_target
 
-			return a.unit_id < b.unit_id
+			return a.unit_id < b.unit_id,
 	)
 
 	var candidate_count: int = clampi(
 		maxi(MIN_FORMATION_CANDIDATES, infos.size() * FORMATION_CANDIDATE_MULTIPLIER),
 		MIN_FORMATION_CANDIDATES,
-		MAX_FORMATION_CANDIDATES
+		MAX_FORMATION_CANDIDATES,
 	)
 	var offsets: Array[Vector2i] = _square_spiral_offsets(candidate_count)
 	var total: int = infos.size()
@@ -301,42 +299,68 @@ func _assign_slots(units: Dictionary[int, Unit]) -> void:
 		var desired_lateral: float = clampf(
 			info.lateral,
 			-_formation_span * 0.6,
-			_formation_span * 0.6
+			_formation_span * 0.6,
 		)
-		var slot: Vector2 = _find_slot_for_unit(
-			unit,
-			desired_depth,
-			desired_lateral,
-			offsets
-		)
+		var slot: Vector2 = _find_slot_for_unit(unit, desired_depth, desired_lateral, offsets)
 		_slot_by_unit[info.unit_id] = slot
 		_priority_by_unit[info.unit_id] = rank
 
 		var claimed: ClaimedSlot = ClaimedSlot.new()
 		claimed.unit_id = info.unit_id
 		claimed.position = slot
-		claimed.half_size = unit.get_half_size()
+		claimed.half_size = unit.getHalfSize()
 		_claimed_slots.append(claimed)
+
+
+func _insert_slot_candidate(
+	best_indices: Array[int],
+	best_scores: Array[float],
+	spiral_index: int,
+	score: float,
+) -> void:
+	var insert_at: int = best_scores.size()
+
+	for index: int in range(best_scores.size()):
+		var current_score: float = best_scores[index]
+		var comes_before: bool = false
+
+		if absf(score - current_score) > EPSILON:
+			comes_before = score < current_score
+		else:
+			comes_before = spiral_index < best_indices[index]
+
+		if comes_before:
+			insert_at = index
+			break
+
+	if insert_at >= MAX_SLOT_LOCAL_CHECKS:
+		return
+
+	best_indices.insert(insert_at, spiral_index)
+	best_scores.insert(insert_at, score)
+
+	if best_indices.size() > MAX_SLOT_LOCAL_CHECKS:
+		best_indices.pop_back()
+		best_scores.pop_back()
 
 
 func _find_slot_for_unit(
 	unit: Unit,
 	desired_depth: float,
 	desired_lateral: float,
-	offsets: Array[Vector2i]
+	offsets: Array[Vector2i],
 ) -> Vector2:
-	var options: Array[SlotOption] = []
-	var half_size: Vector2 = unit.get_half_size()
+	var best_indices: Array[int] = []
+	var best_scores: Array[float] = []
+
+	var half_size: Vector2 = unit.getHalfSize()
 
 	for index: int in range(offsets.size()):
 		var offset: Vector2i = offsets[index]
-		var local: Vector2 = Vector2(
-			float(offset.x) * _grid_step,
-			float(offset.y) * _grid_step
-		)
+		var local: Vector2 = Vector2(float(offset.x) * _grid_step, float(offset.y) * _grid_step)
 		var position: Vector2 = _arrival_center + local
 
-		if not _navigation_service.can_place_static(position, half_size):
+		if not _navigation_service.CanPlaceStatic(position, half_size):
 			continue
 
 		if _overlaps_claimed(position, half_size):
@@ -345,52 +369,47 @@ func _find_slot_for_unit(
 		var relative: Vector2 = position - _arrival_center
 		var depth: float = relative.dot(_approach_direction)
 		var lateral: float = relative.dot(_approach_right)
-		var option: SlotOption = SlotOption.new()
-		option.position = position
-		option.spiral_index = index
-		option.score = (
+		var score: float = (
 			absf(depth - desired_depth) * SLOT_DEPTH_WEIGHT
 			+ absf(lateral - desired_lateral) * SLOT_LATERAL_WEIGHT
-			+ relative.length() * SLOT_RADIUS_WEIGHT
-			+ float(index) * 0.0001
+			+ relative.length() * SLOT_RADIUS_WEIGHT + float(index) * 0.0001
 		)
-		options.append(option)
 
-	options.sort_custom(
-		func(a: SlotOption, b: SlotOption) -> bool:
-			if absf(a.score - b.score) > EPSILON:
-				return a.score < b.score
+		_insert_slot_candidate(best_indices, best_scores, index, score)
 
-			return a.spiral_index < b.spiral_index
-	)
+	for spiral_index: int in best_indices:
+		var offset: Vector2i = offsets[spiral_index]
+		var position: Vector2 = _arrival_center + Vector2(
+			float(offset.x) * _grid_step,
+			float(offset.y) * _grid_step,
+		)
 
-	var local_checks: int = mini(MAX_SLOT_LOCAL_CHECKS, options.size())
+		if _navigation_service.SegmentClear(_arrival_center, position, half_size):
+			return position
 
-	for index: int in range(local_checks):
-		var option: SlotOption = options[index]
-
-		if _navigation_service.segment_clear(_arrival_center, option.position, half_size):
-			return option.position
-
-	var fallback: Vector2 = _navigation_service.nearest_placeable_point(
+	var fallback: Vector2 = _navigation_service.NearestPlaceablePoint(
 		_arrival_center,
 		half_size,
-		unit.position
+		unit.position,
 	)
 
 	if not _overlaps_claimed(fallback, half_size):
-		var fallback_path: PackedVector2Array = _navigation_service.find_path(
+		var fallback_path: PackedVector2Array = _navigation_service.Find_path(
 			unit.position,
 			fallback,
-			half_size
+			half_size,
 		)
 
 		if not fallback_path.is_empty():
 			return fallback_path[fallback_path.size() - 1]
 
-	for option: SlotOption in options:
-		if not _overlaps_claimed(option.position, half_size):
-			return option.position
+	if not best_indices.is_empty():
+		var best_offset: Vector2i = offsets[best_indices[0]]
+
+		return _arrival_center + Vector2(
+			float(best_offset.x) * _grid_step,
+			float(best_offset.y) * _grid_step,
+		)
 
 	return unit.position
 
@@ -471,7 +490,7 @@ func _largest_member_half_size(units: Dictionary[int, Unit]) -> Vector2:
 		if not units.has(unit_id):
 			continue
 
-		var half_size: Vector2 = units[unit_id].get_half_size()
+		var half_size: Vector2 = units[unit_id].getHalfSize()
 		result.x = maxf(result.x, half_size.x)
 		result.y = maxf(result.y, half_size.y)
 

@@ -1,16 +1,13 @@
 class_name NavigationService
 extends Node
 
-
 const EPSILON: float = 0.00001
 const CONTACT_EPSILON: float = 0.001
 const BIG_NUMBER: float = 1.0e30
 const SQRT_2: float = 1.41421356237
 
-
 @export var navigation_data: NavigationData
 @export_range(0.0, 2.0, 0.05) var static_contact_slop: float = 1.0
-
 
 var _navigation_ready: bool = false
 var _nav_cell_size: float = 8.0
@@ -20,6 +17,12 @@ var _world_rect: Rect2 = Rect2()
 var _blocked: PackedByteArray = PackedByteArray()
 var _prefix_sum: PackedInt32Array = PackedInt32Array()
 
+var _path_g: PackedFloat64Array = PackedFloat64Array()
+var _path_turn_cost: PackedFloat64Array = PackedFloat64Array()
+var _path_parent: PackedInt32Array = PackedInt32Array()
+var _path_incoming_direction: PackedInt32Array = PackedInt32Array()
+var _path_closed: PackedByteArray = PackedByteArray()
+
 
 class HeapEntry:
 	var index: int = 0
@@ -28,13 +31,8 @@ class HeapEntry:
 	var turn: float = 0.0
 	var g: float = 0.0
 
-	func _init(
-		p_index: int,
-		p_f: float,
-		p_h: float,
-		p_turn: float,
-		p_g: float
-	) -> void:
+
+	func _init(p_index: int, p_f: float, p_h: float, p_turn: float, p_g: float) -> void:
 		index = p_index
 		f = p_f
 		h = p_h
@@ -55,7 +53,7 @@ const DIRECTIONS: Array[Vector2i] = [
 
 
 func _ready() -> void:
-	_load_navigation_data()
+	_loadNavigationData()
 
 
 func is_ready() -> bool:
@@ -63,10 +61,10 @@ func is_ready() -> bool:
 
 
 func reload() -> void:
-	_load_navigation_data()
+	_loadNavigationData()
 
 
-func _load_navigation_data() -> void:
+func _loadNavigationData() -> void:
 	_navigation_ready = false
 
 	if navigation_data == null:
@@ -76,7 +74,7 @@ func _load_navigation_data() -> void:
 	_nav_cell_size = float(navigation_data.cell_size)
 	_grid_width = navigation_data.grid_size.x
 	_grid_height = navigation_data.grid_size.y
-	_world_rect = navigation_data.get_world_rect()
+	_world_rect = navigation_data.GetWorldRect()
 	_blocked = navigation_data.blocked
 	_prefix_sum = navigation_data.prefix_sum
 
@@ -95,30 +93,39 @@ func _load_navigation_data() -> void:
 		push_error("NavigationData의 prefix_sum 크기가 잘못되었습니다.")
 		return
 
+	_ensurePathBuffers()
 	_navigation_ready = true
 
 
-func _collision_half(
-	a_half: Vector2,
-	b_half: Vector2
-) -> Vector2:
+func _ensurePathBuffers() -> void:
+	var total: int = _grid_width * _grid_height
+
+	if _path_g.size() == total:
+		return
+
+	_path_g.resize(total)
+	_path_turn_cost.resize(total)
+	_path_parent.resize(total)
+	_path_incoming_direction.resize(total)
+	_path_closed.resize(total)
+
+
+func _resetPathBuffers() -> void:
+	_path_g.fill(BIG_NUMBER)
+	_path_turn_cost.fill(BIG_NUMBER)
+	_path_parent.fill(-1)
+	_path_incoming_direction.fill(-1)
+	_path_closed.fill(0)
+
+
+func _collisionHalf(a_half: Vector2, b_half: Vector2) -> Vector2:
 	return Vector2(
-		maxf(
-			EPSILON,
-			a_half.x + b_half.x - CONTACT_EPSILON
-		),
-		maxf(
-			EPSILON,
-			a_half.y + b_half.y - CONTACT_EPSILON
-		)
+		maxf(EPSILON, a_half.x + b_half.x - CONTACT_EPSILON),
+		maxf(EPSILON, a_half.y + b_half.y - CONTACT_EPSILON),
 	)
 
 
-func _segment_aabb_entry_fraction(
-	start: Vector2,
-	delta: Vector2,
-	half: Vector2
-) -> float:
+func _segmentAabbEntryFraction(start: Vector2, delta: Vector2, half: Vector2) -> float:
 	var t_min: float = 0.0
 	var t_max: float = 1.0
 
@@ -167,73 +174,34 @@ func _segment_aabb_entry_fraction(
 	return clampf(t_min, 0.0, 1.0)
 
 
-func _segment_intersects_centered_aabb(
-	start: Vector2,
-	end: Vector2,
-	half: Vector2
-) -> bool:
-	return _segment_aabb_entry_fraction(
-		start,
-		end - start,
-		half
-	) >= 0.0
-func segment_clear(
-	start: Vector2,
-	end: Vector2,
-	half_size: Vector2
-) -> bool:
-	return _segment_static_clear(start, end, half_size)
+func _segmentIntersectsCenteredAabb(start: Vector2, end: Vector2, half: Vector2) -> bool:
+	return _segmentAabbEntryFraction(start, end - start, half) >= 0.0
 
 
-func _prefix_rect_count(
-	x0: int,
-	y0: int,
-	x1: int,
-	y1: int
-) -> int:
-	var width: int = (
-		_grid_width + 1
-	)
+func SegmentClear(start: Vector2, end: Vector2, half_size: Vector2) -> bool:
+	return _segmentStaticClear(start, end, half_size)
+
+
+func _prefixRectCount(x0: int, y0: int, x1: int, y1: int) -> int:
+	var width: int = (_grid_width + 1)
 
 	return (
-		_prefix_sum[
-			y1 * width + x1
-		]
-		- _prefix_sum[
-			y0 * width + x1
-		]
-		- _prefix_sum[
-			y1 * width + x0
-		]
-		+ _prefix_sum[
-			y0 * width + x0
-		]
+		_prefix_sum[y1 * width + x1] - _prefix_sum[y0 * width + x1] - _prefix_sum[y1 * width + x0]
+		+ _prefix_sum[y0 * width + x0]
 	)
 
 
-func can_place_static(
-	center: Vector2,
-	half_size: Vector2
-) -> bool:
-	return _can_place_static_with_half(
-		center,
-		_static_half_size(half_size)
-	)
+func CanPlaceStatic(center: Vector2, half_size: Vector2) -> bool:
+	return _canPlaceStaticWithHalf(center, _staticHalfSize(half_size))
 
 
-func _static_half_size(half_size: Vector2) -> Vector2:
+func _staticHalfSize(half_size: Vector2) -> Vector2:
 	var slop: float = maxf(static_contact_slop, 0.0)
 
-	return Vector2(
-		maxf(0.0, half_size.x - slop),
-		maxf(0.0, half_size.y - slop)
-	)
+	return Vector2(maxf(0.0, half_size.x - slop), maxf(0.0, half_size.y - slop))
 
 
-func _can_place_static_with_half(
-	center: Vector2,
-	half_size: Vector2
-) -> bool:
+func _canPlaceStaticWithHalf(center: Vector2, half_size: Vector2) -> bool:
 	var world_end: Vector2 = _world_rect.position + _world_rect.size
 	var rect_min: Vector2 = center - half_size
 	var rect_max: Vector2 = center + half_size
@@ -262,27 +230,19 @@ func _can_place_static_with_half(
 	max_x = clampi(max_x, 0, _grid_width - 1)
 	max_y = clampi(max_y, 0, _grid_height - 1)
 
-	return _prefix_rect_count(
-		min_x,
-		min_y,
-		max_x + 1,
-		max_y + 1
-	) == 0
+	return _prefixRectCount(min_x, min_y, max_x + 1, max_y + 1) == 0
 
 
-func nearest_placeable_point(
+func NearestPlaceablePoint(
 	world_position: Vector2,
 	half_size: Vector2,
-	reference_position: Vector2
+	reference_position: Vector2,
 ) -> Vector2:
-	if can_place_static(world_position, half_size):
+	if CanPlaceStatic(world_position, half_size):
 		return world_position
 
-	var path_offset: Vector2 = _path_lattice_offset(half_size)
-	var center_cell: Vector2i = _world_to_nearest_path_cell(
-		world_position,
-		path_offset
-	)
+	var path_offset: Vector2 = _pathLatticeOffset(half_size)
+	var center_cell: Vector2i = _worldToNearestPathCell(world_position, path_offset)
 	center_cell.x = clampi(center_cell.x, 0, _grid_width - 1)
 	center_cell.y = clampi(center_cell.y, 0, _grid_height - 1)
 	var max_radius: int = maxi(_grid_width, _grid_height)
@@ -294,22 +254,19 @@ func nearest_placeable_point(
 
 		for y: int in range(center_cell.y - radius, center_cell.y + radius + 1):
 			for x: int in range(center_cell.x - radius, center_cell.x + radius + 1):
-				var ring_distance: int = maxi(
-					absi(x - center_cell.x),
-					absi(y - center_cell.y)
-				)
+				var ring_distance: int = maxi(absi(x - center_cell.x), absi(y - center_cell.y))
 
 				if ring_distance != radius:
 					continue
 
 				var cell: Vector2i = Vector2i(x, y)
 
-				if not _valid_cell(cell):
+				if not _validCell(cell):
 					continue
 
-				var point: Vector2 = _path_point(cell, path_offset)
+				var point: Vector2 = _pathPoint(cell, path_offset)
 
-				if not can_place_static(point, half_size):
+				if not CanPlaceStatic(point, half_size):
 					continue
 
 				var target_distance: float = point.distance_squared_to(world_position)
@@ -333,190 +290,83 @@ func nearest_placeable_point(
 				best_reference_distance = reference_distance
 
 		if best.x >= 0:
-			return _path_point(best, path_offset)
+			return _pathPoint(best, path_offset)
 
 	return world_position
 
 
-func find_path(
+func Find_path(
 	start_world: Vector2,
 	target_world: Vector2,
-	half_size: Vector2
+	half_size: Vector2,
 ) -> PackedVector2Array:
-	var empty: PackedVector2Array = (
-		PackedVector2Array()
-	)
+	var empty: PackedVector2Array = (PackedVector2Array())
 
 	if not _navigation_ready:
 		return empty
 
-	var path_offset: Vector2 = _path_lattice_offset(half_size)
+	var path_offset: Vector2 = _pathLatticeOffset(half_size)
 
-	var start_cell: Vector2i = (
-		_nearest_valid_path_cell(
-			start_world,
-			half_size,
-			path_offset
-		)
-	)
+	var start_cell: Vector2i = (_nearestValidPathCell(start_world, half_size, path_offset))
 
 	if start_cell.x < 0:
 		return empty
 
-	var goal_cell: Vector2i = (
-		_nearest_valid_path_cell(
-			target_world,
-			half_size,
-			path_offset
-		)
-	)
+	var goal_cell: Vector2i = (_nearestValidPathCell(target_world, half_size, path_offset))
 
 	if goal_cell.x < 0:
 		return empty
 
-	var total: int = (
-		_grid_width * _grid_height
-	)
+	_ensurePathBuffers()
+	_resetPathBuffers()
 
-	var g: PackedFloat64Array = (
-		PackedFloat64Array()
-	)
+	var start_index: int = (_cellIndex(start_cell))
 
-	var turn_cost: PackedFloat64Array = (
-		PackedFloat64Array()
-	)
+	var goal_index: int = (_cellIndex(goal_cell))
 
-	var parent: PackedInt32Array = (
-		PackedInt32Array()
-	)
-
-	var incoming_direction: PackedInt32Array = (
-		PackedInt32Array()
-	)
-
-	var closed: PackedByteArray = (
-		PackedByteArray()
-	)
-
-	g.resize(total)
-	turn_cost.resize(total)
-
-	parent.resize(total)
-	incoming_direction.resize(total)
-
-	closed.resize(total)
-
-	g.fill(BIG_NUMBER)
-	turn_cost.fill(BIG_NUMBER)
-
-	parent.fill(-1)
-	incoming_direction.fill(-1)
-
-	closed.fill(0)
-
-	var start_index: int = (
-		_cell_index(start_cell)
-	)
-
-	var goal_index: int = (
-		_cell_index(goal_cell)
-	)
-
-	g[start_index] = 0.0
-	turn_cost[start_index] = 0.0
+	_path_g[start_index] = 0.0
+	_path_turn_cost[start_index] = 0.0
 
 	var heap: Array[HeapEntry] = []
 
-	var start_h: float = (
-		_octile_heuristic(
-			start_cell,
-			goal_cell
-		)
-	)
+	var start_h: float = (_octileHeuristic(start_cell, goal_cell))
 
-	_heap_push(
-		heap,
-		HeapEntry.new(
-			start_index,
-			start_h,
-			start_h,
-			0.0,
-			0.0
-		)
-	)
+	_heapPush(heap, HeapEntry.new(start_index, start_h, start_h, 0.0, 0.0))
 
 	var best_index: int = start_index
 
 	var best_target_distance: float = (
-		_path_point(start_cell, path_offset)
-		.distance_squared_to(
-			target_world
-		)
+		_pathPoint(start_cell, path_offset).distance_squared_to(target_world)
 	)
 
 	var found_goal: bool = false
 
 	while not heap.is_empty():
-		var entry: HeapEntry = (
-			_heap_pop(heap)
-		)
+		var entry: HeapEntry = (_heapPop(heap))
 
-		var current_index: int = (
-			entry.index
-		)
+		var current_index: int = (entry.index)
 
-		if closed[current_index] != 0:
+		if _path_closed[current_index] != 0:
 			continue
 
-		if (
-			absf(
-				entry.g
-				- g[current_index]
-			)
-			> EPSILON
-		):
+		if (absf(entry.g - _path_g[current_index]) > EPSILON):
 			continue
 
-		closed[current_index] = 1
+		_path_closed[current_index] = 1
 
-		var current_cell: Vector2i = (
-			_index_cell(
-				current_index
-			)
-		)
+		var current_cell: Vector2i = (_indexCell(current_index))
 
-		var current_world: Vector2 = (
-			_path_point(
-				current_cell,
-				path_offset
-			)
-		)
+		var current_world: Vector2 = (_pathPoint(current_cell, path_offset))
 
-		var target_distance: float = (
-			current_world
-			.distance_squared_to(
-				target_world
-			)
-		)
+		var target_distance: float = (current_world.distance_squared_to(target_world))
 
-		if (
-			target_distance
-			< best_target_distance
-				- EPSILON
-		):
-			best_target_distance = (
-				target_distance
-			)
+		if (target_distance < best_target_distance - EPSILON):
+			best_target_distance = (target_distance)
 
 			best_index = current_index
 
 		elif (
-			absf(
-				target_distance
-				- best_target_distance
-			)
-			<= EPSILON
-			and current_index < best_index
+			absf(target_distance - best_target_distance) <= EPSILON and current_index < best_index
 		):
 			best_index = current_index
 
@@ -525,298 +375,138 @@ func find_path(
 			best_index = current_index
 			break
 
-		var previous_direction: int = (
-			incoming_direction[
-				current_index
-			]
-		)
+		var previous_direction: int = (_path_incoming_direction[current_index])
 
-		for dir_index: int in range(
-			DIRECTIONS.size()
-		):
-			var direction: Vector2i = (
-				DIRECTIONS[dir_index]
-			)
+		for dir_index: int in range(DIRECTIONS.size()):
+			var direction: Vector2i = (DIRECTIONS[dir_index])
 
-			var next_cell: Vector2i = (
-				current_cell
-				+ direction
-			)
+			var next_cell: Vector2i = (current_cell + direction)
 
-			if not _valid_cell(
-				next_cell
-			):
+			if not _validCell(next_cell):
 				continue
 
-			var next_index: int = (
-				_cell_index(
-					next_cell
-				)
-			)
+			var next_index: int = (_cellIndex(next_cell))
 
-			if closed[next_index] != 0:
+			if _path_closed[next_index] != 0:
 				continue
 
-			var next_world: Vector2 = (
-				_path_point(
-					next_cell,
-					path_offset
-				)
-			)
+			var next_world: Vector2 = (_pathPoint(next_cell, path_offset))
 
-			if not can_place_static(
-				next_world,
-				half_size
-			):
+			if not CanPlaceStatic(next_world, half_size):
 				continue
 
-			if (
-				direction.x != 0
-				and direction.y != 0
-			):
-				var horizontal: Vector2i = (
-					Vector2i(
-						current_cell.x
-							+ direction.x,
-						current_cell.y
-					)
-				)
+			if (direction.x != 0 and direction.y != 0):
+				var horizontal: Vector2i = (Vector2i(current_cell.x + direction.x, current_cell.y))
 
-				var vertical: Vector2i = (
-					Vector2i(
-						current_cell.x,
-						current_cell.y
-							+ direction.y
-					)
-				)
+				var vertical: Vector2i = (Vector2i(current_cell.x, current_cell.y + direction.y))
 
-				if (
-					not _valid_cell(
-						horizontal
-					)
-					or not _valid_cell(
-						vertical
-					)
-				):
+				if (not _validCell(horizontal) or not _validCell(vertical)):
 					continue
 
-				if not can_place_static(
-					_path_point(
-						horizontal,
-						path_offset
-					),
-					half_size
-				):
+				if not CanPlaceStatic(_pathPoint(horizontal, path_offset), half_size):
 					continue
 
-				if not can_place_static(
-					_path_point(
-						vertical,
-						path_offset
-					),
-					half_size
-				):
+				if not CanPlaceStatic(_pathPoint(vertical, path_offset), half_size):
 					continue
 
 			var step_cost: float = 1.0
 
-			if (
-				direction.x != 0
-				and direction.y != 0
-			):
+			if (direction.x != 0 and direction.y != 0):
 				step_cost = SQRT_2
 
-			var tentative_g: float = (
-				g[current_index]
-				+ step_cost
-			)
+			var tentative_g: float = (_path_g[current_index] + step_cost)
 
 			var direction_change: float = 0.0
 
 			if previous_direction >= 0:
-				var difference: int = absi(
-					dir_index
-					- previous_direction
-				)
+				var difference: int = absi(dir_index - previous_direction)
 
-				difference = mini(
-					difference,
-					8 - difference
-				)
+				difference = mini(difference, 8 - difference)
 
-				direction_change = float(
-					difference
-				)
+				direction_change = float(difference)
 
-			var tentative_turn: float = (
-				turn_cost[
-					current_index
-				]
-				+ direction_change
-			)
+			var tentative_turn: float = (_path_turn_cost[current_index] + direction_change)
 
 			var better: bool = false
 
-			if (
-				tentative_g
-				< g[next_index]
-					- EPSILON
-			):
+			if (tentative_g < _path_g[next_index] - EPSILON):
 				better = true
 
 			elif (
-				absf(
-					tentative_g
-						- g[next_index]
-				)
-				<= EPSILON
-				and tentative_turn
-					< turn_cost[
-						next_index
-					] - EPSILON
+				absf(tentative_g - _path_g[next_index]) <= EPSILON
+				and tentative_turn < _path_turn_cost[next_index] - EPSILON
 			):
 				better = true
 
 			if not better:
 				continue
 
-			g[next_index] = tentative_g
+			_path_g[next_index] = tentative_g
 
-			turn_cost[next_index] = (
-				tentative_turn
-			)
+			_path_turn_cost[next_index] = (tentative_turn)
 
-			parent[next_index] = (
-				current_index
-			)
+			_path_parent[next_index] = (current_index)
 
-			incoming_direction[
-				next_index
-			] = dir_index
+			_path_incoming_direction[next_index] = dir_index
 
-			var h: float = (
-				_octile_heuristic(
-					next_cell,
-					goal_cell
-				)
-			)
+			var h: float = (_octileHeuristic(next_cell, goal_cell))
 
-			_heap_push(
+			_heapPush(
 				heap,
-				HeapEntry.new(
-					next_index,
-					tentative_g + h,
-					h,
-					tentative_turn,
-					tentative_g
-				)
+				HeapEntry.new(next_index, tentative_g + h, h, tentative_turn, tentative_g),
 			)
 
-	var destination_index: int = (
-		best_index
-	)
+	var destination_index: int = (best_index)
 
 	if found_goal:
 		destination_index = goal_index
 
 	var raw_path: Array[Vector2] = (
-		_reconstruct_path(
-			parent,
-			start_index,
-			destination_index,
-			path_offset
-		)
+		_reconstructPath(_path_parent, start_index, destination_index, path_offset)
 	)
 
 	if raw_path.is_empty():
 		return empty
 
-	var last: Vector2 = (
-		raw_path[
-			raw_path.size() - 1
-		]
-	)
+	var last: Vector2 = (raw_path[raw_path.size() - 1])
 
-	var final_point: Vector2 = (
-		_furthest_static_clear_point(
-			last,
-			target_world,
-			half_size
-		)
-	)
+	var final_point: Vector2 = (_furthestStaticClearPoint(last, target_world, half_size))
 
-	if (
-		last.distance_squared_to(final_point)
-		> EPSILON
-	):
+	if (last.distance_squared_to(final_point) > EPSILON):
 		raw_path.append(final_point)
 
-	return _simplify_path(
-		start_world,
-		raw_path,
-		half_size
-	)
+	return _simplifyPath(start_world, raw_path, half_size)
 
 
-func _furthest_static_clear_point(
-	start: Vector2,
-	target: Vector2,
-	half_size: Vector2
-) -> Vector2:
-	if (
-		start.distance_squared_to(target)
-		<= EPSILON
-	):
+func _furthestStaticClearPoint(start: Vector2, target: Vector2, half_size: Vector2) -> Vector2:
+	if (start.distance_squared_to(target) <= EPSILON):
 		return start
 
-	if _segment_static_clear(
-		start,
-		target,
-		half_size
-	):
+	if _segmentStaticClear(start, target, half_size):
 		return target
 
 	var low: float = 0.0
 	var high: float = 1.0
 
 	for _iteration: int in range(24):
-		var mid: float = (
-			(low + high) * 0.5
-		)
+		var mid: float = ((low + high) * 0.5)
 
-		var point: Vector2 = (
-			start.lerp(
-				target,
-				mid
-			)
-		)
+		var point: Vector2 = (start.lerp(target, mid))
 
-		if _segment_static_clear(
-			start,
-			point,
-			half_size
-		):
+		if _segmentStaticClear(start, point, half_size):
 			low = mid
 		else:
 			high = mid
 
-	return start.lerp(
-		target,
-		low
-	)
+	return start.lerp(target, low)
 
 
-func _nearest_valid_path_cell(
+func _nearestValidPathCell(
 	world_position: Vector2,
 	half_size: Vector2,
-	path_offset: Vector2
+	path_offset: Vector2,
 ) -> Vector2i:
-	var center_cell: Vector2i = (
-		_world_to_nearest_path_cell(
-			world_position,
-			path_offset
-		)
-	)
+	var center_cell: Vector2i = (_worldToNearestPathCell(world_position, path_offset))
 
 	center_cell.x = clampi(center_cell.x, 0, _grid_width - 1)
 	center_cell.y = clampi(center_cell.y, 0, _grid_height - 1)
@@ -826,30 +516,21 @@ func _nearest_valid_path_cell(
 		var best: Vector2i = Vector2i(-1, -1)
 		var best_distance: float = BIG_NUMBER
 
-		for y: int in range(
-			center_cell.y - radius,
-			center_cell.y + radius + 1
-		):
-			for x: int in range(
-				center_cell.x - radius,
-				center_cell.x + radius + 1
-			):
-				var ring_distance: int = maxi(
-					absi(x - center_cell.x),
-					absi(y - center_cell.y)
-				)
+		for y: int in range(center_cell.y - radius, center_cell.y + radius + 1):
+			for x: int in range(center_cell.x - radius, center_cell.x + radius + 1):
+				var ring_distance: int = maxi(absi(x - center_cell.x), absi(y - center_cell.y))
 
 				if ring_distance != radius:
 					continue
 
 				var cell: Vector2i = Vector2i(x, y)
 
-				if not _valid_cell(cell):
+				if not _validCell(cell):
 					continue
 
-				var point: Vector2 = _path_point(cell, path_offset)
+				var point: Vector2 = _pathPoint(cell, path_offset)
 
-				if not can_place_static(point, half_size):
+				if not CanPlaceStatic(point, half_size):
 					continue
 
 				var distance: float = point.distance_squared_to(world_position)
@@ -858,11 +539,7 @@ func _nearest_valid_path_cell(
 					best_distance = distance
 					best = cell
 				elif absf(distance - best_distance) <= EPSILON:
-					if (
-						best.x < 0
-						or y < best.y
-						or (y == best.y and x < best.x)
-					):
+					if (best.x < 0 or y < best.y or (y == best.y and x < best.x)):
 						best = cell
 
 		if best.x >= 0:
@@ -871,62 +548,37 @@ func _nearest_valid_path_cell(
 	return Vector2i(-1, -1)
 
 
-func _octile_heuristic(
-	a: Vector2i,
-	b: Vector2i
-) -> float:
-	var dx: int = absi(
-		a.x - b.x
-	)
+func _octileHeuristic(a: Vector2i, b: Vector2i) -> float:
+	var dx: int = absi(a.x - b.x)
 
-	var dy: int = absi(
-		a.y - b.y
-	)
+	var dy: int = absi(a.y - b.y)
 
-	var diagonal: int = mini(
-		dx,
-		dy
-	)
+	var diagonal: int = mini(dx, dy)
 
-	var straight: int = (
-		maxi(dx, dy)
-		- diagonal
-	)
+	var straight: int = (maxi(dx, dy) - diagonal)
 
-	return (
-		float(diagonal)
-			* SQRT_2
-		+ float(straight)
-	)
+	return (float(diagonal) * SQRT_2 + float(straight))
 
 
-func _reconstruct_path(
+func _reconstructPath(
 	parent: PackedInt32Array,
 	start_index: int,
 	destination_index: int,
-	path_offset: Vector2
+	path_offset: Vector2,
 ) -> Array[Vector2]:
 	var reversed: Array[Vector2] = []
 
 	var current: int = destination_index
 
 	while current >= 0:
-		reversed.append(
-			_path_point(
-				_index_cell(current),
-				path_offset
-			)
-		)
+		reversed.append(_pathPoint(_indexCell(current), path_offset))
 
 		if current == start_index:
 			break
 
 		current = parent[current]
 
-	if (
-		reversed.is_empty()
-		or current != start_index
-	):
+	if (reversed.is_empty() or current != start_index):
 		return []
 
 	reversed.reverse()
@@ -934,14 +586,12 @@ func _reconstruct_path(
 	return reversed
 
 
-func _simplify_path(
+func _simplifyPath(
 	actual_start: Vector2,
 	raw_path: Array[Vector2],
-	half_size: Vector2
+	half_size: Vector2,
 ) -> PackedVector2Array:
-	var result: PackedVector2Array = (
-		PackedVector2Array()
-	)
+	var result: PackedVector2Array = (PackedVector2Array())
 
 	if raw_path.is_empty():
 		return result
@@ -952,30 +602,14 @@ func _simplify_path(
 	while index < raw_path.size():
 		var farthest: int = index
 
-		for candidate_index: int in range(
-			raw_path.size() - 1,
-			index - 1,
-			-1
-		):
-			if _segment_static_clear(
-				anchor,
-				raw_path[
-					candidate_index
-				],
-				half_size
-			):
+		for candidate_index: int in range(raw_path.size() - 1, index - 1, -1):
+			if _segmentStaticClear(anchor, raw_path[candidate_index], half_size):
 				farthest = candidate_index
 				break
 
-		var point: Vector2 = (
-			raw_path[farthest]
-		)
+		var point: Vector2 = (raw_path[farthest])
 
-		if (
-			anchor
-			.distance_squared_to(point)
-			> EPSILON
-		):
+		if (anchor.distance_squared_to(point) > EPSILON):
 			result.append(point)
 
 		anchor = point
@@ -984,46 +618,27 @@ func _simplify_path(
 	return result
 
 
-func _segment_static_clear(
-	start: Vector2,
-	end: Vector2,
-	half_size: Vector2
-) -> bool:
-	var static_half: Vector2 = _static_half_size(half_size)
-	var start_valid: bool = _can_place_static_with_half(start, static_half)
-	var end_valid: bool = _can_place_static_with_half(end, static_half)
+func _segmentStaticClear(start: Vector2, end: Vector2, half_size: Vector2) -> bool:
+	var static_half: Vector2 = _staticHalfSize(half_size)
+	var start_valid: bool = _canPlaceStaticWithHalf(start, static_half)
+	var end_valid: bool = _canPlaceStaticWithHalf(end, static_half)
 
 	if not end_valid:
 		return false
 
 	if not start_valid:
-		return _segment_static_clear_recovering(
-			start,
-			end,
-			static_half
-		)
+		return _segmentStaticClearRecovering(start, end, static_half)
 
-	return _segment_static_clear_valid_start(
-		start,
-		end,
-		static_half
-	)
+	return _segmentStaticClearValidStart(start, end, static_half)
 
 
-func _segment_static_clear_recovering(
-	start: Vector2,
-	end: Vector2,
-	half_size: Vector2
-) -> bool:
+func _segmentStaticClearRecovering(start: Vector2, end: Vector2, half_size: Vector2) -> bool:
 	var delta: Vector2 = end - start
 
 	if delta.length_squared() <= EPSILON:
 		return false
 
-	var recovery_limit: float = maxf(
-		_nav_cell_size * 0.5,
-		maxf(static_contact_slop, 0.0) * 4.0
-	)
+	var recovery_limit: float = maxf(_nav_cell_size * 0.5, maxf(static_contact_slop, 0.0) * 4.0)
 
 	if delta.length() > recovery_limit + EPSILON:
 		return false
@@ -1035,7 +650,7 @@ func _segment_static_clear_recovering(
 		var t: float = float(step) / 8.0
 		var point: Vector2 = start.lerp(end, t)
 
-		if _can_place_static_with_half(point, half_size):
+		if _canPlaceStaticWithHalf(point, half_size):
 			first_valid = point
 			found_valid = true
 			break
@@ -1043,30 +658,16 @@ func _segment_static_clear_recovering(
 	if not found_valid:
 		return false
 
-	return _segment_static_clear_valid_start(
-		first_valid,
-		end,
-		half_size
-	)
+	return _segmentStaticClearValidStart(first_valid, end, half_size)
 
 
-func _segment_static_clear_valid_start(
-	start: Vector2,
-	end: Vector2,
-	half_size: Vector2
-) -> bool:
-	var broad_min: Vector2 = Vector2(
-		minf(start.x, end.x),
-		minf(start.y, end.y)
-	) - half_size
+func _segmentStaticClearValidStart(start: Vector2, end: Vector2, half_size: Vector2) -> bool:
+	var broad_min: Vector2 = Vector2(minf(start.x, end.x), minf(start.y, end.y)) - half_size
 
-	var broad_max: Vector2 = Vector2(
-		maxf(start.x, end.x),
-		maxf(start.y, end.y)
-	) + half_size
+	var broad_max: Vector2 = Vector2(maxf(start.x, end.x), maxf(start.y, end.y)) + half_size
 
-	var min_cell: Vector2i = _world_to_cell_floor(broad_min)
-	var max_cell: Vector2i = _world_to_cell_floor(broad_max)
+	var min_cell: Vector2i = _worldToCellFloor(broad_min)
+	var max_cell: Vector2i = _worldToCellFloor(broad_max)
 
 	min_cell.x = clampi(min_cell.x, 0, _grid_width - 1)
 	min_cell.y = clampi(min_cell.y, 0, _grid_height - 1)
@@ -1075,37 +676,24 @@ func _segment_static_clear_valid_start(
 
 	for y: int in range(min_cell.y, max_cell.y + 1):
 		for x: int in range(min_cell.x, max_cell.x + 1):
-			if not _is_blocked_cell(x, y):
+			if not _isBlockedCell(x, y):
 				continue
 
-			var rect: Rect2 = _cell_rect(Vector2i(x, y))
+			var rect: Rect2 = _cellRect(Vector2i(x, y))
 			var center: Vector2 = rect.position + rect.size * 0.5
-			var expanded_half: Vector2 = _collision_half(
-				half_size,
-				rect.size * 0.5
-			)
+			var expanded_half: Vector2 = _collisionHalf(half_size, rect.size * 0.5)
 
-			if _segment_intersects_centered_aabb(
-				start - center,
-				end - center,
-				expanded_half
-			):
+			if _segmentIntersectsCenteredAabb(start - center, end - center, expanded_half):
 				return false
 
 	return true
 
 
-func _heap_less(
-	a: HeapEntry,
-	b: HeapEntry
-) -> bool:
+func _heapLess(a: HeapEntry, b: HeapEntry) -> bool:
 	if absf(a.f - b.f) > EPSILON:
 		return a.f < b.f
 
-	if (
-		absf(a.turn - b.turn)
-		> EPSILON
-	):
+	if (absf(a.turn - b.turn) > EPSILON):
 		return a.turn < b.turn
 
 	if absf(a.h - b.h) > EPSILON:
@@ -1114,52 +702,32 @@ func _heap_less(
 	return a.index < b.index
 
 
-func _heap_push(
-	heap: Array[HeapEntry],
-	entry: HeapEntry
-) -> void:
+func _heapPush(heap: Array[HeapEntry], entry: HeapEntry) -> void:
 	heap.append(entry)
 
-	var index: int = (
-		heap.size() - 1
-	)
+	var index: int = (heap.size() - 1)
 
 	while index > 0:
-		var parent_index: int = int(
-			(index - 1) / 2
-		)
+		var parent_index: int = int((index - 1) / 2)
 
-		if not _heap_less(
-			heap[index],
-			heap[parent_index]
-		):
+		if not _heapLess(heap[index], heap[parent_index]):
 			break
 
-		var temp: HeapEntry = (
-			heap[index]
-		)
+		var temp: HeapEntry = (heap[index])
 
-		heap[index] = (
-			heap[parent_index]
-		)
+		heap[index] = (heap[parent_index])
 
 		heap[parent_index] = temp
 
 		index = parent_index
 
 
-func _heap_pop(
-	heap: Array[HeapEntry]
-) -> HeapEntry:
+func _heapPop(heap: Array[HeapEntry]) -> HeapEntry:
 	var root: HeapEntry = heap[0]
 
-	var last_index: int = (
-		heap.size() - 1
-	)
+	var last_index: int = (heap.size() - 1)
 
-	var last: HeapEntry = (
-		heap[last_index]
-	)
+	var last: HeapEntry = (heap[last_index])
 
 	heap.remove_at(last_index)
 
@@ -1171,44 +739,24 @@ func _heap_pop(
 	var index: int = 0
 
 	while true:
-		var left: int = (
-			index * 2 + 1
-		)
+		var left: int = (index * 2 + 1)
 
-		var right: int = (
-			left + 1
-		)
+		var right: int = (left + 1)
 
 		var smallest: int = index
 
-		if (
-			left < heap.size()
-			and _heap_less(
-				heap[left],
-				heap[smallest]
-			)
-		):
+		if (left < heap.size() and _heapLess(heap[left], heap[smallest])):
 			smallest = left
 
-		if (
-			right < heap.size()
-			and _heap_less(
-				heap[right],
-				heap[smallest]
-			)
-		):
+		if (right < heap.size() and _heapLess(heap[right], heap[smallest])):
 			smallest = right
 
 		if smallest == index:
 			break
 
-		var temp: HeapEntry = (
-			heap[index]
-		)
+		var temp: HeapEntry = (heap[index])
 
-		heap[index] = (
-			heap[smallest]
-		)
+		heap[index] = (heap[smallest])
 
 		heap[smallest] = temp
 
@@ -1217,43 +765,23 @@ func _heap_pop(
 	return root
 
 
-func _valid_cell(
-	cell: Vector2i
-) -> bool:
-	return (
-		cell.x >= 0
-		and cell.y >= 0
-		and cell.x < _grid_width
-		and cell.y < _grid_height
-	)
+func _validCell(cell: Vector2i) -> bool:
+	return (cell.x >= 0 and cell.y >= 0 and cell.x < _grid_width and cell.y < _grid_height)
 
 
-func _cell_index(
-	cell: Vector2i
-) -> int:
-	return (
-		cell.y * _grid_width
-		+ cell.x
-	)
+func _cellIndex(cell: Vector2i) -> int:
+	return (cell.y * _grid_width + cell.x)
 
 
-func _index_cell(
-	index: int
-) -> Vector2i:
-	return Vector2i(
-		index % _grid_width,
-		int(index / _grid_width)
-	)
+func _indexCell(index: int) -> Vector2i:
+	return Vector2i(index % _grid_width, int(index / _grid_width))
 
 
-func _path_lattice_offset(half_size: Vector2) -> Vector2:
-	return Vector2(
-		_lattice_axis_offset(half_size.x),
-		_lattice_axis_offset(half_size.y)
-	)
+func _pathLatticeOffset(half_size: Vector2) -> Vector2:
+	return Vector2(_latticeAxisOffset(half_size.x), _latticeAxisOffset(half_size.y))
 
 
-func _lattice_axis_offset(half_extent: float) -> float:
+func _latticeAxisOffset(half_extent: float) -> float:
 	var offset: float = fposmod(maxf(half_extent, 0.0), _nav_cell_size)
 
 	if offset <= EPSILON or _nav_cell_size - offset <= EPSILON:
@@ -1262,79 +790,38 @@ func _lattice_axis_offset(half_extent: float) -> float:
 	return offset
 
 
-func _path_point(cell: Vector2i, path_offset: Vector2) -> Vector2:
+func _pathPoint(cell: Vector2i, path_offset: Vector2) -> Vector2:
 	return (
 		_world_rect.position
 		+ Vector2(
 			float(cell.x) * _nav_cell_size + path_offset.x,
-			float(cell.y) * _nav_cell_size + path_offset.y
+			float(cell.y) * _nav_cell_size + path_offset.y,
 		)
 	)
 
 
-func _world_to_nearest_path_cell(
-	position: Vector2,
-	path_offset: Vector2
-) -> Vector2i:
+func _worldToNearestPathCell(position: Vector2, path_offset: Vector2) -> Vector2i:
 	var local: Vector2 = position - _world_rect.position - path_offset
 
-	return Vector2i(
-		roundi(local.x / _nav_cell_size),
-		roundi(local.y / _nav_cell_size)
-	)
+	return Vector2i(roundi(local.x / _nav_cell_size), roundi(local.y / _nav_cell_size))
 
 
-func _cell_rect(
-	cell: Vector2i
-) -> Rect2:
+func _cellRect(cell: Vector2i) -> Rect2:
 	return Rect2(
 		_world_rect.position
-		+ Vector2(
-			float(cell.x)
-				* _nav_cell_size,
-			float(cell.y)
-				* _nav_cell_size
-		),
-		Vector2(
-			_nav_cell_size,
-			_nav_cell_size
-		)
+		+ Vector2(float(cell.x) * _nav_cell_size, float(cell.y) * _nav_cell_size),
+		Vector2(_nav_cell_size, _nav_cell_size),
 	)
 
 
-func _world_to_cell_floor(
-	position: Vector2
-) -> Vector2i:
-	var local: Vector2 = (
-		position
-		- _world_rect.position
-	)
+func _worldToCellFloor(position: Vector2) -> Vector2i:
+	var local: Vector2 = (position - _world_rect.position)
 
-	return Vector2i(
-		floori(
-			local.x / _nav_cell_size
-		),
-		floori(
-			local.y / _nav_cell_size
-		)
-	)
+	return Vector2i(floori(local.x / _nav_cell_size), floori(local.y / _nav_cell_size))
 
 
-func _is_blocked_cell(
-	x: int,
-	y: int
-) -> bool:
-	if (
-		x < 0
-		or y < 0
-		or x >= _grid_width
-		or y >= _grid_height
-	):
+func _isBlockedCell(x: int, y: int) -> bool:
+	if (x < 0 or y < 0 or x >= _grid_width or y >= _grid_height):
 		return true
 
-	return (
-		_blocked[
-			y * _grid_width + x
-		]
-		!= 0
-	)
+	return (_blocked[y * _grid_width + x] != 0)

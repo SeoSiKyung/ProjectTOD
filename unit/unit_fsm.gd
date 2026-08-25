@@ -1,7 +1,6 @@
 class_name UnitFSM
 extends Node
 
-
 enum State {
 	IDLE,
 	MOVE,
@@ -11,9 +10,7 @@ enum State {
 	DIE,
 }
 
-
 signal state_changed(previous_state: State, current_state: State)
-
 
 var current_state: State = State.IDLE
 var chase_target: Unit = null
@@ -25,66 +22,63 @@ var unit: Unit = null
 var _state_before_stun: State = State.IDLE
 
 
-func bind_unit(p_unit: Unit) -> void:
+func BindUnit(p_unit: Unit) -> void:
 	unit = p_unit
 
 
 func _physics_process(delta: float) -> void:
 	match current_state:
 		State.MOVE:
-			_update_move()
+			_updateMove()
 		State.CHASE:
-			_update_chase()
+			_updateChase()
 		State.ATTACK:
-			_update_attack()
+			_updateAttack()
 		State.STUN:
-			_update_stun(delta)
+			_updateStun(delta)
 
 
-func can_receive_commands() -> bool:
+func CanReceiveCommands() -> bool:
 	return current_state != State.STUN and current_state != State.DIE
 
 
-func request_idle() -> bool:
-	if not can_receive_commands():
+func RequestIdle() -> bool:
+	if not CanReceiveCommands():
 		return false
 
-	_clear_targets()
-	_change_state(State.IDLE)
+	_clearTargets()
+	_changeState(State.IDLE)
 	return true
 
 
-func request_move() -> bool:
-	if not can_receive_commands():
+func RequestMove() -> bool:
+	if not CanReceiveCommands():
 		return false
 
-	_clear_targets()
-	_change_state(State.MOVE)
+	_clearTargets()
+	_changeState(State.MOVE)
 	return true
 
 
-func request_chase(target: Unit) -> bool:
-	if not can_receive_commands():
+func RequestChase(target: Unit) -> bool:
+	if not CanReceiveCommands():
 		return false
 
-	if not _is_valid_target(target):
+	if not _isValidTarget(target):
 		return false
 
 	chase_target = target
 	attack_target = null
 	attack_return_state = State.IDLE
-	_change_state(State.CHASE)
+	_changeState(State.CHASE)
 	return true
 
 
-func request_attack(
-	target: Unit,
-	return_state: State = State.IDLE
-) -> bool:
-	if not can_receive_commands():
+func RequestAttack(target: Unit, return_state: State = State.IDLE) -> bool:
+	if not CanReceiveCommands():
 		return false
 
-	if not _is_valid_target(target):
+	if not _isValidTarget(target):
 		return false
 
 	if return_state != State.IDLE and return_state != State.CHASE:
@@ -98,33 +92,30 @@ func request_attack(
 	else:
 		chase_target = null
 
-	_change_state(State.ATTACK)
+	_changeState(State.ATTACK)
 	return true
 
 
-func return_from_attack_out_of_range() -> void:
+func ReturnFromAttackOutOfRange() -> void:
 	if current_state != State.ATTACK:
 		return
 
-	if (
-		attack_return_state == State.CHASE
-		and _is_valid_target(chase_target)
-	):
+	if (attack_return_state == State.CHASE and _isValidTarget(chase_target)):
 		attack_target = null
-		_change_state(State.CHASE)
+		_changeState(State.CHASE)
 		return
 
-	_enter_idle_internal()
+	_enterIdleInternal()
 
 
-func finish_attack() -> void:
+func FinishAttack() -> void:
 	if current_state != State.ATTACK:
 		return
 
-	_enter_idle_internal()
+	_enterIdleInternal()
 
 
-func apply_stun(duration: float) -> void:
+func ApplyStun(duration: float) -> void:
 	if current_state == State.DIE:
 		return
 
@@ -139,93 +130,89 @@ func apply_stun(duration: float) -> void:
 	stun_time_left = duration
 
 	if unit != null and unit.movement != null:
-		unit.movement.pause()
+		unit.movement.Pause()
 
-	_change_state(State.STUN)
+	_changeState(State.STUN)
 
 
-func die() -> void:
+func Die() -> void:
 	if current_state == State.DIE:
 		return
 
 	stun_time_left = 0.0
 	_state_before_stun = State.IDLE
-	_clear_targets()
+	_clearTargets()
 
 	if unit != null and unit.movement != null:
-		unit.movement.stop()
+		unit.movement.Stop()
 
-	_change_state(State.DIE)
+	_changeState(State.DIE)
 
 
-func _update_move() -> void:
+func _updateMove() -> void:
 	if unit == null or unit.movement == null:
-		_enter_idle_internal()
+		_enterIdleInternal()
 		return
 
-	if unit.movement.is_idle():
-		_enter_idle_internal()
+	if unit.movement.IsIdle():
+		_enterIdleInternal()
 
 
-func _update_chase() -> void:
-	if not _is_valid_target(chase_target):
-		_enter_idle_internal()
+func _updateChase() -> void:
+	if not _isValidTarget(chase_target):
+		_enterIdleInternal()
 
 
-func _update_attack() -> void:
-	if not _is_valid_target(attack_target):
-		_enter_idle_internal()
+func _updateAttack() -> void:
+	if not _isValidTarget(attack_target):
+		_enterIdleInternal()
 
 
-func _update_stun(delta: float) -> void:
+func _updateStun(delta: float) -> void:
 	stun_time_left = maxf(stun_time_left - delta, 0.0)
 
 	if stun_time_left > 0.0:
 		return
 
-	_resume_after_stun()
+	_resumeAfterStun()
 
 
-func _resume_after_stun() -> void:
+func _resumeAfterStun() -> void:
 	var resume_state: State = _state_before_stun
 	_state_before_stun = State.IDLE
 
 	if unit != null and unit.movement != null:
-		unit.movement.resume()
+		unit.movement.Resume()
 
 	match resume_state:
 		State.MOVE:
-			if (
-				unit != null
-				and unit.movement != null
-				and unit.movement.is_moving()
-			):
-				_change_state(State.MOVE)
+			if (unit != null and unit.movement != null and unit.movement.IsMoving()):
+				_changeState(State.MOVE)
 				return
 		State.CHASE:
-			if _is_valid_target(chase_target):
-				_change_state(State.CHASE)
+			if _isValidTarget(chase_target):
+				_changeState(State.CHASE)
 				return
 		State.ATTACK:
-			if _is_valid_target(attack_target):
-				_change_state(State.ATTACK)
+			if _isValidTarget(attack_target):
+				_changeState(State.ATTACK)
 				return
 
-	_enter_idle_internal()
+	_enterIdleInternal()
 
 
-func _enter_idle_internal() -> void:
-	_clear_targets()
-	_change_state(State.IDLE)
+func _enterIdleInternal() -> void:
+	_clearTargets()
+	_changeState(State.IDLE)
 
 
-func _clear_targets() -> void:
+func _clearTargets() -> void:
 	chase_target = null
 	attack_target = null
 	attack_return_state = State.IDLE
 
 
-func _change_state(next_state: State) -> void:
+func _changeState(next_state: State) -> void:
 	if current_state == next_state:
 		return
 
@@ -234,7 +221,7 @@ func _change_state(next_state: State) -> void:
 	state_changed.emit(previous_state, current_state)
 
 
-func _is_valid_target(target: Unit) -> bool:
+func _isValidTarget(target: Unit) -> bool:
 	if target == null:
 		return false
 
