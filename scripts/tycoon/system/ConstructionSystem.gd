@@ -1,69 +1,37 @@
 class_name ConstructionSystem
 extends Node
 
+signal ConstructionCompleted(facilityId: StringName, level: int)
 
-signal construction_completed(
-	facility_id: StringName,
-	level: int
-)
-
-signal upgrade_completed(
-	facility_id: StringName,
-	level: int
-)
+signal UpgradeCompleted(facilityId: StringName, level: int)
 
 
-func process_turn_start(settlement: SettlementState) -> void:
+func ProcessTurnStart(settlement: SettlementState) -> void:
 	# 뒤에서부터 순회해야 완료된 Task를 안전하게 제거할 수 있음
-	for i in range(
-		settlement.construction_tasks.size() - 1,
-		-1,
-		-1
-	):
-		var task := settlement.construction_tasks[i]
+	for i in range(settlement.constructionTasks.size() - 1, -1, -1):
+		var task := settlement.constructionTasks[i]
 
-		task.advance_turn()
+		task.AdvanceTurn()
 
-		if task.is_completed():
-			_complete_task(
-				settlement,
-				task
-			)
+		if task.IsCompleted():
+			_CompleteTask(settlement, task)
 
-			settlement.construction_tasks.remove_at(i)
+			settlement.constructionTasks.remove_at(i)
 
 
-func _complete_task(
-	settlement: SettlementState,
-	task: ConstructionTask
-) -> void:
+func _CompleteTask(settlement: SettlementState, task: ConstructionTask) -> void:
+	var facilityState := settlement.GetFacility(task.facilityId)
 
-	var facility_state := settlement.get_facility(
-		task.facility_id
-	)
-
-	if facility_state == null:
-		push_warning(
-			"ConstructionSystem: FacilityState를 찾을 수 없습니다: %s"
-			% task.facility_id
-		)
+	if facilityState == null:
+		push_warning("ConstructionSystem: FacilityState를 찾을 수 없습니다: %s" % task.facilityId)
 		return
 
+	facilityState.level = task.targetLevel
+	facilityState.status = FacilityState.Status.BUILT
 
-	facility_state.level = task.target_level
-	facility_state.status = FacilityState.Status.BUILT
-
-
-	match task.task_type:
-
+	match task.taskType:
 		ConstructionTask.TaskType.BUILD:
-			construction_completed.emit(
-				task.facility_id,
-				task.target_level
-			)
+			ConstructionCompleted.emit(task.facilityId, task.targetLevel)
 
 		ConstructionTask.TaskType.UPGRADE:
-			upgrade_completed.emit(
-				task.facility_id,
-				task.target_level
-			)
+			UpgradeCompleted.emit(task.facilityId, task.targetLevel)
