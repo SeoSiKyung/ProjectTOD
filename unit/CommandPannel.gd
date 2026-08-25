@@ -245,7 +245,6 @@ func _refresh() -> void:
 
 	if command_controller != null:
 		mode = command_controller.GetCommandMode()
-
 	_move_button.button_pressed = mode == CommandController.CommandMode.MOVE
 	_attack_button.button_pressed = mode == CommandController.CommandMode.ATTACK
 	_skill_button.button_pressed = mode == CommandController.CommandMode.SKILL
