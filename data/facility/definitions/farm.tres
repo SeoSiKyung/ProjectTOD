@@ -15,6 +15,7 @@ script = ExtResource("1_xttv5")
 construction_turns = 2
 gold_cost = 100
 food_cost = 50
+wood_cost = 50
 effects = Array[ExtResource("2_ir86q")]([SubResource("Resource_vum0x")])
 metadata/_custom_type_script = "uid://cl42t74u4dou8"
 
@@ -48,5 +49,8 @@ metadata/_custom_type_script = "uid://cl42t74u4dou8"
 
 [resource]
 script = ExtResource("2_tykrw")
+id = &"farm"
+display_name = "농지"
+description = "식량 수급량을 증가시킨다."
 levels = Array[ExtResource("1_xttv5")]([SubResource("Resource_e0o28"), SubResource("Resource_qitjm"), SubResource("Resource_dci7k")])
 metadata/_custom_type_script = "uid://bd4hqd1pdyupk"

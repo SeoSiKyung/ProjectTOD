@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="FacilityCatalog" format=3 uid="uid://bay8gcomjyr5r"]
+
+[ext_resource type="Script" uid="uid://bd4hqd1pdyupk" path="res://scripts/tycoon/data/facility_data.gd" id="1_rsy8i"]
+[ext_resource type="Script" uid="uid://dao7fcxbtruus" path="res://scripts/tycoon/data/facility_catalog.gd" id="2_c6i2d"]
+[ext_resource type="Resource" uid="uid://b3guw4t2kwc7g" path="res://data/facility/definitions/farm.tres" id="2_pyvl1"]
+
+[resource]
+script = ExtResource("2_c6i2d")
+facilities = Array[ExtResource("1_rsy8i")]([ExtResource("2_pyvl1")])
+metadata/_custom_type_script = "uid://dao7fcxbtruus"
