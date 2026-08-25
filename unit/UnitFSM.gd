@@ -1,18 +1,24 @@
 class_name UnitFSM
 extends Node
 
+
 enum State {
 	IDLE,
 	MOVE,
+	FOLLOW,
 	CHASE,
+	ATTACK_MOVE,
 	ATTACK,
 	STUN,
 	DIE,
 }
 
+
 signal state_changed(previous_state: State, current_state: State)
 
+
 var current_state: State = State.IDLE
+var follow_target: Unit = null
 var chase_target: Unit = null
 var attack_target: Unit = null
 var attack_return_state: State = State.IDLE
@@ -30,8 +36,12 @@ func _physics_process(delta: float) -> void:
 	match current_state:
 		State.MOVE:
 			_updateMove()
+		State.FOLLOW:
+			_updateFollow()
 		State.CHASE:
 			_updateChase()
+		State.ATTACK_MOVE:
+			_updateAttackMove()
 		State.ATTACK:
 			_updateAttack()
 		State.STUN:
@@ -60,6 +70,21 @@ func RequestMove() -> bool:
 	return true
 
 
+func RequestFollow(target: Unit) -> bool:
+	if not CanReceiveCommands():
+		return false
+
+	if not _isValidTarget(target):
+		return false
+
+	follow_target = target
+	chase_target = null
+	attack_target = null
+	attack_return_state = State.IDLE
+	_changeState(State.FOLLOW)
+	return true
+
+
 func RequestChase(target: Unit) -> bool:
 	if not CanReceiveCommands():
 		return false
@@ -67,6 +92,7 @@ func RequestChase(target: Unit) -> bool:
 	if not _isValidTarget(target):
 		return false
 
+	follow_target = null
 	chase_target = target
 	attack_target = null
 	attack_return_state = State.IDLE
@@ -74,16 +100,33 @@ func RequestChase(target: Unit) -> bool:
 	return true
 
 
-func RequestAttack(target: Unit, return_state: State = State.IDLE) -> bool:
+func RequestAttackMove() -> bool:
+	if not CanReceiveCommands():
+		return false
+
+	_clearTargets()
+	_changeState(State.ATTACK_MOVE)
+	return true
+
+
+func RequestAttack(
+	target: Unit,
+	return_state: State = State.IDLE
+) -> bool:
 	if not CanReceiveCommands():
 		return false
 
 	if not _isValidTarget(target):
 		return false
 
-	if return_state != State.IDLE and return_state != State.CHASE:
+	if (
+		return_state != State.IDLE
+		and return_state != State.CHASE
+		and return_state != State.ATTACK_MOVE
+	):
 		return_state = State.IDLE
 
+	follow_target = null
 	attack_target = target
 	attack_return_state = return_state
 
@@ -100,9 +143,22 @@ func ReturnFromAttackOutOfRange() -> void:
 	if current_state != State.ATTACK:
 		return
 
-	if (attack_return_state == State.CHASE and _isValidTarget(chase_target)):
+	if (
+		attack_return_state == State.CHASE
+		and _isValidTarget(chase_target)
+	):
 		attack_target = null
 		_changeState(State.CHASE)
+		return
+
+	if (
+		attack_return_state == State.ATTACK_MOVE
+		and unit != null
+		and unit.movement != null
+		and unit.movement.is_moving()
+	):
+		attack_target = null
+		_changeState(State.ATTACK_MOVE)
 		return
 
 	_enterIdleInternal()
@@ -110,6 +166,24 @@ func ReturnFromAttackOutOfRange() -> void:
 
 func FinishAttack() -> void:
 	if current_state != State.ATTACK:
+		return
+
+	if (
+		attack_return_state == State.CHASE
+		and _isValidTarget(chase_target)
+	):
+		attack_target = null
+		_changeState(State.CHASE)
+		return
+
+	if (
+		attack_return_state == State.ATTACK_MOVE
+		and unit != null
+		and unit.movement != null
+		and unit.movement.is_moving()
+	):
+		attack_target = null
+		_changeState(State.ATTACK_MOVE)
 		return
 
 	_enterIdleInternal()
@@ -130,7 +204,7 @@ func ApplyStun(duration: float) -> void:
 	stun_time_left = duration
 
 	if unit != null and unit.movement != null:
-		unit.movement.Pause()
+		unit.movement.pause()
 
 	_changeState(State.STUN)
 
@@ -144,7 +218,7 @@ func Die() -> void:
 	_clearTargets()
 
 	if unit != null and unit.movement != null:
-		unit.movement.Stop()
+		unit.movement.stop()
 
 	_changeState(State.DIE)
 
@@ -158,8 +232,22 @@ func _updateMove() -> void:
 		_enterIdleInternal()
 
 
+func _updateFollow() -> void:
+	if not _isValidTarget(follow_target):
+		_enterIdleInternal()
+
+
 func _updateChase() -> void:
 	if not _isValidTarget(chase_target):
+		_enterIdleInternal()
+
+
+func _updateAttackMove() -> void:
+	if unit == null or unit.movement == null:
+		_enterIdleInternal()
+		return
+
+	if unit.movement.IsIdle():
 		_enterIdleInternal()
 
 
@@ -182,16 +270,24 @@ func _resumeAfterStun() -> void:
 	_state_before_stun = State.IDLE
 
 	if unit != null and unit.movement != null:
-		unit.movement.Resume()
+		unit.movement.resume()
 
 	match resume_state:
 		State.MOVE:
-			if (unit != null and unit.movement != null and unit.movement.IsMoving()):
+			if _hasActiveMovement():
 				_changeState(State.MOVE)
+				return
+		State.FOLLOW:
+			if _isValidTarget(follow_target):
+				_changeState(State.FOLLOW)
 				return
 		State.CHASE:
 			if _isValidTarget(chase_target):
 				_changeState(State.CHASE)
+				return
+		State.ATTACK_MOVE:
+			if _hasActiveMovement():
+				_changeState(State.ATTACK_MOVE)
 				return
 		State.ATTACK:
 			if _isValidTarget(attack_target):
@@ -201,12 +297,21 @@ func _resumeAfterStun() -> void:
 	_enterIdleInternal()
 
 
+func _hasActiveMovement() -> bool:
+	return (
+		unit != null
+		and unit.movement != null
+		and unit.movement.is_moving()
+	)
+
+
 func _enterIdleInternal() -> void:
 	_clearTargets()
 	_changeState(State.IDLE)
 
 
 func _clearTargets() -> void:
+	follow_target = null
 	chase_target = null
 	attack_target = null
 	attack_return_state = State.IDLE

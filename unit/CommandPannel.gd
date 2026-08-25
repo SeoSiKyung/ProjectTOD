@@ -233,7 +233,7 @@ func _refresh() -> void:
 	var has_selection: bool = false
 
 	if select_controller != null:
-		has_selection = select_controller.has_friendly_selection()
+		has_selection = select_controller.HasFriendlySelection()
 
 	_panel.visible = has_selection or not hide_without_selection
 	_move_button.disabled = not has_selection
@@ -244,7 +244,7 @@ func _refresh() -> void:
 	var mode: int = CommandController.CommandMode.SMART
 
 	if command_controller != null:
-		mode = command_controller.get_command_mode()
+		mode = command_controller.GetCommandMode()
 
 	_move_button.button_pressed = mode == CommandController.CommandMode.MOVE
 	_attack_button.button_pressed = mode == CommandController.CommandMode.ATTACK
