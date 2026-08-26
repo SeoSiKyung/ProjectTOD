@@ -4,7 +4,7 @@ const FONT_KO: Font = preload("res://fonts/Hahmlet_variation.tres")
 const FONT_EN: Font = preload("res://fonts/Cinzel-Bold.ttf")
 
 
-func set_language(locale: String) -> void:
+func SetLanguage(locale: String) -> void:
 	TranslationServer.set_locale(locale)
 
 	var theme := ThemeDB.get_project_theme()

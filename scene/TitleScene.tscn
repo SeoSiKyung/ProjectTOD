@@ -3,7 +3,7 @@
 [ext_resource type="Texture2D" uid="uid://bxhiftjqd5lr7" path="res://picture/title/0.png" id="1_2wach"]
 [ext_resource type="Script" uid="uid://bx1pj3sgkxeds" path="res://scene/TitleScene.gd" id="1_qyslj"]
 [ext_resource type="Texture2D" uid="uid://d078rpd45y6ed" path="res://picture/title/1.png" id="2_qyslj"]
-[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://basic_button.tscn" id="3_cbsd1"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://BasicButton.tscn" id="3_cbsd1"]
 
 [node name="TitleScene" type="Control" unique_id=1706279260]
 layout_mode = 3
@@ -52,25 +52,25 @@ theme_override_constants/separation = 13
 
 [node name="BNewGame" parent="VBoxContainer" unique_id=592075297 instance=ExtResource("3_cbsd1")]
 layout_mode = 2
-text_key = "TITLE_NEW_GAME"
-action_key = &"new_game"
+textKey = "TITLE_NEW_GAME"
+actionKey = &"new_game"
 
 [node name="BContinue" parent="VBoxContainer" unique_id=184469901 instance=ExtResource("3_cbsd1")]
 layout_mode = 2
-text_key = "TITLE_CONTINUE"
-action_key = &"continue"
+textKey = "TITLE_CONTINUE"
+actionKey = &"continue"
 
 [node name="BRecord" parent="VBoxContainer" unique_id=1691919176 instance=ExtResource("3_cbsd1")]
 layout_mode = 2
-text_key = "TITLE_RECORDS"
-action_key = &"records"
+textKey = "TITLE_RECORDS"
+actionKey = &"records"
 
 [node name="BSetting" parent="VBoxContainer" unique_id=927307726 instance=ExtResource("3_cbsd1")]
 layout_mode = 2
-text_key = "TITLE_SETTINGS"
-action_key = &"settings"
+textKey = "TITLE_SETTINGS"
+actionKey = &"settings"
 
 [node name="BQuit" parent="VBoxContainer" unique_id=1128499769 instance=ExtResource("3_cbsd1")]
 layout_mode = 2
-text_key = "TITLE_QUIT"
-action_key = &"quit"
+textKey = "TITLE_QUIT"
+actionKey = &"quit"
