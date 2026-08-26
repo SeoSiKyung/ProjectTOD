@@ -1,9 +1,10 @@
 extends Node2D
 class_name Unit
 
+const footprintSize: Vector2 = Vector2(32.0, 32.0)
+
 @export var unitId: int = 0
 @export var playerControllable: bool = true
-@export var footprintSize: Vector2 = Vector2(32.0, 32.0)
 @export var moveSpeed: float = 96.0
 
 @onready var movement: MovementComponent = $MovementComponent
