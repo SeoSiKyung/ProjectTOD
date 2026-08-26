@@ -1,8 +1,6 @@
 extends Node
 
-
 @export var facility_catalog: FacilityCatalog
-
 
 var facility_system: FacilitySystem
 var stat_system: StatSystem
@@ -14,7 +12,6 @@ func _ready() -> void:
 	# =====================================================
 	# 시스템 생성
 	# =====================================================
-
 	facility_system = FacilitySystem.new()
 	stat_system = StatSystem.new()
 	turn_system = TurnSystem.new()
@@ -28,11 +25,9 @@ func _ready() -> void:
 	facility_system.setup(facility_catalog)
 	stat_system.setup(facility_catalog)
 
-
 	# =====================================================
 	# 테스트용 영지 생성
 	# =====================================================
-
 	var settlement := SettlementState.new()
 
 	settlement.cycle = 1
@@ -50,18 +45,13 @@ func _ready() -> void:
 
 	print_settlement(settlement)
 
-
 	# =====================================================
 	# 농지 Lv1 건설
 	# =====================================================
-
 	print("")
 	print("========== 농지 건설 요청 ==========")
 
-	var build_success: bool = facility_system.request_build(
-		settlement,
-		&"farm"
-	)
+	var build_success: bool = facility_system.request_build(settlement, &"farm")
 
 	print("건설 성공: ", build_success)
 
@@ -69,11 +59,9 @@ func _ready() -> void:
 	print_farm(settlement)
 	print_stats(settlement)
 
-
 	# =====================================================
 	# Turn 1
 	# =====================================================
-
 	print("")
 	print("========== Turn 1 ==========")
 
@@ -83,11 +71,9 @@ func _ready() -> void:
 	print_farm(settlement)
 	print_stats(settlement)
 
-
 	# =====================================================
 	# Turn 2
 	# =====================================================
-
 	print("")
 	print("========== Turn 2 ==========")
 
@@ -97,18 +83,13 @@ func _ready() -> void:
 	print_farm(settlement)
 	print_stats(settlement)
 
-
 	# =====================================================
 	# 농지 Lv2 업그레이드
 	# =====================================================
-
 	print("")
 	print("========== 농지 Lv2 업그레이드 ==========")
 
-	var upgrade_success: bool = facility_system.request_upgrade(
-		settlement,
-		&"farm"
-	)
+	var upgrade_success: bool = facility_system.request_upgrade(settlement, &"farm")
 
 	print("업그레이드 시작 성공: ", upgrade_success)
 
@@ -116,13 +97,11 @@ func _ready() -> void:
 	print_farm(settlement)
 	print_stats(settlement)
 
-
 	# =====================================================
 	# Lv2 업그레이드 진행
 	# 이전에 Lv2 Construction Turns를 3으로 설정했다면
 	# 3턴 후 완공됨
 	# =====================================================
-
 	for i in range(3):
 		print("")
 		print("========== Upgrade Turn ", i + 1, " ==========")
@@ -133,16 +112,15 @@ func _ready() -> void:
 		print_farm(settlement)
 		print_stats(settlement)
 
-
 	print("")
 	print("====================================")
 	print("       타이쿤 시스템 테스트 종료")
 	print("====================================")
 
-
 # =========================================================
 # 턴 하나 진행
 # =========================================================
+
 
 func process_one_turn(settlement: SettlementState) -> void:
 	var success := turn_system.advance_turn(settlement)
@@ -154,10 +132,10 @@ func process_one_turn(settlement: SettlementState) -> void:
 	# 새 턴 시작 시 건설 / 업그레이드 진행
 	construction_system.process_turn_start(settlement)
 
-
 # =========================================================
 # 영지 상태 출력
 # =========================================================
+
 
 func print_settlement(settlement: SettlementState) -> void:
 	print("--- Settlement ---")
@@ -167,17 +145,17 @@ func print_settlement(settlement: SettlementState) -> void:
 		" / Turn: ",
 		settlement.current_turn,
 		" / ",
-		settlement.cycle_turn_limit
+		settlement.cycle_turn_limit,
 	)
 
 	print("Gold: ", settlement.gold)
 	print("Food: ", settlement.food)
 	print("Wood: ", settlement.wood)
 
-
 # =========================================================
 # 농지 상태 출력
 # =========================================================
+
 
 func print_farm(settlement: SettlementState) -> void:
 	var farm := settlement.get_facility(&"farm")
@@ -199,10 +177,10 @@ func print_farm(settlement: SettlementState) -> void:
 	else:
 		print("Construction Task: 없음")
 
-
 # =========================================================
 # 계산된 능력치 출력
 # =========================================================
+
 
 func print_stats(settlement: SettlementState) -> void:
 	var stats := stat_system.calculate(settlement)
