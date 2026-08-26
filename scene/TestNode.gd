@@ -1,29 +1,36 @@
 extends Node
 
-@export var facility_catalog: FacilityCatalog
+@export var facilityCatalog: FacilityCatalog
 
-var facility_system: FacilitySystem
-var stat_system: StatSystem
-var turn_system: TurnSystem
-var construction_system: ConstructionSystem
+var _facilitySystem: FacilitySystem
+var _statSystem: StatSystem
+var _turnSystem: TurnSystem
+var _constructionSystem: ConstructionSystem
+var _productionSystem: ProductionSystem
 
 
 func _ready() -> void:
 	# =====================================================
 	# 시스템 생성
 	# =====================================================
-	facility_system = FacilitySystem.new()
-	stat_system = StatSystem.new()
-	turn_system = TurnSystem.new()
-	construction_system = ConstructionSystem.new()
+	_facilitySystem = FacilitySystem.new()
+	_statSystem = StatSystem.new()
+	_turnSystem = TurnSystem.new()
+	_constructionSystem = ConstructionSystem.new()
+	_productionSystem = ProductionSystem.new()
 
-	add_child(facility_system)
-	add_child(stat_system)
-	add_child(turn_system)
-	add_child(construction_system)
+	add_child(_facilitySystem)
+	add_child(_statSystem)
+	add_child(_turnSystem)
+	add_child(_constructionSystem)
+	add_child(_productionSystem)
 
-	facility_system.setup(facility_catalog)
-	stat_system.setup(facility_catalog)
+	# =====================================================
+	# 시스템 초기 설정
+	# =====================================================
+	_facilitySystem.Setup(facilityCatalog)
+	_statSystem.Setup(facilityCatalog)
+	_productionSystem.Setup(_statSystem)
 
 	# =====================================================
 	# 테스트용 영지 생성
@@ -31,19 +38,25 @@ func _ready() -> void:
 	var settlement := SettlementState.new()
 
 	settlement.cycle = 1
-	settlement.current_turn = 0
-	settlement.cycle_turn_limit = 10
+	settlement.currentTurn = 0
+	settlement.cycleTurnLimit = 10
 
 	settlement.gold = 500
 	settlement.food = 100
 	settlement.wood = 200
+	settlement.stone = 0
+	settlement.iron = 0
+	settlement.magicStone = 0
+
+	settlement.population = 10
+	settlement.stability = 100
 
 	print("")
 	print("====================================")
 	print("       타이쿤 시스템 테스트 시작")
 	print("====================================")
 
-	print_settlement(settlement)
+	_PrintSettlement(settlement)
 
 	# =====================================================
 	# 농지 Lv1 건설
@@ -51,37 +64,56 @@ func _ready() -> void:
 	print("")
 	print("========== 농지 건설 요청 ==========")
 
-	var build_success: bool = facility_system.request_build(settlement, &"farm")
+	var buildSuccess: bool = _facilitySystem.RequestBuild(settlement, &"farm")
 
-	print("건설 성공: ", build_success)
+	print("건설 성공: ", buildSuccess)
 
-	print_settlement(settlement)
-	print_farm(settlement)
-	print_stats(settlement)
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	# =====================================================
 	# Turn 1
+	# 농지 건설 2 → 1
+	# 아직 생산 없음
 	# =====================================================
 	print("")
 	print("========== Turn 1 ==========")
 
-	process_one_turn(settlement)
+	_ProcessOneTurn(settlement)
 
-	print_settlement(settlement)
-	print_farm(settlement)
-	print_stats(settlement)
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	# =====================================================
 	# Turn 2
+	# 생산 먼저 처리
+	# 이후 농지 완공
+	# 따라서 아직 농지 생산 없음
 	# =====================================================
 	print("")
 	print("========== Turn 2 ==========")
 
-	process_one_turn(settlement)
+	_ProcessOneTurn(settlement)
 
-	print_settlement(settlement)
-	print_farm(settlement)
-	print_stats(settlement)
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
+
+	# =====================================================
+	# Turn 3
+	# 완공된 농지 Lv1이 처음으로 생산
+	# Food +10 예상
+	# =====================================================
+	print("")
+	print("========== Turn 3 - 농지 생산 시작 ==========")
+
+	_ProcessOneTurn(settlement)
+
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	# =====================================================
 	# 농지 Lv2 업그레이드
@@ -89,28 +121,47 @@ func _ready() -> void:
 	print("")
 	print("========== 농지 Lv2 업그레이드 ==========")
 
-	var upgrade_success: bool = facility_system.request_upgrade(settlement, &"farm")
+	var upgradeSuccess: bool = _facilitySystem.RequestUpgrade(settlement, &"farm")
 
-	print("업그레이드 시작 성공: ", upgrade_success)
+	print("업그레이드 시작 성공: ", upgradeSuccess)
 
-	print_settlement(settlement)
-	print_farm(settlement)
-	print_stats(settlement)
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	# =====================================================
 	# Lv2 업그레이드 진행
-	# 이전에 Lv2 Construction Turns를 3으로 설정했다면
-	# 3턴 후 완공됨
+	#
+	# 업그레이드가 3턴이라면:
+	# Turn 4 : 3 → 2
+	# Turn 5 : 2 → 1
+	# Turn 6 : 1 → 0 / Lv2 완공
+	#
+	# 이 기간에도 기존 Lv1 효과인 Food +10 유지
 	# =====================================================
 	for i in range(3):
 		print("")
 		print("========== Upgrade Turn ", i + 1, " ==========")
 
-		process_one_turn(settlement)
+		_ProcessOneTurn(settlement)
 
-		print_settlement(settlement)
-		print_farm(settlement)
-		print_stats(settlement)
+		_PrintSettlement(settlement)
+		_PrintFarm(settlement)
+		_PrintStats(settlement)
+
+	# =====================================================
+	# Lv2 완공 다음 턴
+	#
+	# 여기부터 Lv2 효과인 Food +18 적용 예상
+	# =====================================================
+	print("")
+	print("========== Lv2 완공 후 첫 생산 ==========")
+
+	_ProcessOneTurn(settlement)
+
+	_PrintSettlement(settlement)
+	_PrintFarm(settlement)
+	_PrintStats(settlement)
 
 	print("")
 	print("====================================")
@@ -122,43 +173,60 @@ func _ready() -> void:
 # =========================================================
 
 
-func process_one_turn(settlement: SettlementState) -> void:
-	var success := turn_system.advance_turn(settlement)
+func _ProcessOneTurn(settlement: SettlementState) -> void:
+	var success: bool = _turnSystem.AdvanceTurn(settlement)
 
 	if not success:
 		print("턴을 진행할 수 없습니다.")
 		return
 
-	# 새 턴 시작 시 건설 / 업그레이드 진행
-	construction_system.process_turn_start(settlement)
+	# -----------------------------------------------------
+	# 1. 턴 시작 시 현재 완공된 시설 기준 생산
+	# -----------------------------------------------------
+	_productionSystem.ProcessTurnStart(settlement)
+
+	# -----------------------------------------------------
+	# 2. 생산 처리 이후 건설 / 업그레이드 진행
+	#
+	# 이렇게 해야 해당 턴에 완공된 시설은
+	# 다음 턴부터 생산에 참여함.
+	# -----------------------------------------------------
+	_constructionSystem.ProcessTurnStart(settlement)
 
 # =========================================================
 # 영지 상태 출력
 # =========================================================
 
 
-func print_settlement(settlement: SettlementState) -> void:
+func _PrintSettlement(settlement: SettlementState) -> void:
 	print("--- Settlement ---")
+
 	print(
 		"Cycle: ",
 		settlement.cycle,
 		" / Turn: ",
-		settlement.current_turn,
+		settlement.currentTurn,
 		" / ",
-		settlement.cycle_turn_limit,
+		settlement.cycleTurnLimit,
 	)
 
 	print("Gold: ", settlement.gold)
 	print("Food: ", settlement.food)
 	print("Wood: ", settlement.wood)
+	print("Stone: ", settlement.stone)
+	print("Iron: ", settlement.iron)
+	print("Magic Stone: ", settlement.magicStone)
+
+	print("Population: ", settlement.population)
+	print("Stability: ", settlement.stability)
 
 # =========================================================
 # 농지 상태 출력
 # =========================================================
 
 
-func print_farm(settlement: SettlementState) -> void:
-	var farm := settlement.get_facility(&"farm")
+func _PrintFarm(settlement: SettlementState) -> void:
+	var farm := settlement.GetFacility(&"farm")
 
 	print("--- Farm ---")
 
@@ -169,26 +237,35 @@ func print_farm(settlement: SettlementState) -> void:
 	print("Level: ", farm.level)
 	print("Status: ", farm.status)
 
-	var task := settlement.get_construction_task(&"farm")
+	var task := settlement.GetConstructionTask(&"farm")
 
 	if task != null:
-		print("Target Level: ", task.target_level)
-		print("Remaining Turns: ", task.remaining_turns)
+		print("Target Level: ", task.targetLevel)
+		print("Remaining Turns: ", task.remainingTurns)
 	else:
 		print("Construction Task: 없음")
 
 # =========================================================
-# 계산된 능력치 출력
+# 계산된 영지 수치 출력
 # =========================================================
 
 
-func print_stats(settlement: SettlementState) -> void:
-	var stats := stat_system.calculate(settlement)
+func _PrintStats(settlement: SettlementState) -> void:
+	var stats := _statSystem.Calculate(settlement)
 
 	print("--- Derived Stats ---")
-	print("Gold Income: ", stats.gold_income)
-	print("Food Delta: ", stats.food_delta)
-	print("Wood Income: ", stats.wood_income)
+
+	print("Gold Income: ", stats.goldIncome)
+	print("Food Delta: ", stats.foodDelta)
+	print("Wood Income: ", stats.woodIncome)
+	print("Stone Income: ", stats.stoneIncome)
+	print("Iron Income: ", stats.ironIncome)
+	print("Magic Stone Income: ", stats.magicStoneIncome)
+
 	print("Technology: ", stats.technology)
 	print("Development: ", stats.development)
-	print("Max Population: ", stats.max_population)
+	print("Max Population: ", stats.maxPopulation)
+
+	print("Defense Physical Attack Bonus: ", stats.defensePhysicalAttackBonus)
+
+	print("Stability Minimum: ", stats.stabilityMinimum)
