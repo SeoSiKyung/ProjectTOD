@@ -84,8 +84,15 @@ func Start(units: Dictionary[int, Unit]) -> void:
 
 	_groupStartCenter = _AverageMemberPosition(units)
 	var largestHalf: Vector2 = _LargestMemberHalfSize(units)
-	var anchorPath: PackedVector2Array = _navigationService.FindPath(
+
+	var referencePosition: Vector2 = units[memberIds[0]].position
+	var anchorStart: Vector2 = _navigationService.GetNearestReachablePoint(
 		_groupStartCenter,
+		largestHalf,
+		referencePosition,
+	)
+	var anchorPath: PackedVector2Array = _navigationService.FindPath(
+		anchorStart,
 		targetWorld,
 		largestHalf,
 	)
@@ -93,7 +100,7 @@ func Start(units: Dictionary[int, Unit]) -> void:
 	if not anchorPath.is_empty():
 		_arrivalCenter = anchorPath[anchorPath.size() - 1]
 	else:
-		_arrivalCenter = _navigationService.NearestPlaceablePoint(
+		_arrivalCenter = _navigationService.GetNearestPlaceablePoint(
 			targetWorld,
 			largestHalf,
 			_groupStartCenter,
@@ -120,23 +127,14 @@ func Start(units: Dictionary[int, Unit]) -> void:
 
 		var unit: Unit = units[unitId]
 		var slot: Vector2 = _slotByUnit.get(unitId, _arrivalCenter)
-		var path: PackedVector2Array = _navigationService.FindPath(
-			unit.position,
-			slot,
-			unit.GetHalfSize(),
-		)
+		var path: PackedVector2Array = _navigationService.BuildUnitPath(unit, slot, anchorPath)
 
 		if path.is_empty():
-			var fallback: Vector2 = _navigationService.NearestPlaceablePoint(
-				slot,
-				unit.GetHalfSize(),
-				unit.position,
-			)
+			print("Anchor join 완전 실패: ", unitId)
+			path = _navigationService.FindPath(unit.position, slot, unit.GetHalfSize())
 
-			path = _navigationService.FindPath(unit.position, fallback, unit.GetHalfSize())
-
-			if not path.is_empty():
-				_slotByUnit[unitId] = path[path.size() - 1]
+		if not path.is_empty():
+			_slotByUnit[unitId] = path[path.size() - 1]
 
 		if path.is_empty():
 			path.append(unit.position)
@@ -398,7 +396,7 @@ func _FindSlotForUnit(
 		if _navigationService.SegmentClear(_arrivalCenter, position, halfSize):
 			return position
 
-	var fallback: Vector2 = _navigationService.NearestPlaceablePoint(
+	var fallback: Vector2 = _navigationService.GetNearestPlaceablePoint(
 		_arrivalCenter,
 		halfSize,
 		unit.position,
