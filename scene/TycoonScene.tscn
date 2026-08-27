@@ -1,10 +1,15 @@
 [gd_scene format=3 uid="uid://ddf40id1566tu"]
 
 [ext_resource type="Script" uid="uid://0xye7a8ju62l" path="res://scene/TestNode.gd" id="1_mox7q"]
-[ext_resource type="Resource" uid="uid://bay8gcomjyr5r" path="res://data/facility/facility_catalog.tres" id="2_phmiq"]
+[ext_resource type="Script" uid="uid://bd4hqd1pdyupk" path="res://scripts/tycoon/data/FacilityData.gd" id="2_gc0q3"]
+[ext_resource type="Script" uid="uid://dao7fcxbtruus" path="res://scripts/tycoon/data/FacilityCatalog.gd" id="3_wn7t6"]
+
+[sub_resource type="Resource" id="Resource_uwbpf"]
+script = ExtResource("3_wn7t6")
+metadata/_custom_type_script = "uid://dao7fcxbtruus"
 
 [node name="TycoonScene" type="Node2D" unique_id=556162371]
 
 [node name="TestNode" type="Node" parent="." unique_id=313274551]
 script = ExtResource("1_mox7q")
-facilityCatalog = ExtResource("2_phmiq")
+facilityCatalog = SubResource("Resource_uwbpf")
