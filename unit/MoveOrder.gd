@@ -32,7 +32,7 @@ var _formationSpan: float = 32.0
 class ClaimedSlot:
 	var unitId: int = -1
 	var position: Vector2 = Vector2.ZERO
-	var halfSize: Vector2 = Vector2.ZERO
+	var halfSize: int = 0
 
 
 class UnitOrderInfo:
@@ -51,7 +51,7 @@ class MovementCandidate:
 	var desiredVelocity: Vector2 = Vector2.ZERO
 	var velocity: Vector2 = Vector2.ZERO
 	var targetPosition: Vector2 = Vector2.ZERO
-	var halfSize: Vector2 = Vector2.ZERO
+	var halfSize: int = 0
 	var maxStepDistance: float = 0.0
 	var desiredStepDistance: float = 0.0
 	var finalTick: bool = false
@@ -83,7 +83,7 @@ func Start(units: Dictionary[int, Unit]) -> void:
 		return
 
 	_groupStartCenter = _AverageMemberPosition(units)
-	var largestHalf: Vector2 = _LargestMemberHalfSize(units)
+	var largestHalf: int = _LargestMemberHalfSize(units)
 
 	var referencePosition: Vector2 = units[memberIds[0]].position
 	var anchorStart: Vector2 = _navigationService.GetNearestReachablePoint(
@@ -235,10 +235,8 @@ func _PrepareFormationMetrics(units: Dictionary[int, Unit]) -> void:
 			continue
 
 		var unit: Unit = units[unitId]
-		var fullSize: float = maxf(unit.footprintSize.x, unit.footprintSize.y)
-		var minDimension: float = minf(unit.footprintSize.x, unit.footprintSize.y)
-
-		minFull = minf(minFull, minDimension)
+		var fullSize: float = float(unit.GetFootprintSize())
+		minFull = minf(minFull, fullSize)
 		maxFull = maxf(maxFull, fullSize)
 		validCount += 1
 
@@ -362,7 +360,7 @@ func _FindSlotForUnit(
 ) -> Vector2:
 	var bestIndices: Array[int] = []
 	var bestScores: Array[float] = []
-	var halfSize: Vector2 = unit.GetHalfSize()
+	var halfSize: int = unit.GetHalfSize()
 
 	for index: int in range(offsets.size()):
 		var offset: Vector2i = offsets[index]
@@ -423,12 +421,12 @@ func _FindSlotForUnit(
 	return unit.position
 
 
-func _OverlapsClaimed(position: Vector2, halfSize: Vector2) -> bool:
+func _OverlapsClaimed(position: Vector2, halfSize: int) -> bool:
 	for claimed: ClaimedSlot in _claimedSlots:
+		var combinedHalf: float = float(halfSize + claimed.halfSize) + FORMATION_GAP
 		if (
-			absf(position.x - claimed.position.x) < halfSize.x + claimed.halfSize.x + FORMATION_GAP
-			and absf(position.y - claimed.position.y)
-			< halfSize.y + claimed.halfSize.y + FORMATION_GAP
+			absf(position.x - claimed.position.x) < combinedHalf
+			and absf(position.y - claimed.position.y) < combinedHalf
 		):
 			return true
 
@@ -492,16 +490,13 @@ func _AverageMemberPosition(units: Dictionary[int, Unit]) -> Vector2:
 	return sum / float(count)
 
 
-func _LargestMemberHalfSize(units: Dictionary[int, Unit]) -> Vector2:
-	var result: Vector2 = Vector2(8.0, 8.0)
+func _LargestMemberHalfSize(units: Dictionary[int, Unit]) -> int:
+	var result: int = 8
 
 	for unitId: int in memberIds:
 		if not units.has(unitId):
 			continue
 
-		var halfSize: Vector2 = units[unitId].GetHalfSize()
-
-		result.x = maxf(result.x, halfSize.x)
-		result.y = maxf(result.y, halfSize.y)
+		result = maxi(result, units[unitId].GetHalfSize())
 
 	return result

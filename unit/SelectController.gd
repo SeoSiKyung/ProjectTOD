@@ -459,15 +459,17 @@ func _CleanupSelectedUnits() -> void:
 
 
 func _UnitContainsPoint(unit: Unit, worldPosition: Vector2) -> bool:
-	var halfSize: Vector2 = unit.GetHalfSize()
-	var unitRect: Rect2 = Rect2(unit.global_position - halfSize, halfSize * 2.0)
+	var halfSize: int = unit.GetHalfSize()
+	var half: Vector2 = Vector2(halfSize, halfSize)
+	var unitRect: Rect2 = Rect2(unit.global_position - half, half * 2.0)
 
 	return unitRect.has_point(worldPosition)
 
 
 func _UnitInsideSelectionRect(unit: Unit, selectionRect: Rect2) -> bool:
-	var halfSize: Vector2 = unit.GetHalfSize()
-	var unitRect: Rect2 = Rect2(unit.global_position - halfSize, halfSize * 2.0)
+	var halfSize: int = unit.GetHalfSize()
+	var half: Vector2 = Vector2(halfSize, halfSize)
+	var unitRect: Rect2 = Rect2(unit.global_position - half, half * 2.0)
 
 	return selectionRect.intersects(unitRect)
 
