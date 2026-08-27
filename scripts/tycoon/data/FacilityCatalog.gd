@@ -5,12 +5,11 @@ extends Resource
 
 
 func GetFacilityData(facilityId: StringName) -> FacilityData:
-	for facility in facilities:
-		if facility.id == facilityId:
-			return facility
+	for facilityData in facilities:
+		if facilityData == null:
+			continue
+
+		if facilityData.id == facilityId:
+			return facilityData
 
 	return null
-
-
-func HasFacility(facilityId: StringName) -> bool:
-	return GetFacilityData(facilityId) != null
