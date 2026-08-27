@@ -80,10 +80,7 @@ func BeginMoveOrder(order: MoveOrder, path: PackedVector2Array) -> void:
 
 
 func ReplacePath(path: PackedVector2Array, effectiveGoal: Vector2) -> bool:
-	if not IsMoving():
-		return false
-
-	if path.is_empty():
+	if not IsMoving() or path.is_empty():
 		return false
 
 	_SetPath(path)
@@ -121,23 +118,12 @@ func CompleteMoveOrder() -> void:
 
 
 func SyncPathProgress(maxTickDistance: float, navigationService: NavigationService) -> void:
-	if _paused:
-		return
-
-	if not IsMoving():
-		return
-
-	if _path.is_empty():
-		return
-
-	if _unit == null:
+	if _paused or not IsMoving() or _path.is_empty() or _unit == null:
 		return
 
 	var reachDistance: float = maxf(maxTickDistance * 1.5, 1.0)
-	var corridorDistance: float = maxf(
-		reachDistance * 3.0,
-		maxf(_unit.footprintSize.x, _unit.footprintSize.y),
-	)
+	var footprintSize: int = _unit.GetFootprintSize()
+	var corridorDistance: float = maxf(reachDistance * 3.0, float(footprintSize))
 
 	while _pathIndex < _path.size() - 1:
 		var waypoint: Vector2 = _path[_pathIndex]
@@ -197,13 +183,7 @@ func GetCurrentWaypoint() -> Vector2:
 
 
 func GetDesiredDirection() -> Vector2:
-	if _paused:
-		return Vector2.ZERO
-
-	if not IsMoving():
-		return Vector2.ZERO
-
-	if _path.is_empty():
+	if _paused or not IsMoving() or _path.is_empty():
 		return Vector2.ZERO
 
 	var target: Vector2 = _path[_pathIndex]
@@ -226,54 +206,33 @@ func GetEffectiveGoal() -> Vector2:
 func IsFinalLeg() -> bool:
 	if _path.is_empty():
 		return true
-
 	return _pathIndex >= _path.size() - 1
 
 
 func GetRemainingFinalDistance() -> float:
 	if _unit == null:
 		return 0.0
-
 	return _unit.position.distance_to(_effectiveGoal)
 
 
 func IsAtEffectiveGoal(tolerance: float) -> bool:
 	if _unit == null:
 		return true
-
 	return _unit.position.distance_to(_effectiveGoal) <= maxf(tolerance, EPSILON)
 
 
 func WantsFinalTick(fixedDt: float) -> bool:
-	if _paused:
+	if _paused or not IsMoving() or not IsFinalLeg():
 		return false
 
-	if not IsMoving():
-		return false
-
-	if not IsFinalLeg():
-		return false
-
-	var normalDistance: float = moveSpeed * fixedDt
-
-	return GetRemainingFinalDistance() <= normalDistance + EPSILON
+	return GetRemainingFinalDistance() <= moveSpeed * fixedDt + EPSILON
 
 
 func GetDesiredVelocity(fixedDt: float) -> Vector2:
-	if _paused:
-		return Vector2.ZERO
-
-	if not IsMoving():
-		return Vector2.ZERO
-
-	if _unit == null:
-		return Vector2.ZERO
-
-	if fixedDt <= EPSILON:
+	if _paused or not IsMoving() or _unit == null or fixedDt <= EPSILON:
 		return Vector2.ZERO
 
 	var direction: Vector2 = GetDesiredDirection()
-
 	if direction == Vector2.ZERO:
 		return Vector2.ZERO
 
