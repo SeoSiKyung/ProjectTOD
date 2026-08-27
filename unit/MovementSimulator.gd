@@ -597,7 +597,7 @@ func _RepathCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> bool
 		_nextRepathTickByUnit[candidate.unitId] = simulationTick + REPATH_RETRY_TICKS
 		return false
 
-	if not movement.ReplacePath(path, goal):
+	if not movement.ReplacePath(path):
 		_nextRepathTickByUnit[candidate.unitId] = simulationTick + REPATH_RETRY_TICKS
 		return false
 

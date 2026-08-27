@@ -1,0 +1,16 @@
+class_name UnitStatType
+
+enum {
+	MAX_HP,
+	MAX_MP,
+	HP_REGEN,
+	MP_REGEN,
+	ATK,
+	MAGIC_ATK,
+	DEF,
+	MAGIC_DEF,
+	MOVE_SPEED,
+	ATTACK_RANGE,
+	ACQUISITION_RANGE,
+	COUNT
+}
