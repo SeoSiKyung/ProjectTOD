@@ -50,7 +50,7 @@ var _cachedMinAvoidSpeedRatio: float = -1.0
 class Snapshot:
 	var unitId: int = -1
 	var position: Vector2 = Vector2.ZERO
-	var halfSize: Vector2 = Vector2.ZERO
+	var halfSize: int = 0
 
 
 class AvoidancePlan:
@@ -244,24 +244,21 @@ func _ResolveCandidates(candidates: Array[MoveOrder.MovementCandidate], dt: floa
 		candidate.velocity = (candidate.position - candidate.startPosition) / maxf(dt, EPSILON)
 
 	var maxMoveDistance: float = 0.0
-	var maxHalf: Vector2 = Vector2.ZERO
+	var maxHalf: int = 0
 
 	for unitId: int in _sortedUnitIds:
 		var unit: Unit = _units[unitId]
 		maxMoveDistance = maxf(maxMoveDistance, unit.movement.moveSpeed * dt)
-		var halfSize: Vector2 = unit.GetHalfSize()
-		maxHalf.x = maxf(maxHalf.x, halfSize.x)
-		maxHalf.y = maxf(maxHalf.y, halfSize.y)
+		var halfSize: int = unit.GetHalfSize()
+		maxHalf = maxi(maxHalf, halfSize)
 
 	var spatial: Dictionary = _BuildStartSpatialHash()
 	var neighborsById: Dictionary[int, Array] = { }
 
 	for candidate: MoveOrder.MovementCandidate in candidates:
 		var ownMove: float = maxf(candidate.maxStepDistance, candidate.desiredStepDistance)
-		var extent: Vector2 = Vector2(
-			candidate.halfSize.x + maxHalf.x + ownMove + maxMoveDistance + NEIGHBOR_MARGIN,
-			candidate.halfSize.y + maxHalf.y + ownMove + maxMoveDistance + NEIGHBOR_MARGIN,
-		)
+		var extentValue: float = float(candidate.halfSize + maxHalf) + ownMove + maxMoveDistance + NEIGHBOR_MARGIN
+		var extent: Vector2 = Vector2(extentValue, extentValue)
 		neighborsById[candidate.unitId] = _QueryStartSpatial(
 			spatial,
 			candidate.startPosition,
@@ -743,8 +740,8 @@ func _ChoosePairSides(
 			b.startPosition + bDir.rotated(AVOID_PRIMARY_ANGLE * float(combination.y)) * bStep
 		)
 
-		var dx: float = (absf(aEnd.x - bEnd.x) / maxf(a.halfSize.x + b.halfSize.x, EPSILON))
-		var dy: float = (absf(aEnd.y - bEnd.y) / maxf(a.halfSize.y + b.halfSize.y, EPSILON))
+		var dx: float = (absf(aEnd.x - bEnd.x) / maxf(a.halfSize + b.halfSize, EPSILON))
+		var dy: float = (absf(aEnd.y - bEnd.y) / maxf(a.halfSize + b.halfSize, EPSILON))
 		var score: float = maxf(dx, dy) * 10.0 + minf(dx, dy)
 
 		if not aMapClear[combination.x]:
@@ -1130,7 +1127,7 @@ func _CandidateBaseDirection(candidate: MoveOrder.MovementCandidate) -> Vector2:
 
 
 func _CandidateNearArrival(candidate: MoveOrder.MovementCandidate) -> bool:
-	var fullSize: float = maxf(candidate.halfSize.x * 2.0, candidate.halfSize.y * 2.0)
+	var fullSize: float = float(candidate.halfSize * 2.0)
 
 	return candidate.arrivalDistance <= maxf(fullSize * 1.75, 16.0)
 
@@ -1194,13 +1191,14 @@ func _UpdateSnapshot(
 
 func _RectanglesOverlapStrict(
 	aPosition: Vector2,
-	aHalf: Vector2,
+	aHalf: int,
 	bPosition: Vector2,
-	bHalf: Vector2,
+	bHalf: int,
 ) -> bool:
+	var combinedHalf: float = float(aHalf + bHalf) - COLLISION_EPSILON
 	return (
-		absf(aPosition.x - bPosition.x) < aHalf.x + bHalf.x - COLLISION_EPSILON
-		and absf(aPosition.y - bPosition.y) < aHalf.y + bHalf.y - COLLISION_EPSILON
+		absf(aPosition.x - bPosition.x) < combinedHalf
+		and absf(aPosition.y - bPosition.y) < combinedHalf
 	)
 
 

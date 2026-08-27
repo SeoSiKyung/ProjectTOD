@@ -18,8 +18,7 @@ var _blocked: PackedByteArray = PackedByteArray()
 var _prefixSum: PackedInt32Array = PackedInt32Array()
 
 var _pathState: PathSearchState = PathSearchState.new()
-var _placeableMap: PackedByteArray = PackedByteArray()
-var _componentMap: PackedInt32Array = PackedInt32Array()
+var _footprintMaps: Dictionary[int, FootprintNavigationMap] = { }
 
 
 class PathSearchState:
@@ -56,6 +55,11 @@ class PathSearchState:
 		incomingDirection.fill(-1)
 		closed.fill(0)
 		heapPosition.fill(-1)
+
+
+class FootprintNavigationMap:
+	var placeableMap: PackedByteArray = PackedByteArray()
+	var componentMap: PackedInt32Array = PackedInt32Array()
 
 
 const DIRECTIONS: Array[Vector2i] = [
@@ -112,7 +116,8 @@ func _LoadNavigationData() -> void:
 		return
 
 	_EnsurePathBuffers()
-	_MakeComponentMap()
+	_footprintMaps.clear()
+
 	_navigationReady = true
 
 
@@ -128,35 +133,45 @@ func _ResetPathBuffers() -> void:
 	_pathState.Reset()
 
 
-func _MakeComponentMap() -> void:
-	_componentMap.clear()
+func _GetFootprintMap(halfSize: int) -> FootprintNavigationMap:
+	if _footprintMaps.has(halfSize):
+		return _footprintMaps[halfSize]
 
-	var halfSize: Vector2 = Unit.footprintSize * 0.5
+	var navigationMap: FootprintNavigationMap = _MakeFootprintMap(halfSize)
+	_footprintMaps[halfSize] = navigationMap
+
+	return navigationMap
+
+
+func _MakeFootprintMap(halfSize: int) -> FootprintNavigationMap:
+	var navigationMap: FootprintNavigationMap = FootprintNavigationMap.new()
 	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
-
 	var total: int = _gridWidth * _gridHeight
 
-	_placeableMap.resize(total)
-	_placeableMap.fill(0)
+	navigationMap.placeableMap.resize(total)
+	navigationMap.placeableMap.fill(0)
 	for index: int in range(total):
 		var cell: Vector2i = _IndexToCell(index)
 		var center: Vector2 = _PathCellToWorld(cell, pathOffset)
 
 		if CanPlaceStatic(center, halfSize):
-			_placeableMap[index] = 1
+			navigationMap.placeableMap[index] = 1
 
-	_componentMap.resize(total)
-	_componentMap.fill(-1)
+	navigationMap.componentMap.resize(total)
+	navigationMap.componentMap.fill(-1)
 
 	var componentId: int = 0
 	var queue: Array[int] = []
 	for startIndex: int in range(total):
-		if _placeableMap[startIndex] == 0 or _componentMap[startIndex] >= 0:
+		if (
+			navigationMap.placeableMap[startIndex] == 0
+			or navigationMap.componentMap[startIndex] >= 0
+		):
 			continue
 
 		queue.clear()
 		queue.append(startIndex)
-		_componentMap[startIndex] = componentId
+		navigationMap.componentMap[startIndex] = componentId
 
 		var head: int = 0
 		while head < queue.size():
@@ -170,28 +185,35 @@ func _MakeComponentMap() -> void:
 					continue
 
 				var nextIndex: int = _CellToIndex(nextCell)
-				if _placeableMap[nextIndex] == 0 or _componentMap[nextIndex] >= 0:
+				if (
+					navigationMap.placeableMap[nextIndex] == 0
+					or navigationMap.componentMap[nextIndex] >= 0
+				):
 					continue
 
 				if direction.x != 0 and direction.y != 0:
 					var horizontal: Vector2i = Vector2i(currentCell.x + direction.x, currentCell.y)
 					var vertical: Vector2i = Vector2i(currentCell.x, currentCell.y + direction.y)
+
 					if (
-						_placeableMap[_CellToIndex(horizontal)] == 0
-						or _placeableMap[_CellToIndex(vertical)] == 0
+						navigationMap.placeableMap[_CellToIndex(horizontal)] == 0
+						or navigationMap.placeableMap[_CellToIndex(vertical)] == 0
 					):
 						continue
 
-				_componentMap[nextIndex] = componentId
+				navigationMap.componentMap[nextIndex] = componentId
 				queue.append(nextIndex)
 
 		componentId += 1
+
+	return navigationMap
 
 
 func _GetNearestCellInComponent(
 	position: Vector2,
 	pathOffset: Vector2,
 	componentId: int,
+	navigationMap: FootprintNavigationMap,
 ) -> Vector2i:
 	var centerCell: Vector2i = _WorldToNearestPathCell(position, pathOffset)
 	centerCell.x = clampi(centerCell.x, 0, _gridWidth - 1)
@@ -212,7 +234,7 @@ func _GetNearestCellInComponent(
 					continue
 
 				var index: int = _CellToIndex(cell)
-				if _componentMap[index] != componentId:
+				if navigationMap.componentMap[index] != componentId:
 					continue
 
 				var point: Vector2 = _PathCellToWorld(cell, pathOffset)
@@ -296,7 +318,7 @@ func _SegmentIntersectsCenteredAabb(start: Vector2, end: Vector2, half: Vector2)
 	return _SegmentAabbEntryFraction(start, end - start, half) >= 0.0
 
 
-func SegmentClear(start: Vector2, end: Vector2, halfSize: Vector2) -> bool:
+func SegmentClear(start: Vector2, end: Vector2, halfSize: int) -> bool:
 	return _IsStaticSegmentClear(start, end, halfSize)
 
 
@@ -308,20 +330,20 @@ func _PrefixRectCount(x0: int, y0: int, x1: int, y1: int) -> int:
 	)
 
 
-func CanPlaceStatic(center: Vector2, halfSize: Vector2) -> bool:
+func CanPlaceStatic(center: Vector2, halfSize: int) -> bool:
 	return _CanPlaceStaticWithHalf(center, _StaticHalfSize(halfSize))
 
 
-func _StaticHalfSize(halfSize: Vector2) -> Vector2:
-	var slop: float = maxf(staticContactSlop, 0.0)
-
-	return Vector2(maxf(0.0, halfSize.x - slop), maxf(0.0, halfSize.y - slop))
+func _StaticHalfSize(halfSize: int) -> float:
+	return maxf(0.0, float(halfSize) - maxf(staticContactSlop, 0.0))
 
 
-func _CanPlaceStaticWithHalf(center: Vector2, halfSize: Vector2) -> bool:
+func _CanPlaceStaticWithHalf(center: Vector2, halfSize: float) -> bool:
 	var worldEnd: Vector2 = _worldRect.position + _worldRect.size
-	var rectMin: Vector2 = center - halfSize
-	var rectMax: Vector2 = center + halfSize
+
+	var half: Vector2 = Vector2(halfSize, halfSize)
+	var rectMin: Vector2 = center - half
+	var rectMax: Vector2 = center + half
 
 	if rectMin.x < _worldRect.position.x - EPSILON:
 		return false
@@ -352,7 +374,7 @@ func _CanPlaceStaticWithHalf(center: Vector2, halfSize: Vector2) -> bool:
 
 func GetNearestPlaceablePoint(
 	position: Vector2,
-	halfSize: Vector2,
+	halfSize: int,
 	referencePosition: Vector2,
 ) -> Vector2:
 	if CanPlaceStatic(position, halfSize):
@@ -413,33 +435,40 @@ func GetNearestPlaceablePoint(
 
 func GetNearestReachablePoint(
 	position: Vector2,
-	halfSize: Vector2,
+	halfSize: int,
 	referencePosition: Vector2,
 ) -> Vector2:
 	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
+	var navigationMap: FootprintNavigationMap = _GetFootprintMap(halfSize)
 
 	var referenceCell: Vector2i = _GetNearestPathCell(referencePosition, halfSize, pathOffset, true)
 	if referenceCell.x < 0:
 		return referencePosition
 
 	var referenceIndex: int = _CellToIndex(referenceCell)
-	var componentId: int = _componentMap[referenceIndex]
+	var componentId: int = navigationMap.componentMap[referenceIndex]
 	if componentId < 0:
 		return referencePosition
 
-	var cell: Vector2i = _GetNearestCellInComponent(position, pathOffset, componentId)
+	var cell: Vector2i = _GetNearestCellInComponent(
+		position,
+		pathOffset,
+		componentId,
+		navigationMap,
+	)
 	if cell.x < 0:
 		return referencePosition
 
 	return _PathCellToWorld(cell, pathOffset)
 
 
-func FindPath(start: Vector2, target: Vector2, halfSize: Vector2) -> PackedVector2Array:
+func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Array:
 	var empty: PackedVector2Array = PackedVector2Array()
 	if not _navigationReady:
 		return empty
 
 	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
+	var navigationMap: FootprintNavigationMap = _GetFootprintMap(halfSize)
 
 	var startCell: Vector2i = _GetNearestPathCell(start, halfSize, pathOffset, true)
 	var targetCell: Vector2i = _GetNearestPathCell(target, halfSize, pathOffset, false)
@@ -449,17 +478,18 @@ func FindPath(start: Vector2, target: Vector2, halfSize: Vector2) -> PackedVecto
 	var startIndex: int = _CellToIndex(startCell)
 	var targetIndex: int = _CellToIndex(targetCell)
 
-	var startComponent: int = _componentMap[startIndex]
-	var targetComponent: int = _componentMap[targetIndex]
+	var startComponent: int = navigationMap.componentMap[startIndex]
+	var targetComponent: int = navigationMap.componentMap[targetIndex]
 	if startComponent < 0:
 		return empty
 
 	if targetComponent != startComponent:
-		targetCell = _GetNearestCellInComponent(target, pathOffset, startComponent)
+		targetCell = _GetNearestCellInComponent(target, pathOffset, startComponent, navigationMap)
 		if targetCell.x < 0:
 			return empty
 
 		targetIndex = _CellToIndex(targetCell)
+
 	_EnsurePathBuffers()
 	_ResetPathBuffers()
 	_pathState.g[startIndex] = 0.0
@@ -508,7 +538,7 @@ func FindPath(start: Vector2, target: Vector2, halfSize: Vector2) -> PackedVecto
 				continue
 
 			var nextIndex: int = _CellToIndex(nextCell)
-			if _pathState.closed[nextIndex] != 0 or _placeableMap[nextIndex] == 0:
+			if _pathState.closed[nextIndex] != 0 or navigationMap.placeableMap[nextIndex] == 0:
 				continue
 
 			# 대각선 검사
@@ -519,8 +549,8 @@ func FindPath(start: Vector2, target: Vector2, halfSize: Vector2) -> PackedVecto
 					continue
 
 				if (
-					_placeableMap[_CellToIndex(horizontal)] == 0
-					or _placeableMap[_CellToIndex(vertical)] == 0
+					navigationMap.placeableMap[_CellToIndex(horizontal)] == 0
+					or navigationMap.placeableMap[_CellToIndex(vertical)] == 0
 				):
 					continue
 
@@ -591,7 +621,7 @@ func BuildUnitPath(unit: Unit, slot: Vector2, anchorPath: PackedVector2Array) ->
 
 	var anchorPathSize: int = anchorPath.size()
 	var unitPosition: Vector2 = unit.position
-	var halfSize: Vector2 = unit.GetHalfSize()
+	var halfSize: int = unit.GetHalfSize()
 
 	# 1. 가능한 한 목적지 쪽 Anchor 선분에 직선으로 합류
 	for segmentIndex: int in range(anchorPathSize - 2, -1, -1):
@@ -697,7 +727,7 @@ func _ClosestAnchorJoin(unitPosition: Vector2, anchorPath: PackedVector2Array) -
 	return Vector3(bestPoint.x, bestPoint.y, float(bestNextIndex))
 
 
-func _FurthestStaticClearPoint(start: Vector2, target: Vector2, halfSize: Vector2) -> Vector2:
+func _FurthestStaticClearPoint(start: Vector2, target: Vector2, halfSize: int) -> Vector2:
 	if start.distance_squared_to(target) <= EPSILON:
 		return start
 
@@ -740,7 +770,7 @@ func _IsNearestCellSearchComplete(
 
 func _GetNearestPathCell(
 	position: Vector2,
-	halfSize: Vector2,
+	halfSize: int,
 	pathOffset: Vector2,
 	requireReachable: bool,
 ) -> Vector2i:
@@ -850,7 +880,7 @@ func _CompressPath(path: Array[Vector2]) -> Array[Vector2]:
 
 
 # 경로 단순화 : 장애물과 충돌하지 않는 범위에서 중간 경로점을 건너뛰어 waypoint 수를 줄임
-func _ShortcutPath(start: Vector2, path: Array[Vector2], halfSize: Vector2) -> PackedVector2Array:
+func _ShortcutPath(start: Vector2, path: Array[Vector2], halfSize: int) -> PackedVector2Array:
 	var result: PackedVector2Array = PackedVector2Array()
 	var pathSize: int = path.size()
 	if pathSize == 0:
@@ -860,7 +890,7 @@ func _ShortcutPath(start: Vector2, path: Array[Vector2], halfSize: Vector2) -> P
 	var index: int = 0
 	while index < pathSize:
 		var farthest: int = index
-		# 가까운 지점부터 앞으로 검사한다.
+		# 가까운 지점부터 앞으로 검사
 		for candidateIndex: int in range(index, pathSize):
 			if not _IsStaticSegmentClear(current, path[candidateIndex], halfSize):
 				break
@@ -876,8 +906,8 @@ func _ShortcutPath(start: Vector2, path: Array[Vector2], halfSize: Vector2) -> P
 	return result
 
 
-func _IsStaticSegmentClear(start: Vector2, end: Vector2, halfSize: Vector2) -> bool:
-	var staticHalf: Vector2 = _StaticHalfSize(halfSize)
+func _IsStaticSegmentClear(start: Vector2, end: Vector2, halfSize: int) -> bool:
+	var staticHalf: float = _StaticHalfSize(halfSize)
 	var startValid: bool = _CanPlaceStaticWithHalf(start, staticHalf)
 	var endValid: bool = _CanPlaceStaticWithHalf(end, staticHalf)
 
@@ -890,7 +920,7 @@ func _IsStaticSegmentClear(start: Vector2, end: Vector2, halfSize: Vector2) -> b
 	return _IsStaticSegmentClearFromValidStart(start, end, staticHalf)
 
 
-func _IsRecoveringSegmentClear(start: Vector2, end: Vector2, halfSize: Vector2) -> bool:
+func _IsRecoveringSegmentClear(start: Vector2, end: Vector2, halfSize: float) -> bool:
 	var delta: Vector2 = end - start
 
 	if delta.length_squared() <= EPSILON:
@@ -919,10 +949,10 @@ func _IsRecoveringSegmentClear(start: Vector2, end: Vector2, halfSize: Vector2) 
 	return _IsStaticSegmentClearFromValidStart(firstValid, end, halfSize)
 
 
-func _IsStaticSegmentClearFromValidStart(start: Vector2, end: Vector2, halfSize: Vector2) -> bool:
-	var broadMin: Vector2 = (Vector2(minf(start.x, end.x), minf(start.y, end.y)) - halfSize)
-
-	var broadMax: Vector2 = (Vector2(maxf(start.x, end.x), maxf(start.y, end.y)) + halfSize)
+func _IsStaticSegmentClearFromValidStart(start: Vector2, end: Vector2, halfSize: float) -> bool:
+	var half: Vector2 = Vector2(halfSize, halfSize)
+	var broadMin: Vector2 = Vector2(minf(start.x, end.x), minf(start.y, end.y)) - half
+	var broadMax: Vector2 = Vector2(maxf(start.x, end.x), maxf(start.y, end.y)) + half
 
 	var minCell: Vector2i = _WorldToCellFloor(broadMin)
 	var maxCell: Vector2i = _WorldToCellFloor(broadMax)
@@ -939,7 +969,7 @@ func _IsStaticSegmentClearFromValidStart(start: Vector2, end: Vector2, halfSize:
 
 			var rect: Rect2 = _CellRect(Vector2i(x, y))
 			var center: Vector2 = rect.position + rect.size * 0.5
-			var expandedHalf: Vector2 = _CollisionHalf(halfSize, rect.size * 0.5)
+			var expandedHalf: Vector2 = _CollisionHalf(half, rect.size * 0.5)
 
 			if _SegmentIntersectsCenteredAabb(start - center, end - center, expandedHalf):
 				return false
@@ -1040,8 +1070,9 @@ func _IndexToCell(index: int) -> Vector2i:
 	return Vector2i(index % _gridWidth, int(index / _gridWidth))
 
 
-func _PathLatticeOffset(halfSize: Vector2) -> Vector2:
-	return Vector2(_LatticeAxisOffset(halfSize.x), _LatticeAxisOffset(halfSize.y))
+func _PathLatticeOffset(halfSize: int) -> Vector2:
+	var offset: float = _LatticeAxisOffset(float(halfSize))
+	return Vector2(offset, offset)
 
 
 func _LatticeAxisOffset(halfExtent: float) -> float:
