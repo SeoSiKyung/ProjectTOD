@@ -1,9 +1,8 @@
 extends Node2D
 class_name Unit
 
-const footprintSize: Vector2 = Vector2(32.0, 32.0)
-
 @export var unitId: int = 0
+@export_range(8, 256, 2) var footprintSize: int = 32
 @export var playerControllable: bool = true
 @export var moveSpeed: float = 96.0
 
@@ -16,8 +15,12 @@ func _ready() -> void:
 	add_to_group("unit")
 
 
-func GetHalfSize() -> Vector2:
-	return footprintSize * 0.5
+func GetFootprintSize() -> int:
+	return footprintSize
+
+
+func GetHalfSize() -> int:
+	return footprintSize / 2
 
 
 func CanReceiveCommands() -> bool:
