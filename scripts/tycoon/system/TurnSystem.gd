@@ -1,19 +1,36 @@
 class_name TurnSystem
 extends Node
 
-signal TurnAdvanced(currentTurn: int)
+signal TurnStarted(currentTurn: int)
 signal CycleFinished(cycle: int)
 
 
-func AdvanceTurn(settlement: SettlementState) -> bool:
-	if settlement.IsCycleFinished():
+func StartCycle(campaign: CampaignState, turnLimit: int) -> bool:
+	if turnLimit <= 0:
+		push_warning("TurnSystem: 사이클 턴 수는 1 이상이어야 합니다.")
 		return false
 
-	settlement.currentTurn += 1
+	campaign.currentTurn = 1
+	campaign.cycleTurnLimit = turnLimit
+	campaign.currentPhase = CampaignState.Phase.TYCOON
 
-	TurnAdvanced.emit(settlement.currentTurn)
-
-	if settlement.IsCycleFinished():
-		CycleFinished.emit(settlement.cycle)
+	TurnStarted.emit(campaign.currentTurn)
 
 	return true
+
+
+func EndTurn(campaign: CampaignState) -> bool:
+	if IsLastTurn(campaign):
+		CycleFinished.emit(campaign.cycle)
+
+		return false
+
+	campaign.currentTurn += 1
+
+	TurnStarted.emit(campaign.currentTurn)
+
+	return true
+
+
+func IsLastTurn(campaign: CampaignState) -> bool:
+	return campaign.IsLastTurn()
