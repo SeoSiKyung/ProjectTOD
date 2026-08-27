@@ -5,7 +5,6 @@ enum MovementState {
 	IDLE,
 	MOVING,
 }
-
 const EPSILON: float = 0.000001
 
 var moveSpeed: float:
@@ -19,118 +18,99 @@ var moveSpeed: float:
 			_unit.moveSpeed = value
 
 var simVelocity: Vector2 = Vector2.ZERO
-var activeMoveOrder: MoveOrder = null
+var curOrder: MoveOrder = null
 
-var _state: MovementState = MovementState.IDLE
-var _settledOrderId: int = -1
 var _unit: Unit = null
+var _state: MovementState = MovementState.IDLE
 var _paused: bool = false
 var _path: PackedVector2Array = PackedVector2Array()
 var _pathIndex: int = 0
-var _effectiveGoal: Vector2 = Vector2.ZERO
+var _goal: Vector2 = Vector2.ZERO
 
+func Init(unit: Unit) -> void:
+	_BindUnit(unit)
 
-func BindUnit(pUnit: Unit) -> void:
-	_unit = pUnit
-
-
-func IsMoving() -> bool:
-	return _state == MovementState.MOVING
-
-
-func IsIdle() -> bool:
-	return _state == MovementState.IDLE
-
-
-func IsPaused() -> bool:
-	return _paused
-
+func _BindUnit(unit: Unit) -> void:
+	_unit = unit
 
 func Pause() -> void:
 	_paused = true
 	simVelocity = Vector2.ZERO
 
-
 func Resume() -> void:
 	_paused = false
+	
+func IsMoving() -> bool:
+	return _state == MovementState.MOVING
 
+func IsIdle() -> bool:
+	return _state == MovementState.IDLE
+
+func IsPaused() -> bool:
+	return _paused
 
 func HasPath() -> bool:
 	return not _path.is_empty()
 
-
-func BeginMoveOrder(order: MoveOrder, path: PackedVector2Array) -> void:
+func StartOrder(order: MoveOrder, path: PackedVector2Array) -> void:
 	if _unit == null:
 		push_error("MovementComponent에 unit이 없습니다.")
 		return
+	
+	_EnterMoving(order, path)
+	_SetGoal()
 
-	activeMoveOrder = order
-	_settledOrderId = -1
+func _EnterMoving(order: MoveOrder, path: PackedVector2Array) -> void:
+	curOrder = order
 	_paused = false
 	_state = MovementState.MOVING
 	simVelocity = Vector2.ZERO
 	_SetPath(path)
 
-	if _path.is_empty():
-		_effectiveGoal = _unit.position
-		CompleteMoveOrder()
+func _SetPath(path: PackedVector2Array) -> void:
+	_path = path
+	_pathIndex = 0
+
+	if _unit == null:
 		return
 
-	_effectiveGoal = _path[_path.size() - 1]
+	while _pathIndex < _path.size() - 1:
+		if _unit.position.distance_squared_to(_path[_pathIndex]) > EPSILON:
+			break
 
+		_pathIndex += 1
 
-func ReplacePath(path: PackedVector2Array, effectiveGoal: Vector2) -> bool:
+func _SetGoal() -> void:
+	if _path.is_empty():
+		_goal = _unit.position
+
+	_goal = _path[_path.size() - 1]
+
+func ReplacePath(path: PackedVector2Array) -> bool:
 	if not IsMoving():
 		return false
-
 	if path.is_empty():
 		return false
 
 	_SetPath(path)
-	_effectiveGoal = effectiveGoal
 	return true
-
-
+	
 func ResetSimVelocity() -> void:
 	simVelocity = Vector2.ZERO
 
-
 func Stop() -> void:
+	_enterIdle()
+
+func _enterIdle() -> void:
 	_paused = false
-	activeMoveOrder = null
-	_settledOrderId = -1
+	curOrder = null
 	_path.clear()
 	_pathIndex = 0
 	simVelocity = Vector2.ZERO
 	_state = MovementState.IDLE
-
-
-func CompleteMoveOrder() -> void:
-	_paused = false
-	var completedOrderId: int = -1
-
-	if activeMoveOrder != null:
-		completedOrderId = activeMoveOrder.orderId
-
-	activeMoveOrder = null
-	_path.clear()
-	_pathIndex = 0
-	simVelocity = Vector2.ZERO
-	_state = MovementState.IDLE
-	_settledOrderId = completedOrderId
-
 
 func SyncPathProgress(maxTickDistance: float, navigationService: NavigationService) -> void:
-	if _paused:
-		return
-
-	if not IsMoving():
-		return
-
-	if _path.is_empty():
-		return
-
-	if _unit == null:
+	if not _CanSync():
 		return
 
 	var reachDistance: float = maxf(maxTickDistance * 1.5, 1.0)
@@ -185,25 +165,25 @@ func SyncPathProgress(maxTickDistance: float, navigationService: NavigationServi
 			continue
 
 		break
-
+		
+func _CanSync() -> bool:
+	if _paused:
+		return false
+	if not IsMoving():
+		return false
+	if _path.is_empty():
+		return false
+		
+	return true
 
 func GetCurrentWaypoint() -> Vector2:
 	if _path.is_empty():
-		return _effectiveGoal
+		return _goal
 
-	var index: int = clampi(_pathIndex, 0, _path.size() - 1)
-
-	return _path[index]
-
+	return _path[_pathIndex]
 
 func GetDesiredDirection() -> Vector2:
-	if _paused:
-		return Vector2.ZERO
-
-	if not IsMoving():
-		return Vector2.ZERO
-
-	if _path.is_empty():
+	if not _CanSync():
 		return Vector2.ZERO
 
 	var target: Vector2 = _path[_pathIndex]
@@ -218,10 +198,8 @@ func GetDesiredDirection() -> Vector2:
 
 	return delta.normalized()
 
-
 func GetEffectiveGoal() -> Vector2:
-	return _effectiveGoal
-
+	return _goal
 
 func IsFinalLeg() -> bool:
 	if _path.is_empty():
@@ -229,20 +207,17 @@ func IsFinalLeg() -> bool:
 
 	return _pathIndex >= _path.size() - 1
 
-
 func GetRemainingFinalDistance() -> float:
 	if _unit == null:
 		return 0.0
 
-	return _unit.position.distance_to(_effectiveGoal)
-
+	return _unit.position.distance_to(_goal)
 
 func IsAtEffectiveGoal(tolerance: float) -> bool:
 	if _unit == null:
 		return true
 
-	return _unit.position.distance_to(_effectiveGoal) <= maxf(tolerance, EPSILON)
-
+	return _unit.position.distance_to(_goal) <= maxf(tolerance, EPSILON)
 
 func WantsFinalTick(fixedDt: float) -> bool:
 	if _paused:
@@ -257,7 +232,6 @@ func WantsFinalTick(fixedDt: float) -> bool:
 	var normalDistance: float = moveSpeed * fixedDt
 
 	return GetRemainingFinalDistance() <= normalDistance + EPSILON
-
 
 func GetDesiredVelocity(fixedDt: float) -> Vector2:
 	if _paused:
@@ -289,7 +263,6 @@ func GetDesiredVelocity(fixedDt: float) -> Vector2:
 
 	return direction * moveSpeed
 
-
 func CommitSimulation(newPosition: Vector2, newVelocity: Vector2, finishOrder: bool) -> void:
 	if _paused:
 		simVelocity = Vector2.ZERO
@@ -298,21 +271,7 @@ func CommitSimulation(newPosition: Vector2, newVelocity: Vector2, finishOrder: b
 	_unit.position = newPosition
 
 	if finishOrder:
-		CompleteMoveOrder()
+		Stop()
 		return
 
 	simVelocity = newVelocity
-
-
-func _SetPath(path: PackedVector2Array) -> void:
-	_path = path
-	_pathIndex = 0
-
-	if _unit == null:
-		return
-
-	while _pathIndex < _path.size() - 1:
-		if _unit.position.distance_squared_to(_path[_pathIndex]) > EPSILON:
-			break
-
-		_pathIndex += 1
