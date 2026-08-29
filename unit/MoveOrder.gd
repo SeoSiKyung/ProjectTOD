@@ -1,7 +1,6 @@
 class_name MoveOrder
 extends RefCounted
 
-const EPSILON: float = 0.00001
 const FORMATION_GAP: float = 1.0
 const MIN_GRID_STEP: float = 8.0
 const FORMATION_CANDIDATE_MULTIPLIER: int = 64
@@ -113,7 +112,7 @@ func Start(units: Dictionary[int, Unit]) -> void:
 	if anchorPath.size() >= 2:
 		approachDelta = anchorPath[anchorPath.size() - 1] - anchorPath[anchorPath.size() - 2]
 
-	if approachDelta.length_squared() > EPSILON:
+	if approachDelta.length_squared() > Math.EPSILON:
 		_approachDirection = approachDelta.normalized()
 	else:
 		_approachDirection = Vector2.RIGHT
@@ -148,7 +147,6 @@ func Simulate(dt: float, allUnits: Dictionary[int, Unit]) -> Array[MovementCandi
 
 		var unit: Unit = allUnits[unitId]
 		var movement: MovementComponent = unit.movement
-
 		if not _OwnsMovement(movement):
 			continue
 
@@ -181,14 +179,13 @@ func GetUnitPriority(unitId: int) -> int:
 func _MakeCandidate(unit: Unit, movement: MovementComponent, dt: float) -> MovementCandidate:
 	var candidate: MovementCandidate = MovementCandidate.new()
 	var slot: Vector2 = _slotByUnit.get(unit.unitId, movement.GetEffectiveGoal())
+
 	var desiredVelocity: Vector2 = movement.GetDesiredVelocity(dt)
 	var desiredPosition: Vector2 = unit.position + desiredVelocity * dt
 	var finalTick: bool = movement.WantsFinalTick(dt)
-
 	if finalTick:
 		desiredPosition = movement.GetEffectiveGoal()
-
-		if dt > EPSILON:
+		if dt > Math.EPSILON:
 			desiredVelocity = (desiredPosition - unit.position) / dt
 
 	candidate.orderId = orderId
@@ -226,7 +223,6 @@ func _PrepareFormationMetrics(units: Dictionary[int, Unit]) -> void:
 	var minFull: float = 1000000.0
 	var maxFull: float = 1.0
 	var validCount: int = 0
-
 	for unitId: int in memberIds:
 		if not units.has(unitId):
 			continue
@@ -252,7 +248,6 @@ func _AssignSlots(units: Dictionary[int, Unit]) -> void:
 	_claimedSlots.clear()
 
 	var infos: Array[UnitOrderInfo] = []
-
 	for unitId: int in memberIds:
 		if not units.has(unitId):
 			continue
@@ -270,10 +265,10 @@ func _AssignSlots(units: Dictionary[int, Unit]) -> void:
 
 	infos.sort_custom(
 		func(a: UnitOrderInfo, b: UnitOrderInfo) -> bool:
-			if absf(a.front - b.front) > EPSILON:
+			if absf(a.front - b.front) > Math.EPSILON:
 				return a.front > b.front
 
-			if absf(a.distanceToTarget - b.distanceToTarget) > EPSILON:
+			if absf(a.distanceToTarget - b.distanceToTarget) > Math.EPSILON:
 				return a.distanceToTarget < b.distanceToTarget
 
 			return a.unitId < b.unitId,
@@ -287,12 +282,11 @@ func _AssignSlots(units: Dictionary[int, Unit]) -> void:
 
 	var offsets: Array[Vector2i] = _SquareSpiralOffsets(candidateCount)
 	var total: int = infos.size()
-
 	for rank: int in range(total):
 		var info: UnitOrderInfo = infos[rank]
 		var unit: Unit = units[info.unitId]
-		var t: float = 0.5
 
+		var t: float = 0.5
 		if total > 1:
 			t = float(rank) / float(total - 1)
 
@@ -309,43 +303,11 @@ func _AssignSlots(units: Dictionary[int, Unit]) -> void:
 		_priorityByUnit[info.unitId] = rank
 
 		var claimed: ClaimedSlot = ClaimedSlot.new()
-
 		claimed.unitId = info.unitId
 		claimed.position = slot
 		claimed.halfSize = unit.GetHalfSize()
 
 		_claimedSlots.append(claimed)
-
-
-func _InsertSlotCandidate(
-	bestIndices: Array[int],
-	bestScores: Array[float],
-	spiralIndex: int,
-	score: float,
-) -> void:
-	var insertAt: int = bestScores.size()
-
-	for index: int in range(bestScores.size()):
-		var currentScore: float = bestScores[index]
-		var comesBefore: bool = false
-
-		if absf(score - currentScore) > EPSILON:
-			comesBefore = score < currentScore
-		else:
-			comesBefore = spiralIndex < bestIndices[index]
-
-		if comesBefore:
-			insertAt = index
-			break
-
-	if insertAt >= MAX_SLOT_LOCAL_CHECKS:
-		return
-
-	bestIndices.insert(insertAt, spiralIndex)
-	bestScores.insert(insertAt, score)
-	if bestIndices.size() > MAX_SLOT_LOCAL_CHECKS:
-		bestIndices.pop_back()
-		bestScores.pop_back()
 
 
 func _FindSlotForUnit(
@@ -357,7 +319,6 @@ func _FindSlotForUnit(
 	var bestIndices: Array[int] = []
 	var bestScores: Array[float] = []
 	var halfSize: int = unit.GetHalfSize()
-
 	for index: int in range(offsets.size()):
 		var offset: Vector2i = offsets[index]
 		var local: Vector2 = Vector2(float(offset.x) * _gridStep, float(offset.y) * _gridStep)
@@ -376,7 +337,6 @@ func _FindSlotForUnit(
 			+ absf(lateral - desiredLateral) * SLOT_LATERAL_WEIGHT
 			+ relative.length() * SLOT_RADIUS_WEIGHT + float(index) * 0.0001
 		)
-
 		_InsertSlotCandidate(bestIndices, bestScores, index, score)
 
 	for spiralIndex: int in bestIndices:
@@ -385,7 +345,6 @@ func _FindSlotForUnit(
 			float(offset.x) * _gridStep,
 			float(offset.y) * _gridStep,
 		)
-
 		if _navigationService.SegmentClear(_arrivalCenter, position, halfSize):
 			return position
 
@@ -394,7 +353,6 @@ func _FindSlotForUnit(
 		halfSize,
 		unit.position,
 	)
-
 	if not _OverlapsClaimed(fallback, halfSize):
 		var fallbackPath: PackedVector2Array = _navigationService.FindPath(
 			unit.position,
@@ -405,6 +363,34 @@ func _FindSlotForUnit(
 			return fallbackPath[fallbackPath.size() - 1]
 
 	return unit.position
+
+
+func _InsertSlotCandidate(
+	bestIndices: Array[int],
+	bestScores: Array[float],
+	spiralIndex: int,
+	score: float,
+) -> void:
+	var insertAt: int = bestScores.size()
+	for index: int in range(bestScores.size()):
+		var currentScore: float = bestScores[index]
+		var comesBefore: bool = false
+		if absf(score - currentScore) > Math.EPSILON:
+			comesBefore = score < currentScore
+		else:
+			comesBefore = spiralIndex < bestIndices[index]
+		if comesBefore:
+			insertAt = index
+			break
+
+	if insertAt >= MAX_SLOT_LOCAL_CHECKS:
+		return
+
+	bestIndices.insert(insertAt, spiralIndex)
+	bestScores.insert(insertAt, score)
+	if bestIndices.size() > MAX_SLOT_LOCAL_CHECKS:
+		bestIndices.pop_back()
+		bestScores.pop_back()
 
 
 func _OverlapsClaimed(position: Vector2, halfSize: int) -> bool:
@@ -421,35 +407,27 @@ func _OverlapsClaimed(position: Vector2, halfSize: int) -> bool:
 
 func _SquareSpiralOffsets(count: int) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
+
 	if count <= 0:
 		return result
 
 	var position: Vector2i = Vector2i.ZERO
 	result.append(position)
-
 	if count == 1:
 		return result
 
-	var directions: Array[Vector2i] = [
-		Vector2i(0, -1),
-		Vector2i(1, 0),
-		Vector2i(0, 1),
-		Vector2i(-1, 0),
-	]
 	var directionIndex: int = 0
 	var stepLength: int = 1
-
 	while result.size() < count:
 		for pairStep: int in range(2):
-			var direction: Vector2i = directions[directionIndex]
-
+			var direction: Vector2i = Math.DIRECTIONS_4[directionIndex]
 			for step: int in range(stepLength):
 				position += direction
 				result.append(position)
 				if result.size() >= count:
 					return result
 
-			directionIndex = (directionIndex + 1) % directions.size()
+			directionIndex = (directionIndex + 1) % Math.DIRECTIONS_4.size()
 
 		stepLength += 1
 
@@ -459,7 +437,6 @@ func _SquareSpiralOffsets(count: int) -> Array[Vector2i]:
 func _AverageMemberPosition(units: Dictionary[int, Unit]) -> Vector2:
 	var sum: Vector2 = Vector2.ZERO
 	var count: int = 0
-
 	for unitId: int in memberIds:
 		if not units.has(unitId):
 			continue
@@ -475,7 +452,6 @@ func _AverageMemberPosition(units: Dictionary[int, Unit]) -> Vector2:
 
 func _LargestMemberHalfSize(units: Dictionary[int, Unit]) -> int:
 	var result: int = 8
-
 	for unitId: int in memberIds:
 		if not units.has(unitId):
 			continue
