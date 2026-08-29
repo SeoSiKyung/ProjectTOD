@@ -97,17 +97,19 @@ func Start(units: Dictionary[int, Unit]) -> void:
 		largestHalf,
 	)
 
-	if not anchorPath.is_empty():
-		_arrivalCenter = anchorPath[anchorPath.size() - 1]
-	else:
-		_arrivalCenter = _navigationService.GetNearestPlaceablePoint(
-			targetWorld,
-			largestHalf,
-			_groupStartCenter,
-		)
+	if anchorPath.is_empty():
+		for unitId: int in memberIds:
+			if not units.has(unitId):
+				continue
+
+			var unit: Unit = units[unitId]
+			unit.movement.BeginMoveOrder(self, PackedVector2Array())
+
+		return
+
+	_arrivalCenter = anchorPath[anchorPath.size() - 1]
 
 	var approachDelta: Vector2 = _arrivalCenter - _groupStartCenter
-
 	if anchorPath.size() >= 2:
 		approachDelta = anchorPath[anchorPath.size() - 1] - anchorPath[anchorPath.size() - 2]
 
@@ -128,16 +130,11 @@ func Start(units: Dictionary[int, Unit]) -> void:
 		var unit: Unit = units[unitId]
 		var slot: Vector2 = _slotByUnit.get(unitId, _arrivalCenter)
 		var path: PackedVector2Array = _navigationService.BuildUnitPath(unit, slot, anchorPath)
-
 		if path.is_empty():
-			print("Anchor join 완전 실패: ", unitId)
 			path = _navigationService.FindPath(unit.position, slot, unit.GetHalfSize())
 
 		if not path.is_empty():
 			_slotByUnit[unitId] = path[path.size() - 1]
-
-		if path.is_empty():
-			path.append(unit.position)
 
 		unit.movement.BeginMoveOrder(self, path)
 
@@ -346,7 +343,6 @@ func _InsertSlotCandidate(
 
 	bestIndices.insert(insertAt, spiralIndex)
 	bestScores.insert(insertAt, score)
-
 	if bestIndices.size() > MAX_SLOT_LOCAL_CHECKS:
 		bestIndices.pop_back()
 		bestScores.pop_back()
@@ -366,11 +362,10 @@ func _FindSlotForUnit(
 		var offset: Vector2i = offsets[index]
 		var local: Vector2 = Vector2(float(offset.x) * _gridStep, float(offset.y) * _gridStep)
 		var position: Vector2 = _arrivalCenter + local
-
-		if not _navigationService.CanPlaceStatic(position, halfSize):
-			continue
-
-		if _OverlapsClaimed(position, halfSize):
+		if (
+			not _navigationService.CanPlaceStatic(position, halfSize)
+			or _OverlapsClaimed(position, halfSize)
+		):
 			continue
 
 		var relative: Vector2 = position - _arrivalCenter
@@ -406,17 +401,8 @@ func _FindSlotForUnit(
 			fallback,
 			halfSize,
 		)
-
 		if not fallbackPath.is_empty():
 			return fallbackPath[fallbackPath.size() - 1]
-
-	if not bestIndices.is_empty():
-		var bestOffset: Vector2i = offsets[bestIndices[0]]
-
-		return _arrivalCenter + Vector2(
-			float(bestOffset.x) * _gridStep,
-			float(bestOffset.y) * _gridStep,
-		)
 
 	return unit.position
 
@@ -435,12 +421,10 @@ func _OverlapsClaimed(position: Vector2, halfSize: int) -> bool:
 
 func _SquareSpiralOffsets(count: int) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
-
 	if count <= 0:
 		return result
 
 	var position: Vector2i = Vector2i.ZERO
-
 	result.append(position)
 
 	if count == 1:
@@ -462,7 +446,6 @@ func _SquareSpiralOffsets(count: int) -> Array[Vector2i]:
 			for step: int in range(stepLength):
 				position += direction
 				result.append(position)
-
 				if result.size() >= count:
 					return result
 
