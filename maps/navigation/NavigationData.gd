@@ -5,20 +5,13 @@ extends Resource
 @export var gridSize: Vector2i = Vector2i.ZERO
 @export var worldOrigin: Vector2 = Vector2.ZERO
 
-# 0 = 이동 가능
-# 1 = 고정 장애물
+# 0 = 이동 가능, 1 = 고정 장애물
 @export var blocked: PackedByteArray = PackedByteArray()
 
 # (gridWidth + 1) * (gridHeight + 1)
 @export var prefixSum: PackedInt32Array = PackedInt32Array()
 
-
-# -------------------------
-# Region / Portal
-# -------------------------
-
-# 1 = Portal cell
-# 0 = Portal 아님
+# 0 = Portal 아님, 1 = Portal cell
 @export var portalMap: PackedByteArray = PackedByteArray()
 
 # 각 cell이 속한 Region ID
