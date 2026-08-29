@@ -71,7 +71,6 @@ var _usePackedIntFastPath: bool = false
 func _init(less: Callable, indexTracker: IndexTracker = null) -> void:
 	_less = less
 	_indexTracker = indexTracker
-
 	if indexTracker is PackedInt32IndexTracker:
 		var tracker: PackedInt32IndexTracker = (indexTracker as PackedInt32IndexTracker)
 		_packedIntPositions = tracker.GetPositions()
@@ -121,21 +120,14 @@ func PushOrDecrease(value: Variant) -> bool:
 		return false
 
 	var position: int = _GetPosition(value)
-
-	# 아직 힙에 없음
 	if position < 0:
 		_values.append(value)
-
 		position = _values.size() - 1
 		_SetPosition(value, position)
-
 		_SiftUp(position)
 		return true
 
-	# 이미 존재함.
-	# 외부에서 priority 값이 작아졌다고 가정하고 위로 이동.
 	_SiftUp(position)
-
 	return false
 
 
@@ -146,7 +138,6 @@ func Pop() -> Variant:
 
 	var root: Variant = _values[0]
 	var last: Variant = _values.pop_back()
-
 	if _usePackedIntFastPath:
 		_packedIntPositions[int(root)] = -1
 	else:
@@ -156,7 +147,6 @@ func Pop() -> Variant:
 		return root
 
 	_values[0] = last
-
 	if _usePackedIntFastPath:
 		_packedIntPositions[int(last)] = 0
 	else:
@@ -169,7 +159,6 @@ func Pop() -> Variant:
 
 func _SiftUp(position: int) -> void:
 	var index: int = position
-
 	while index > 0:
 		var parentIndex: int = int(index - 1) >> 1
 		if not bool(_less.call(_values[index], _values[parentIndex])):
@@ -183,16 +172,13 @@ func _SiftUp(position: int) -> void:
 func _SiftDown(position: int) -> void:
 	var index: int = position
 	var heapSize: int = _values.size()
-
 	while true:
 		var left: int = index * 2 + 1
 		var right: int = left + 1
 		var smallest: int = index
-
 		if left < heapSize:
 			if bool(_less.call(_values[left], _values[smallest])):
 				smallest = left
-
 		if right < heapSize:
 			if bool(_less.call(_values[right], _values[smallest])):
 				smallest = right
@@ -225,7 +211,7 @@ func _Swap(a: int, b: int) -> void:
 func _SetPosition(value: Variant, position: int) -> void:
 	if _usePackedIntFastPath:
 		var key: int = int(value)
-		if (key < 0 or key >= _packedIntPositions.size()):
+		if not (0 <= key and key < _packedIntPositions.size()):
 			push_error("Heap index key is out of range: %d" % key)
 			return
 
@@ -239,7 +225,7 @@ func _SetPosition(value: Variant, position: int) -> void:
 func _RemovePosition(value: Variant) -> void:
 	if _usePackedIntFastPath:
 		var key: int = int(value)
-		if (key >= 0 and key < _packedIntPositions.size()):
+		if 0 <= key and key < _packedIntPositions.size():
 			_packedIntPositions[key] = -1
 
 		return
@@ -251,7 +237,7 @@ func _RemovePosition(value: Variant) -> void:
 func _GetPosition(value: Variant) -> int:
 	if _usePackedIntFastPath:
 		var key: int = int(value)
-		if (key < 0 or key >= _packedIntPositions.size()):
+		if not (0 <= key and key < _packedIntPositions.size()):
 			return -1
 
 		return _packedIntPositions[key]

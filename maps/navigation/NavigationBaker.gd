@@ -2,50 +2,20 @@
 class_name NavigationBaker
 extends Node
 
-const EPSILON: float = 0.00001
-const BIG_NUMBER: float = 1.0e30
-const SQRT_2: float = 1.41421356237
-
-const REGION_DIRECTIONS: Array[Vector2i] = [
-	Vector2i(1, 0),
-	Vector2i(1, 1),
-	Vector2i(0, 1),
-	Vector2i(-1, 1),
-	Vector2i(-1, 0),
-	Vector2i(-1, -1),
-	Vector2i(0, -1),
-	Vector2i(1, -1),
-]
-const PORTAL_DIRECTIONS: Array[Vector2i] = [
-	Vector2i(1, 0),
-	Vector2i(1, 1),
-	Vector2i(0, 1),
-	Vector2i(-1, 1),
-	Vector2i(-1, 0),
-	Vector2i(-1, -1),
-	Vector2i(0, -1),
-	Vector2i(1, -1),
-]
-
 @export var navigationMask: Texture2D
 @export var cellSize: int = 8
 @export var worldOrigin: Vector2 = Vector2.ZERO
 @export var bakeHalfSizes: PackedInt32Array = PackedInt32Array([16, 32])
-
 @export_range(0.0, 1.0, 0.01) var blockedThreshold: float = 0.5
-
 @export_range(0.0, 1.0, 0.01) var portalRedThreshold: float = 0.8
-
 @export_range(0.0, 1.0, 0.01) var portalOtherThreshold: float = 0.2
-
 @export_range(1, 5, 1) var maxPortalAnchors: int = 4
-
 @export_dir var outputDirectory: String = "res://maps"
 
 @export_tool_button("Bake Navigation")
 var bakeButton: Callable = BakeNavigation
 
-
+#region Class
 class MaskBakeData:
 	var blocked: PackedByteArray = PackedByteArray()
 	var portalMap: PackedByteArray = PackedByteArray()
@@ -71,8 +41,8 @@ class RouteSearchState:
 
 		touchedMap.resize(size)
 
-		g.fill(BIG_NUMBER)
-		f.fill(BIG_NUMBER)
+		g.fill(Math.BIG_NUMBER)
+		f.fill(Math.BIG_NUMBER)
 		parent.fill(-1)
 		closed.fill(0)
 		heapPosition.fill(-1)
@@ -82,8 +52,8 @@ class RouteSearchState:
 
 	func Reset() -> void:
 		for index: int in touched:
-			g[index] = BIG_NUMBER
-			f[index] = BIG_NUMBER
+			g[index] = Math.BIG_NUMBER
+			f[index] = Math.BIG_NUMBER
 			parent[index] = -1
 			closed[index] = 0
 			heapPosition[index] = -1
@@ -99,42 +69,23 @@ class RouteSearchState:
 
 		touchedMap[index] = 1
 		touched.append(index)
+#endregion
 
-
+#region Public
 func BakeNavigation() -> void:
 	if not Engine.is_editor_hint():
 		return
 
+	if not _ValidateBakeSettings():
+		return
+
 	var outputPath: String = _GetOutputPath()
-	if outputPath.is_empty():
-		push_error("Navigation Mask의 파일 경로를 찾을 수 없습니다.")
-		return
-
-	if navigationMask == null:
-		push_error("Navigation Mask가 지정되지 않았습니다.")
-		return
-
-	if cellSize <= 0:
-		push_error("cellSize는 1 이상이어야 합니다.")
-		return
-
 	var image: Image = navigationMask.get_image()
-	if image == null or image.is_empty():
-		push_error("Navigation Mask 이미지를 읽을 수 없습니다.")
+	if not _ValidateBakeImage(image):
 		return
 
-	var imageWidth: int = image.get_width()
-	var imageHeight: int = image.get_height()
-	if imageWidth <= 0 or imageHeight <= 0:
-		push_error("Navigation Mask 크기가 잘못되었습니다.")
-		return
-
-	if imageWidth % cellSize != 0 or imageHeight % cellSize != 0:
-		push_error("Navigation Mask 크기는 cellSize의 배수여야 합니다.")
-		return
-
-	var gridWidth: int = imageWidth / cellSize
-	var gridHeight: int = imageHeight / cellSize
+	var gridWidth: int = image.get_width() / cellSize
+	var gridHeight: int = image.get_height() / cellSize
 	var maskData: MaskBakeData = _AnalyzeMask(image, gridWidth, gridHeight)
 
 	var prefixSum = _MakePrefixSum(maskData.blocked, gridWidth, gridHeight)
@@ -150,20 +101,41 @@ func BakeNavigation() -> void:
 	if not _SaveNavigationData(data, outputPath):
 		return
 
-	print(
-		"Navigation Bake 완료 | Image: ",
-		imageWidth,
-		"x",
-		imageHeight,
-		" | Grid: ",
-		gridWidth,
-		"x",
-		gridHeight,
-		" | Cell: ",
-		cellSize,
-		" | ",
-		outputPath,
-	)
+#endregion
+
+#region Validation / Setup
+func _ValidateBakeSettings() -> bool:
+	if navigationMask == null:
+		push_error("Navigation Mask가 지정되지 않았습니다.")
+		return false
+
+	if cellSize <= 0:
+		push_error("cellSize는 1 이상이어야 합니다.")
+		return false
+
+	if _GetOutputPath().is_empty():
+		push_error("Navigation Mask의 파일 경로를 찾을 수 없습니다.")
+		return false
+
+	return true
+
+
+func _ValidateBakeImage(image: Image) -> bool:
+	if image == null or image.is_empty():
+		push_error("Navigation Mask 이미지를 읽을 수 없습니다.")
+		return false
+
+	var imageWidth: int = image.get_width()
+	var imageHeight: int = image.get_height()
+	if imageWidth <= 0 or imageHeight <= 0:
+		push_error("Navigation Mask 크기가 잘못되었습니다.")
+		return false
+
+	if imageWidth % cellSize != 0 or imageHeight % cellSize != 0:
+		push_error("Navigation Mask 크기는 cellSize의 배수여야 합니다.")
+		return false
+
+	return true
 
 
 func _GetOutputPath() -> String:
@@ -171,15 +143,15 @@ func _GetOutputPath() -> String:
 		return ""
 
 	var texturePath: String = navigationMask.resource_path
-
 	if texturePath.is_empty():
 		return ""
 
-	var fileName: String = texturePath.get_file().get_basename()
+	return outputDirectory.path_join(texturePath.get_file().get_basename() + "_navigation.res")
 
-	return outputDirectory.path_join(fileName + "_navigation.res")
+#endregion
 
 #region Analyze Mask
+
 func _AnalyzeMask(image: Image, gridWidth: int, gridHeight: int) -> MaskBakeData:
 	var result: MaskBakeData = MaskBakeData.new()
 	var total: int = gridWidth * gridHeight
@@ -252,7 +224,7 @@ func _MakePrefixSum(blocked: PackedByteArray, gridWidth: int, gridHeight: int) -
 
 #endregion
 
-#region Make Navigation Data
+#region Navigation Data
 func _MakeNavigationData(
 	blocked: PackedByteArray,
 	portalMap: PackedByteArray,
@@ -291,6 +263,25 @@ func _MakeNavigationData(
 	return data
 
 
+func _SaveNavigationData(data: NavigationData, outputPath: String) -> bool:
+	var directory: String = outputPath.get_base_dir()
+	var absoluteDirectory: String = ProjectSettings.globalize_path(directory)
+
+	var dirError: Error = DirAccess.make_dir_recursive_absolute(absoluteDirectory)
+	if dirError != OK and dirError != ERR_ALREADY_EXISTS:
+		push_error("Navigation 저장 폴더 생성 실패: %s" % directory)
+		return false
+
+	var saveError: Error = ResourceSaver.save(data, outputPath)
+	if saveError != OK:
+		push_error("Navigation Data 저장 실패: %s" % error_string(saveError))
+		return false
+
+	return true
+
+#endregion
+
+#region Region / Portal
 func _MakeRegionMap(
 	blocked: PackedByteArray,
 	portalMap: PackedByteArray,
@@ -320,7 +311,7 @@ func _MakeRegionMap(
 
 			var currentX: int = currentIndex % gridWidth
 			var currentY: int = int(currentIndex / gridWidth)
-			for direction: Vector2i in REGION_DIRECTIONS:
+			for direction: Vector2i in Math.DIRECTIONS_8:
 				var nextX: int = currentX + direction.x
 				var nextY: int = currentY + direction.y
 				if (!(0 <= nextX and nextX < gridWidth) or !(0 <= nextY and nextY < gridHeight)):
@@ -329,13 +320,11 @@ func _MakeRegionMap(
 				if direction.x != 0 and direction.y != 0:
 					var horizontalX: int = currentX + direction.x
 					var horizontalY: int = currentY
-
 					var verticalX: int = currentX
 					var verticalY: int = currentY + direction.y
 
 					var horizontalIndex: int = horizontalY * gridWidth + horizontalX
 					var verticalIndex: int = verticalY * gridWidth + verticalX
-
 					if (
 						blocked[horizontalIndex] != 0 or portalMap[horizontalIndex] != 0
 						or blocked[verticalIndex] != 0 or portalMap[verticalIndex] != 0
@@ -351,8 +340,6 @@ func _MakeRegionMap(
 				queue.append(nextIndex)
 
 		regionId += 1
-
-	print("Region Bake: ", regionId, " regions")
 
 	return regionMap
 
@@ -406,9 +393,8 @@ func _MakePortals(
 			)
 
 			portalCells.append(currentCell)
-			for direction: Vector2i in PORTAL_DIRECTIONS:
+			for direction: Vector2i in Math.DIRECTIONS_8:
 				var nextCell: Vector2i = currentCell + direction
-
 				if (
 					!(0 <= nextCell.x and nextCell.x < gridWidth)
 					or !(0 <= nextCell.y and nextCell.y < gridHeight)
@@ -448,9 +434,8 @@ func _MakePortalData(
 
 	var adjacentRegions: Dictionary[int, bool] = { }
 	for cell: Vector2i in portalCells:
-		for direction: Vector2i in PORTAL_DIRECTIONS:
+		for direction: Vector2i in Math.DIRECTIONS_8:
 			var neighbor: Vector2i = cell + direction
-
 			if (
 				!(0 <= neighbor.x and neighbor.x < gridWidth)
 				or !(0 <= neighbor.y and neighbor.y < gridHeight)
@@ -526,18 +511,19 @@ func _ConnectPortalNeighbors(
 				var portalBId: int = region.portalIds[bIndex]
 
 				var portalA: NavigationPortalData = portals[portalAId]
-				var portalB: NavigationPortalData = portals[portalBId]
-
 				if portalA.neighborPortalIds.find(portalBId) < 0:
 					portalA.neighborPortalIds.append(portalBId)
 
+				var portalB: NavigationPortalData = portals[portalBId]
 				if portalB.neighborPortalIds.find(portalAId) < 0:
 					portalB.neighborPortalIds.append(portalAId)
 
 	for portal: NavigationPortalData in portals:
 		portal.neighborPortalIds.sort()
 
-#region Make Footprints
+#endregion
+
+#region Footprint
 func _MakeFootprints(
 	regions: Array[NavigationRegionData],
 	portals: Array[NavigationPortalData],
@@ -554,7 +540,6 @@ func _MakeFootprints(
 
 		var footprint: NavigationFootprintData = NavigationFootprintData.new()
 		footprint.halfSize = halfSize
-
 		for portal: NavigationPortalData in portals:
 			var portalData: NavigationFootprintPortalData = _MakeFootprintPortalData(
 				portal,
@@ -687,7 +672,6 @@ func _GetPortalCells(portal: NavigationPortalData) -> Array[Vector2i]:
 
 	var stepX: int = 1 if x0 < x1 else -1
 	var stepY: int = 1 if y0 < y1 else -1
-
 	while true:
 		result.append(Vector2i(x0, y0))
 		if x0 == x1 and y0 == y1:
@@ -697,19 +681,11 @@ func _GetPortalCells(portal: NavigationPortalData) -> Array[Vector2i]:
 		if error2 >= dy:
 			error += dy
 			x0 += stepX
-
 		if error2 <= dx:
 			error += dx
 			y0 += stepY
 
 	return result
-
-
-func _CellCenterToWorld(cell: Vector2i) -> Vector2:
-	return (
-		worldOrigin
-		+ Vector2((float(cell.x) + 0.5) * float(cellSize), (float(cell.y) + 0.5) * float(cellSize))
-	)
 
 
 func _CanPlaceStatic(
@@ -723,10 +699,8 @@ func _CanPlaceStatic(
 
 	var rectMin: Vector2 = center - half
 	var rectMax: Vector2 = center + half
-
 	var worldSize: Vector2 = Vector2(float(gridWidth * cellSize), float(gridHeight * cellSize))
 	var worldEnd: Vector2 = worldOrigin + worldSize
-
 	if rectMin.x < worldOrigin.x or rectMin.y < worldOrigin.y:
 		return false
 
@@ -738,12 +712,10 @@ func _CanPlaceStatic(
 
 	var minX: int = floori(localMin.x / float(cellSize))
 	var minY: int = floori(localMin.y / float(cellSize))
-
-	var maxX: int = floori((localMax.x - 0.00001) / float(cellSize))
-	var maxY: int = floori((localMax.y - 0.00001) / float(cellSize))
+	var maxX: int = floori((localMax.x - Math.EPSILON) / float(cellSize))
+	var maxY: int = floori((localMax.y - Math.EPSILON) / float(cellSize))
 
 	var prefixWidth: int = gridWidth + 1
-
 	var blockedCount: int = (
 		prefixSum[(maxY + 1) * prefixWidth + (maxX + 1)]
 		- prefixSum[minY * prefixWidth + (maxX + 1)] - prefixSum[(maxY + 1) * prefixWidth + minX]
@@ -752,7 +724,9 @@ func _CanPlaceStatic(
 
 	return blockedCount == 0
 
+#endregion
 
+#region Portal Route
 func _MakePortalRoutes(
 	regions: Array[NavigationRegionData],
 	portals: Array[NavigationPortalData],
@@ -766,29 +740,23 @@ func _MakePortalRoutes(
 
 	var searchState: RouteSearchState = RouteSearchState.new()
 	searchState.Resize(gridWidth * gridHeight)
-	var rawPointCount: int = 0 # jhw
-	var compressedPointCount: int = 0 #jhw
 	for region: NavigationRegionData in regions:
 		var portalCount: int = region.portalIds.size()
-
 		for aIndex: int in range(portalCount - 1):
 			var portalAId: int = region.portalIds[aIndex]
 			var portalAData: NavigationFootprintPortalData = footprint.portals[portalAId]
-
 			if not portalAData.traversable:
 				continue
 
 			for bIndex: int in range(aIndex + 1, portalCount):
 				var portalBId: int = region.portalIds[bIndex]
 				var portalBData: NavigationFootprintPortalData = footprint.portals[portalBId]
-
 				if not portalBData.traversable:
 					continue
 
 				for fromAnchorIndex: int in range(portalAData.anchors.size()):
 					var fromPoint: Vector2 = portalAData.anchors[fromAnchorIndex]
 					var startCell: Vector2i = _WorldToCell(fromPoint)
-
 					for toAnchorIndex: int in range(portalBData.anchors.size()):
 						var toPoint: Vector2 = portalBData.anchors[toAnchorIndex]
 						var targetCell: Vector2i = _WorldToCell(toPoint)
@@ -808,9 +776,7 @@ func _MakePortalRoutes(
 							continue
 
 						var cost: float = _GetPathCost(path)
-						rawPointCount += path.size()
 						path = _CompressPortalPath(path)
-						compressedPointCount += path.size()
 
 						var route: NavigationPortalRouteData = NavigationPortalRouteData.new()
 						route.regionId = region.id
@@ -822,34 +788,6 @@ func _MakePortalRoutes(
 						route.cost = cost
 
 						result.append(route)
-
-	print(
-		"Portal Route Points / halfSize: ",
-		footprint.halfSize,
-		" / raw: ",
-		rawPointCount,
-		" / compressed: ",
-		compressedPointCount,
-	)
-	return result
-
-
-func _CompressPortalPath(path: PackedVector2Array) -> PackedVector2Array:
-	if path.size() <= 2:
-		return path
-
-	var result: PackedVector2Array = PackedVector2Array()
-	result.append(path[0])
-
-	var previousDirection: Vector2 = (path[1] - path[0]).normalized()
-	for index: int in range(1, path.size() - 1):
-		var nextDirection: Vector2 = (path[index + 1] - path[index]).normalized()
-		if not previousDirection.is_equal_approx(nextDirection):
-			result.append(path[index])
-
-		previousDirection = nextDirection
-
-	result.append(path[path.size() - 1])
 
 	return result
 
@@ -865,12 +803,11 @@ func _FindPortalRoute(
 	gridHeight: int,
 	state: RouteSearchState,
 ) -> PackedVector2Array:
-	var empty: PackedVector2Array = PackedVector2Array()
 	if (
-		not _IsCellInGrid(startCell, gridWidth, gridHeight)
-		or not _IsCellInGrid(targetCell, gridWidth, gridHeight)
+		not Grid.IsCellInGrid(startCell, gridWidth, gridHeight)
+		or not Grid.IsCellInGrid(targetCell, gridWidth, gridHeight)
 	):
-		return empty
+		return PackedVector2Array()
 
 	state.Reset()
 
@@ -878,16 +815,14 @@ func _FindPortalRoute(
 	var targetIndex: int = targetCell.y * gridWidth + targetCell.x
 
 	state.Touch(startIndex)
-
 	state.g[startIndex] = 0.0
-	state.f[startIndex] = _OctileHeuristic(startCell, targetCell)
+	state.f[startIndex] = Math.OctileDistance(startCell, targetCell)
 	state.parent[startIndex] = -1
 
-	var heap: Heap = Heap.new(_RouteHeapLess.bind(state), Heap.PackedInt32IndexTracker.new(
+	var heap: Heap = Heap.new(_HeapLess.bind(state), Heap.PackedInt32IndexTracker.new(
 			state.heapPosition
 		))
 	heap.PushOrDecrease(startIndex)
-
 	while not heap.IsEmpty():
 		var currentIndex: int = int(heap.Pop())
 		if state.closed[currentIndex] != 0:
@@ -901,8 +836,7 @@ func _FindPortalRoute(
 			currentIndex % gridWidth,
 			int(currentIndex / gridWidth),
 		)
-
-		for direction: Vector2i in PORTAL_DIRECTIONS:
+		for direction: Vector2i in Math.DIRECTIONS_8:
 			var nextCell: Vector2i = currentCell + direction
 			if not _IsRouteCellAllowed(
 				nextCell,
@@ -954,36 +888,40 @@ func _FindPortalRoute(
 
 			var stepCost: float = 1.0
 			if direction.x != 0 and direction.y != 0:
-				stepCost = SQRT_2
+				stepCost = Math.SQRT_2
 
 			var tentativeG: float = (state.g[currentIndex] + stepCost)
-			if tentativeG >= state.g[nextIndex] - EPSILON:
+			if tentativeG >= state.g[nextIndex] - Math.EPSILON:
 				continue
 
 			state.Touch(nextIndex)
-
 			state.g[nextIndex] = tentativeG
 			state.parent[nextIndex] = currentIndex
-
-			state.f[nextIndex] = (tentativeG + _OctileHeuristic(nextCell, targetCell))
+			state.f[nextIndex] = (tentativeG + Math.OctileDistance(nextCell, targetCell))
 
 			heap.PushOrDecrease(nextIndex)
 
-	return empty
+	return PackedVector2Array()
 
 
-func _WorldToCell(position: Vector2) -> Vector2i:
-	var local: Vector2 = position - worldOrigin
-	return Vector2i(floori(local.x / float(cellSize)), floori(local.y / float(cellSize)))
+func _CompressPortalPath(path: PackedVector2Array) -> PackedVector2Array:
+	if path.size() <= 2:
+		return path
 
+	var result: PackedVector2Array = PackedVector2Array()
+	result.append(path[0])
 
-func _OctileHeuristic(a: Vector2i, b: Vector2i) -> float:
-	var dx: int = absi(a.x - b.x)
-	var dy: int = absi(a.y - b.y)
+	var previousDirection: Vector2 = (path[1] - path[0]).normalized()
+	for index: int in range(1, path.size() - 1):
+		var nextDirection: Vector2 = (path[index + 1] - path[index]).normalized()
+		if not previousDirection.is_equal_approx(nextDirection):
+			result.append(path[index])
 
-	var diagonal: int = mini(dx, dy)
-	var straight: int = maxi(dx, dy) - diagonal
-	return float(diagonal) * SQRT_2 + float(straight)
+		previousDirection = nextDirection
+
+	result.append(path[path.size() - 1])
+
+	return result
 
 
 func _ReconstructPortalRoute(
@@ -1015,7 +953,7 @@ func _IsRouteCellAllowed(
 	gridWidth: int,
 	gridHeight: int,
 ) -> bool:
-	if not _IsCellInGrid(cell, gridWidth, gridHeight):
+	if not Grid.IsCellInGrid(cell, gridWidth, gridHeight):
 		return false
 
 	if not _CanPlaceStatic(_CellCenterToWorld(cell), halfSize, prefixSum, gridWidth, gridHeight):
@@ -1024,14 +962,24 @@ func _IsRouteCellAllowed(
 	if cell == startCell or cell == targetCell:
 		return true
 
-	var index: int = cell.y * gridWidth + cell.x
 	# 현재 Region 내부 또는 Portal 셀은 이동 가능.
 	# blocked 셀은 위의 _CanPlaceStatic()에서 이미 제거된다.
+	var index: int = cell.y * gridWidth + cell.x
 	return (regionMap[index] == regionId or regionMap[index] < 0)
 
+#endregion
 
-func _IsCellInGrid(cell: Vector2i, gridWidth: int, gridHeight: int) -> bool:
-	return (0 <= cell.x and cell.x < gridWidth) and (0 <= cell.y and cell.y < gridHeight)
+#region Coordinates / Utility
+func _CellCenterToWorld(cell: Vector2i) -> Vector2:
+	return (
+		worldOrigin
+		+ Vector2((float(cell.x) + 0.5) * float(cellSize), (float(cell.y) + 0.5) * float(cellSize))
+	)
+
+
+func _WorldToCell(position: Vector2) -> Vector2i:
+	var local: Vector2 = position - worldOrigin
+	return Vector2i(floori(local.x / float(cellSize)), floori(local.y / float(cellSize)))
 
 
 func _GetPathCost(path: PackedVector2Array) -> float:
@@ -1043,29 +991,8 @@ func _GetPathCost(path: PackedVector2Array) -> float:
 
 #endregion
 
-#endregion
-
-#region Save Navigation Data
-func _SaveNavigationData(data: NavigationData, outputPath: String) -> bool:
-	var directory: String = outputPath.get_base_dir()
-	var absoluteDirectory: String = ProjectSettings.globalize_path(directory)
-
-	var dirError: Error = DirAccess.make_dir_recursive_absolute(absoluteDirectory)
-	if dirError != OK and dirError != ERR_ALREADY_EXISTS:
-		push_error("Navigation 저장 폴더 생성 실패: %s" % directory)
-		return false
-
-	var saveError: Error = ResourceSaver.save(data, outputPath)
-	if saveError != OK:
-		push_error("Navigation Data 저장 실패: %s" % error_string(saveError))
-		return false
-
-	return true
-
-#endregion
-
-func _RouteHeapLess(aIndex: int, bIndex: int, state: RouteSearchState) -> bool:
-	if absf(state.f[aIndex] - state.f[bIndex]) > EPSILON:
+func _HeapLess(aIndex: int, bIndex: int, state: RouteSearchState) -> bool:
+	if absf(state.f[aIndex] - state.f[bIndex]) > Math.EPSILON:
 		return state.f[aIndex] < state.f[bIndex]
 
 	return aIndex < bIndex
