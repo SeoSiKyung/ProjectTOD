@@ -275,3 +275,8 @@ func CommitSimulation(newPosition: Vector2, newVelocity: Vector2, finishOrder: b
 		return
 
 	simVelocity = newVelocity
+
+func _VelocityToAngle(velocity: Vector2) -> int:
+	if velocity == Vector2.ZERO:
+		return -1
+	return posmod(roundi(velocity.angle() * 16.0 / TAU), 16)
