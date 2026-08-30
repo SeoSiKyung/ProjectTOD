@@ -1,4 +1,3 @@
-@tool
 class_name NavigationBaker
 extends Node
 
@@ -11,9 +10,6 @@ extends Node
 @export_range(0.0, 1.0, 0.01) var portalOtherThreshold: float = 0.2
 @export_range(1, 5, 1) var maxPortalAnchors: int = 4
 @export_dir var outputDirectory: String = "res://maps"
-
-@export_tool_button("Bake Navigation")
-var bakeButton: Callable = BakeNavigation
 
 #region Class
 class MaskBakeData:
@@ -69,20 +65,36 @@ class RouteSearchState:
 
 		touchedMap[index] = 1
 		touched.append(index)
+
+
+class RouteHeap extends Heap.IndexedIntHeap:
+	var _state: RouteSearchState
+
+
+	func _init(state: RouteSearchState) -> void:
+		_state = state
+		super(state.heapPosition)
+
+
+	func _Less(a: Variant, b: Variant) -> bool:
+		var aIndex: int = int(a)
+		var bIndex: int = int(b)
+		if absf(_state.f[aIndex] - _state.f[bIndex]) > Math.EPSILON:
+			return _state.f[aIndex] < _state.f[bIndex]
+
+		return aIndex < bIndex
+
 #endregion
 
 #region Public
-func BakeNavigation() -> void:
-	if not Engine.is_editor_hint():
-		return
-
+func BakeNavigation() -> bool:
 	if not _ValidateBakeSettings():
-		return
+		return false
 
 	var outputPath: String = _GetOutputPath()
 	var image: Image = navigationMask.get_image()
 	if not _ValidateBakeImage(image):
-		return
+		return false
 
 	var gridWidth: int = image.get_width() / cellSize
 	var gridHeight: int = image.get_height() / cellSize
@@ -99,7 +111,9 @@ func BakeNavigation() -> void:
 	)
 
 	if not _SaveNavigationData(data, outputPath):
-		return
+		return false
+
+	return true
 
 #endregion
 
@@ -819,10 +833,8 @@ func _FindPortalRoute(
 	state.f[startIndex] = Math.OctileDistance(startCell, targetCell)
 	state.parent[startIndex] = -1
 
-	var heap: Heap = Heap.new(_HeapLess.bind(state), Heap.PackedInt32IndexTracker.new(
-			state.heapPosition
-		))
-	heap.PushOrDecrease(startIndex)
+	var heap: RouteHeap = RouteHeap.new(state)
+	heap.PushOrUpdate(startIndex)
 	while not heap.IsEmpty():
 		var currentIndex: int = int(heap.Pop())
 		if state.closed[currentIndex] != 0:
@@ -899,7 +911,7 @@ func _FindPortalRoute(
 			state.parent[nextIndex] = currentIndex
 			state.f[nextIndex] = (tentativeG + Math.OctileDistance(nextCell, targetCell))
 
-			heap.PushOrDecrease(nextIndex)
+			heap.PushOrUpdate(nextIndex)
 
 	return PackedVector2Array()
 
@@ -990,9 +1002,3 @@ func _GetPathCost(path: PackedVector2Array) -> float:
 	return result
 
 #endregion
-
-func _HeapLess(aIndex: int, bIndex: int, state: RouteSearchState) -> bool:
-	if absf(state.f[aIndex] - state.f[bIndex]) > Math.EPSILON:
-		return state.f[aIndex] < state.f[bIndex]
-
-	return aIndex < bIndex
