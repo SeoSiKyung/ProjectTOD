@@ -97,6 +97,30 @@ class PathSearchState:
 		touched.clear()
 
 
+class PathHeap extends Heap.IndexedIntHeap:
+	var _state: PathSearchState
+
+
+	func _init(state: PathSearchState) -> void:
+		_state = state
+		super(state.heapPosition)
+
+
+	func _Less(a: Variant, b: Variant) -> bool:
+		var aIndex: int = int(a)
+		var bIndex: int = int(b)
+		if absf(_state.f[aIndex] - _state.f[bIndex]) > Math.EPSILON:
+			return _state.f[aIndex] < _state.f[bIndex]
+
+		if absf(_state.turnCost[aIndex] - _state.turnCost[bIndex]) > Math.EPSILON:
+			return _state.turnCost[aIndex] < _state.turnCost[bIndex]
+
+		if absf(_state.h[aIndex] - _state.h[bIndex]) > Math.EPSILON:
+			return _state.h[aIndex] < _state.h[bIndex]
+
+		return aIndex < bIndex
+
+
 class FootprintNavigationMap:
 	var placeableMap: PackedByteArray = PackedByteArray()
 	var componentMap: PackedInt32Array = PackedInt32Array()
@@ -1089,12 +1113,12 @@ func _FindGridPathInternal(
 	_pathState.g[startIndex] = 0.0
 	_pathState.turnCost[startIndex] = 0.0
 
-	var heap: Heap = Heap.new(_HeapLess, Heap.PackedInt32IndexTracker.new(_pathState.heapPosition))
+	var heap: PathHeap = PathHeap.new(_pathState)
 	var startH: float = Math.OctileDistance(startCell, targetCell)
 	_pathState.h[startIndex] = startH
 	_pathState.f[startIndex] = startH * 1.5
 
-	heap.PushOrDecrease(startIndex)
+	heap.PushOrUpdate(startIndex)
 
 	var bestIndex: int = startIndex
 	var bestTargetDistance: float = (
@@ -1210,7 +1234,7 @@ func _FindGridPathInternal(
 			_pathState.h[nextIndex] = h
 			_pathState.f[nextIndex] = tentativeG + h * 1.5
 
-			heap.PushOrDecrease(nextIndex)
+			heap.PushOrUpdate(nextIndex)
 
 	var destinationIndex: int = bestIndex
 	if foundGoal:
@@ -2145,8 +2169,8 @@ func _FindLocalPathsToPortalAnchors(
 	_pathState.h[startIndex] = startH
 	_pathState.f[startIndex] = startH * heuristicWeight
 
-	var heap: Heap = Heap.new(_HeapLess, Heap.PackedInt32IndexTracker.new(_pathState.heapPosition))
-	heap.PushOrDecrease(startIndex)
+	var heap: PathHeap = PathHeap.new(_pathState)
+	heap.PushOrUpdate(startIndex)
 
 	var remainingTargetIndices: Dictionary = { }
 	if not singleTargetMode:
@@ -2294,7 +2318,7 @@ func _FindLocalPathsToPortalAnchors(
 			# Target 하나면 기존 Local A*와 동일하게 1.5 Weighted A*.
 			_pathState.f[nextIndex] = tentativeG + h * heuristicWeight
 
-			heap.PushOrDecrease(nextIndex)
+			heap.PushOrUpdate(nextIndex)
 
 	var loopMs: float = _ProfileMilliseconds(searchStartUs)
 	searchMs = maxf(0.0, loopMs - postMs)
@@ -2593,15 +2617,3 @@ func _ProfileMilliseconds(startUs: int) -> float:
 	return float(Time.get_ticks_usec() - startUs) / 1000.0
 
 #endregion
-
-func _HeapLess(aIndex: int, bIndex: int) -> bool:
-	if absf(_pathState.f[aIndex] - _pathState.f[bIndex]) > Math.EPSILON:
-		return _pathState.f[aIndex] < _pathState.f[bIndex]
-
-	if absf(_pathState.turnCost[aIndex] - _pathState.turnCost[bIndex]) > Math.EPSILON:
-		return _pathState.turnCost[aIndex] < _pathState.turnCost[bIndex]
-
-	if absf(_pathState.h[aIndex] - _pathState.h[bIndex]) > Math.EPSILON:
-		return _pathState.h[aIndex] < _pathState.h[bIndex]
-
-	return aIndex < bIndex

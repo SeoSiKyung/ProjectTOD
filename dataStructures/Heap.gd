@@ -1,80 +1,11 @@
-@tool
+@abstract
 class_name Heap
 extends RefCounted
 
-
-class IndexTracker:
-	func GetPosition(_value: Variant) -> int:
-		return -1
-
-
-	func SetPosition(_value: Variant, _position: int) -> void:
-		pass
-
-
-	func Remove(value: Variant) -> void:
-		SetPosition(value, -1)
-
-
-class PackedInt32IndexTracker extends IndexTracker:
-	var _positions: PackedInt32Array
-
-
-	func _init(positions: PackedInt32Array) -> void:
-		_positions = positions
-
-
-	func GetPositions() -> PackedInt32Array:
-		return _positions
-
-
-	func GetPosition(value: Variant) -> int:
-		var key: int = int(value)
-		if key < 0 or key >= _positions.size():
-			return -1
-
-		return _positions[key]
-
-
-	func SetPosition(value: Variant, position: int) -> void:
-		var key: int = int(value)
-		if key < 0 or key >= _positions.size():
-			push_error("Heap index key is out of range: %d" % key)
-			return
-
-		_positions[key] = position
-
-
-class DictionaryIndexTracker extends IndexTracker:
-	var _positions: Dictionary = { }
-
-
-	func GetPosition(value: Variant) -> int:
-		return int(_positions.get(value, -1))
-
-
-	func SetPosition(value: Variant, position: int) -> void:
-		if position < 0:
-			_positions.erase(value)
-			return
-
-		_positions[value] = position
-
-
 var _values: Array = []
-var _less: Callable
-var _indexTracker: IndexTracker
-var _packedIntPositions: PackedInt32Array = PackedInt32Array()
-var _usePackedIntFastPath: bool = false
 
 
-func _init(less: Callable, indexTracker: IndexTracker = null) -> void:
-	_less = less
-	_indexTracker = indexTracker
-	if indexTracker is PackedInt32IndexTracker:
-		var tracker: PackedInt32IndexTracker = (indexTracker as PackedInt32IndexTracker)
-		_packedIntPositions = tracker.GetPositions()
-		_usePackedIntFastPath = true
+@abstract func _Less(_a: Variant, _b: Variant) -> bool
 
 
 func IsEmpty() -> bool:
@@ -86,9 +17,8 @@ func Size() -> int:
 
 
 func Clear() -> void:
-	if _indexTracker != null:
-		for value: Variant in _values:
-			_indexTracker.Remove(value)
+	for value: Variant in _values:
+		_OnValueRemoved(value)
 
 	_values.clear()
 
@@ -102,33 +32,12 @@ func Peek() -> Variant:
 
 
 func Push(value: Variant) -> void:
-	if _indexTracker != null and _GetPosition(value) >= 0:
-		push_error("Heap already contains the value. " + "Use PushOrDecrease() for indexed heaps.")
-		return
-
 	_values.append(value)
 
 	var position: int = _values.size() - 1
-	_SetPosition(value, position)
+	_OnPositionChanged(value, position)
 
 	_SiftUp(position)
-
-
-func PushOrDecrease(value: Variant) -> bool:
-	if _indexTracker == null:
-		push_error("PushOrDecrease() requires an index tracker.")
-		return false
-
-	var position: int = _GetPosition(value)
-	if position < 0:
-		_values.append(value)
-		position = _values.size() - 1
-		_SetPosition(value, position)
-		_SiftUp(position)
-		return true
-
-	_SiftUp(position)
-	return false
 
 
 func Pop() -> Variant:
@@ -138,34 +47,41 @@ func Pop() -> Variant:
 
 	var root: Variant = _values[0]
 	var last: Variant = _values.pop_back()
-	if _usePackedIntFastPath:
-		_packedIntPositions[int(root)] = -1
-	else:
-		_RemovePosition(root)
+
+	_OnValueRemoved(root)
 
 	if _values.is_empty():
 		return root
 
 	_values[0] = last
-	if _usePackedIntFastPath:
-		_packedIntPositions[int(last)] = 0
-	else:
-		_SetPosition(last, 0)
+	_OnPositionChanged(last, 0)
 
 	_SiftDown(0)
 
 	return root
 
 
+func _Reheapify(position: int) -> void:
+	if not (0 <= position and position < _values.size()):
+		return
+
+	if position > 0:
+		var parentPosition: int = (position - 1) >> 1
+		if _Less(_values[position], _values[parentPosition]):
+			_SiftUp(position)
+			return
+
+	_SiftDown(position)
+
+
 func _SiftUp(position: int) -> void:
 	var index: int = position
 	while index > 0:
-		var parentIndex: int = int(index - 1) >> 1
-		if not bool(_less.call(_values[index], _values[parentIndex])):
+		var parentIndex: int = (index - 1) >> 1
+		if not _Less(_values[index], _values[parentIndex]):
 			break
 
 		_Swap(index, parentIndex)
-
 		index = parentIndex
 
 
@@ -176,18 +92,15 @@ func _SiftDown(position: int) -> void:
 		var left: int = index * 2 + 1
 		var right: int = left + 1
 		var smallest: int = index
-		if left < heapSize:
-			if bool(_less.call(_values[left], _values[smallest])):
-				smallest = left
-		if right < heapSize:
-			if bool(_less.call(_values[right], _values[smallest])):
-				smallest = right
 
+		if left < heapSize and _Less(_values[left], _values[smallest]):
+			smallest = left
+		if right < heapSize and _Less(_values[right], _values[smallest]):
+			smallest = right
 		if smallest == index:
 			break
 
 		_Swap(index, smallest)
-
 		index = smallest
 
 
@@ -196,53 +109,50 @@ func _Swap(a: int, b: int) -> void:
 	_values[a] = _values[b]
 	_values[b] = temp
 
-	if _usePackedIntFastPath:
-		var aKey: int = int(_values[a])
-		var bKey: int = int(_values[b])
-
-		_packedIntPositions[aKey] = a
-		_packedIntPositions[bKey] = b
-		return
-
-	_SetPosition(_values[a], a)
-	_SetPosition(_values[b], b)
+	_OnPositionChanged(_values[a], a)
+	_OnPositionChanged(_values[b], b)
 
 
-func _SetPosition(value: Variant, position: int) -> void:
-	if _usePackedIntFastPath:
-		var key: int = int(value)
-		if not (0 <= key and key < _packedIntPositions.size()):
-			push_error("Heap index key is out of range: %d" % key)
-			return
-
-		_packedIntPositions[key] = position
-		return
-
-	if _indexTracker != null:
-		_indexTracker.SetPosition(value, position)
+func _OnPositionChanged(_value: Variant, _position: int) -> void:
+	pass
 
 
-func _RemovePosition(value: Variant) -> void:
-	if _usePackedIntFastPath:
-		var key: int = int(value)
-		if 0 <= key and key < _packedIntPositions.size():
-			_packedIntPositions[key] = -1
-
-		return
-
-	if _indexTracker != null:
-		_indexTracker.Remove(value)
+func _OnValueRemoved(_value: Variant) -> void:
+	pass
 
 
-func _GetPosition(value: Variant) -> int:
-	if _usePackedIntFastPath:
-		var key: int = int(value)
-		if not (0 <= key and key < _packedIntPositions.size()):
-			return -1
+@abstract class IndexedIntHeap extends Heap:
+	var _positions: PackedInt32Array
 
-		return _packedIntPositions[key]
 
-	if _indexTracker == null:
-		return -1
+	func _init(positions: PackedInt32Array) -> void:
+		_positions = positions
 
-	return _indexTracker.GetPosition(value)
+
+	func Contains(value: int) -> bool:
+		if value < 0 or value >= _positions.size():
+			return false
+
+		return _positions[value] >= 0
+
+
+	func PushOrUpdate(value: int) -> bool:
+		if not (0 <= value and value < _positions.size()):
+			push_error("Heap index key is out of range: %d" % value)
+			return false
+
+		var position: int = _positions[value]
+		if position < 0:
+			Push(value)
+			return true
+
+		_Reheapify(position)
+		return false
+
+
+	func _OnPositionChanged(value: Variant, position: int) -> void:
+		_positions[int(value)] = position
+
+
+	func _OnValueRemoved(value: Variant) -> void:
+		_positions[int(value)] = -1
