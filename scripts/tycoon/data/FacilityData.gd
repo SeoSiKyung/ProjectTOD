@@ -16,6 +16,7 @@ enum Category {
 @export_multiline var description: String = ""
 @export var category: Category = Category.PRODUCTION
 @export var icon: Texture2D
+@export var interactionId: StringName = &""
 
 
 @export_group("Level Based Facility")
@@ -84,3 +85,7 @@ func GetEffectData(level: int) -> FacilityLevelData:
 		return GetLevelData(level)
 
 	return baseData
+
+
+func HasInteraction() -> bool:
+	return interactionId != &""
