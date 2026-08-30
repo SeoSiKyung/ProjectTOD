@@ -4,18 +4,24 @@ extends RefCounted
 const REACH_DISTACNE: float = 1.0
 	
 var _path: PackedVector2Array = PackedVector2Array()
-var _pathIndex: int = 0
+var _originalPathIndex: int = 0
+var _zippedPathIndex: int = 0
 var _goal: Vector2 = Vector2.ZERO
 
 func Set(path) -> void:
 	_path = path
-	_pathIndex = 0
+	_initIndex()
 	_goal = path[path.size() - 1]
 
 func Clear() -> void:
 	_path.clear()
-	_pathIndex = 0
+	_initIndex()
 	_goal = Vector2.ZERO
+	
+func _initIndex() -> void:
+	_originalPathIndex = 0
+	_zippedPathIndex = 0
+	
 	
 func IsEmpty() -> bool:
 	return _path.is_empty()
