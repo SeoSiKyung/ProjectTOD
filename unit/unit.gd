@@ -1,34 +1,34 @@
 extends Node2D
 class_name Unit
 
-const footprintSize: Vector2 = Vector2(32.0, 32.0)
+const footprintSize: int = 32
 
 @export var unitId: int = 0
 @export var playerControllable: bool = true
-@export var moveSpeed: float = 96.0
 @export var direction: int = 0
 
-@onready var movement: MovementComponent = $MovementComponent
-@onready var fsm: UnitFSM = $UnitFSM
+
+
+@onready var _fsm: UnitFSM = $UnitFSM
 
 func _ready() -> void:
-	fsm.BindUnit(self)
+	_fsm.BindUnit(self)
 	add_to_group("unit")
 
-func GetHalfSize() -> Vector2:
+func GetHalfSize() -> int:
 	return footprintSize * 0.5
 
 func CanReceiveCommands() -> bool:
-	return fsm != null and fsm.CanReceiveCommands()
+	return _fsm != null and _fsm.CanReceiveCommands()
 
 func ApplyStun(duration: float) -> void:
-	if fsm == null:
+	if _fsm == null:
 		return
 
-	fsm.ApplyStun(duration)
+	_fsm.ApplyStun(duration)
 
 func Die() -> void:
-	if fsm == null:
+	if _fsm == null:
 		return
 
-	fsm.Die()
+	_fsm.Die()
