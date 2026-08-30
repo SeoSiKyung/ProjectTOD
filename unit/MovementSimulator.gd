@@ -1,5 +1,5 @@
 class_name MovementSimulator
-extends Node
+extends Resource
 
 const EPSILON: float = 0.00001
 const COLLISION_EPSILON: float = 0.0001
@@ -67,19 +67,8 @@ class PairMemory:
 	var lastTick: int = 0
 
 
-func _ready() -> void:
-	Engine.physics_ticks_per_second = fixedTickRate
-
-	if navigationService == null:
-		var parent: Node = get_parent()
-
-		if parent != null:
-			var node: Node = parent.get_node_or_null("NavigationService")
-
-			if node is NavigationService:
-				navigationService = node as NavigationService
-
-	call_deferred("_RegisterSceneUnits")
+func SetNavigationService(naviService: NavigationService) -> void:
+	navigationService = naviService
 
 
 func _physics_process(delta: float) -> void:

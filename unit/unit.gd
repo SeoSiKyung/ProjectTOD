@@ -6,7 +6,6 @@ class_name Unit
 @export var playerControllable: bool = true
 @export var moveSpeed: float = 96.0
 
-@onready var movement: MovementComponent = $MovementComponent
 @onready var fsm: UnitFSM = $UnitFSM
 
 

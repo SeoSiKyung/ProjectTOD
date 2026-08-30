@@ -3,13 +3,13 @@ extends RefCounted
 
 const MIN_SPATIAL_CELL_SIZE: float = 0.001
 
-var _spatialCellSize: float = 1.0
+var _spatialCellSize: float = 64.0
 var _positionsByUnitId: Dictionary[int, Vector2] = {}
 var _unitIds: Array[int] = []
 var _spatialIndex: Dictionary[Vector2i, Array] = {}
 
 
-func _init(tick: int, positionsByUnitId: Dictionary[int, Vector2], spatialCellSize: float) -> void:	if spatialCellSize <= 0.0:
+func Ready(tick: int, positionsByUnitId: Dictionary[int, Vector2], spatialCellSize: float = 64.0) -> void:
 	_spatialCellSize = maxf(spatialCellSize, MIN_SPATIAL_CELL_SIZE)
 
 	for unitId: int in positionsByUnitId:
