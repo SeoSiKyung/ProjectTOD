@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FacilityData" format=3]
+
+[ext_resource type="Script" path="res://scripts/tycoon/data/FacilityLevelData.gd" id="1_6evrw"]
+[ext_resource type="Script" path="res://scripts/tycoon/data/FacilityData.gd" id="2_45ekc"]
+
+[resource]
+script = ExtResource("2_45ekc")
+id = &"tavern"
+displayName = "술집"
+description = "용병을 고용하고 관련 기능을 이용하는 시설입니다."
+category = 0
+interactionId = &"mercenary_recruitment"

@@ -26,53 +26,73 @@ func RequestBuild(settlement: SettlementState, facilityId: StringName) -> bool:
 		push_warning("FacilitySystem: 시설 데이터를 찾을 수 없습니다: %s" % facilityId)
 		return false
 
-	# 기본 시설은 플레이어가 건설할 수 없음
+	# =====================================================
+	# BASIC 시설은 플레이어가 건설할 수 없음
+	# =====================================================
 	if not facilityData.IsPlayerBuildable():
 		push_warning("FacilitySystem: 플레이어가 건설할 수 없는 시설입니다: %s" % facilityId)
 		return false
 
-	# 이미 존재하거나 건설 중
+	# =====================================================
+	# 동일 시설 중복 건설 불가
+	# =====================================================
 	if settlement.GetFacility(facilityId) != null:
-		push_warning("FacilitySystem: 이미 존재하거나 건설 중인 시설입니다: %s" % facilityId)
+		push_warning("FacilitySystem: 이미 존재하는 시설입니다: %s" % facilityId)
 		return false
 
+	# =====================================================
+	# 기능시설 제한 검사
+	# =====================================================
+	if facilityData.category == FacilityData.Category.FUNCTIONAL:
+		if not _CanBuildFunctionalFacility(settlement, facilityData):
+			return false
+
+	# =====================================================
+	# 건설 데이터
+	# =====================================================
 	var buildData := facilityData.GetBuildData()
 
 	if buildData == null:
-		push_warning("FacilitySystem: 건설 데이터가 없습니다: %s" % facilityId)
+		push_warning("FacilitySystem: 건설 데이터를 찾을 수 없습니다: %s" % facilityId)
 		return false
 
-	# 기능 시설 총 10개
-	if (
-		facilityData.category == FacilityData.Category.FUNCTIONAL
-		and _GetFunctionalFacilityCount(settlement) >= 10
-	):
-		push_warning("FacilitySystem: 기능 시설은 최대 10개까지 건설할 수 있습니다.")
-		return false
-
+	# =====================================================
+	# 자원 검사
+	# =====================================================
 	if not _CanAfford(settlement, buildData):
-		push_warning("FacilitySystem: 자원이 부족합니다: %s" % facilityId)
+		push_warning("FacilitySystem: 건설 자원이 부족합니다: %s" % facilityId)
 		return false
 
+	# =====================================================
+	# 비용 지불
+	# =====================================================
 	_PayCost(settlement, buildData)
 
-	var facilityState := FacilityState.new(facilityId, 0, FacilityState.Status.CONSTRUCTING)
+	# =====================================================
+	# FacilityState 생성
+	# =====================================================
+	var facilityState := FacilityState.new()
+
+	facilityState.facilityId = facilityId
+	facilityState.level = 0
+	facilityState.status = FacilityState.Status.CONSTRUCTING
 
 	settlement.facilities.append(facilityState)
 
-	# 레벨 시설이면 Lv1 건설
-	# 레벨 없는 시설이면 0 그대로
-	var targetLevel := 0
+	# =====================================================
+	# ConstructionTask 생성
+	# =====================================================
+	var task := ConstructionTask.new()
+
+	task.facilityId = facilityId
+	task.taskType = ConstructionTask.TaskType.BUILD
 
 	if facilityData.IsLevelBased():
-		targetLevel = 1
+		task.targetLevel = 1
+	else:
+		task.targetLevel = 0
 
-	var task := ConstructionTask.new(
-		facilityId,
-		ConstructionTask.TaskType.BUILD,
-		targetLevel,
-		buildData.constructionTurns,
-	)
+	task.remainingTurns = buildData.constructionTurns
 
 	settlement.constructionTasks.append(task)
 
@@ -181,6 +201,50 @@ func _GetFunctionalFacilityCount(settlement: SettlementState) -> int:
 			continue
 
 		if facilityData.category == FacilityData.Category.FUNCTIONAL:
+			count += 1
+
+	return count
+
+
+func _CanBuildFunctionalFacility(settlement: SettlementState, facilityData: FacilityData) -> bool:
+	# =====================================================
+	# 기능시설 전체 최대 10개
+	# =====================================================
+	var functionalCount: int = (_GetFunctionalFacilityCount(settlement))
+
+	if functionalCount >= 10:
+		push_warning("FacilitySystem: 기능시설은 최대 10개까지 건설할 수 있습니다.")
+		return false
+
+	# =====================================================
+	# 그룹 제한이 없는 시설
+	# =====================================================
+	if (facilityData.groupId == &"" or facilityData.groupMaxCount <= 0):
+		return true
+
+	# =====================================================
+	# 같은 그룹 시설 개수 확인
+	# =====================================================
+	var groupCount: int = _GetFacilityGroupCount(settlement, facilityData.groupId)
+
+	if groupCount >= facilityData.groupMaxCount:
+		push_warning("FacilitySystem: 시설 그룹 제한을 초과했습니다. Group: %s" % facilityData.groupId)
+
+		return false
+
+	return true
+
+
+func _GetFacilityGroupCount(settlement: SettlementState, groupId: StringName) -> int:
+	var count: int = 0
+
+	for facilityState in settlement.facilities:
+		var facilityData := (_facilityCatalog.GetFacilityData(facilityState.facilityId))
+
+		if facilityData == null:
+			continue
+
+		if facilityData.groupId == groupId:
 			count += 1
 
 	return count
