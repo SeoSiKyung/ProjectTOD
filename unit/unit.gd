@@ -7,8 +7,6 @@ const footprintSize: int = 32
 @export var playerControllable: bool = true
 @export var direction: int = 0
 
-
-
 @onready var _fsm: UnitFSM = $UnitFSM
 
 func _ready() -> void:

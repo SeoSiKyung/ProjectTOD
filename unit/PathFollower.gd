@@ -3,13 +3,9 @@ extends RefCounted
 
 const REACH_DISTACNE: float = 1.0
 	
-var _agent: MovementAgent = null
 var _path: PackedVector2Array = PackedVector2Array()
 var _pathIndex: int = 0
 var _goal: Vector2 = Vector2.ZERO
-
-func _init(agent: MovementAgent) -> void:
-	_agent = agent
 
 func Set(path) -> void:
 	_path = path
@@ -39,3 +35,5 @@ func _getCurrentWaypoint() -> Vector2:
 func UpdateIndex(curPosition) -> void:
 	if (curPosition - _getCurrentWaypoint()).length() > REACH_DISTACNE:
 		_pathIndex += 1
+		if _pathIndex >= _path.size():
+			Clear()
