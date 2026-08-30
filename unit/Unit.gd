@@ -6,8 +6,9 @@ class_name Unit
 @export var playerControllable: bool = true
 @export var moveSpeed: float = 96.0
 
-@onready var movement: MovementComponent = $MovementComponent
 @onready var fsm: UnitFSM = $UnitFSM
+
+var _sceneManager: OffenseSceneManager
 
 
 func _ready() -> void:
@@ -25,6 +26,29 @@ func GetHalfSize() -> int:
 
 func CanReceiveCommands() -> bool:
 	return fsm != null and fsm.CanReceiveCommands()
+
+
+func BindSceneManager(sceneManager: OffenseSceneManager) -> void:
+	_sceneManager = sceneManager
+
+
+func IsMoving() -> bool:
+	return is_instance_valid(_sceneManager) and _sceneManager.IsUnitMoving(unitId)
+
+
+func PauseMovement() -> void:
+	if is_instance_valid(_sceneManager):
+		_sceneManager.PauseUnit(unitId)
+
+
+func ResumeMovement() -> void:
+	if is_instance_valid(_sceneManager):
+		_sceneManager.ResumeUnit(unitId)
+
+
+func StopMovement() -> void:
+	if is_instance_valid(_sceneManager):
+		_sceneManager.StopUnit(unitId)
 
 
 func ApplyStun(duration: float) -> void:

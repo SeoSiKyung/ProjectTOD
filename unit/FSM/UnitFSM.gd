@@ -144,7 +144,7 @@ func ReturnFromAttackOutOfRange() -> void:
 
 	if (
 		attackReturnState == State.ATTACK_MOVE and _unit != null
-		and _unit.movement != null and _unit.movement.IsMoving()
+		and _unit.IsMoving()
 	):
 		_attackTarget = null
 		_ChangeState(State.ATTACK_MOVE)
@@ -164,7 +164,7 @@ func FinishAttack() -> void:
 
 	if (
 		attackReturnState == State.ATTACK_MOVE and _unit != null
-		and _unit.movement != null and _unit.movement.IsMoving()
+		and _unit.IsMoving()
 	):
 		_attackTarget = null
 		_ChangeState(State.ATTACK_MOVE)
@@ -187,8 +187,8 @@ func ApplyStun(duration: float) -> void:
 	_stateBeforeStun = currentState
 	_stunTimeLeft = duration
 
-	if _unit != null and _unit.movement != null:
-		_unit.movement.Pause()
+	if _unit != null:
+		_unit.PauseMovement()
 
 	_ChangeState(State.STUN)
 
@@ -201,18 +201,18 @@ func Die() -> void:
 	_stateBeforeStun = State.IDLE
 	_ClearTargets()
 
-	if _unit != null and _unit.movement != null:
-		_unit.movement.Stop()
+	if _unit != null:
+		_unit.StopMovement()
 
 	_ChangeState(State.DIE)
 
 
 func _UpdateMove() -> void:
-	if _unit == null or _unit.movement == null:
+	if _unit == null:
 		_EnterIdleInternal()
 		return
 
-	if _unit.movement.IsIdle():
+	if not _unit.IsMoving():
 		_EnterIdleInternal()
 
 
@@ -227,11 +227,11 @@ func _UpdateChase() -> void:
 
 
 func _UpdateAttackMove() -> void:
-	if _unit == null or _unit.movement == null:
+	if _unit == null:
 		_EnterIdleInternal()
 		return
 
-	if _unit.movement.IsIdle():
+	if not _unit.IsMoving():
 		_EnterIdleInternal()
 
 
@@ -253,8 +253,8 @@ func _ResumeAfterStun() -> void:
 	var resumeState: State = _stateBeforeStun
 	_stateBeforeStun = State.IDLE
 
-	if _unit != null and _unit.movement != null:
-		_unit.movement.Resume()
+	if _unit != null:
+		_unit.ResumeMovement()
 
 	match resumeState:
 		State.MOVE:
@@ -286,7 +286,7 @@ func _ResumeAfterStun() -> void:
 
 
 func _HasActiveMovement() -> bool:
-	return (_unit != null and _unit.movement != null and _unit.movement.IsMoving())
+	return _unit != null and _unit.IsMoving()
 
 
 func _EnterIdleInternal() -> void:

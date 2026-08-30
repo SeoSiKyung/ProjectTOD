@@ -126,3 +126,7 @@ static func _CalculateStatDamage(atk: int, def: int) -> int:
 	return maxi(atk - def, 0)
 
 #endregion
+
+
+static func IsOpposite(a: Vector2, b: Vector2) -> bool:
+	return a.dot(b) < 0.0

@@ -1,12 +1,10 @@
 [gd_scene format=3 uid="uid://dpkmyj5hdm0op"]
 
 [ext_resource type="Script" uid="uid://djxreqs452a78" path="res://scene/OffenseScene.gd" id="1_wohdj"]
+[ext_resource type="Script" uid="uid://m2o4pkycw032" path="res://scripts/OffenseStage/OffenseSceneManager.gd" id="2_2y21u"]
 [ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/CommandController.gd" id="3_dlxae"]
 [ext_resource type="Resource" uid="uid://3owe0xgpa1kn" path="res://maps/2_navigation.res" id="4_8rkap"]
-[ext_resource type="Script" uid="uid://b7ert7hoc8245" path="res://unit/MovementSimulator.gd" id="4_jaojb"]
-[ext_resource type="Script" uid="uid://bhe58qkgp1ycw" path="res://unit/MovementController.gd" id="5_dgir3"]
-[ext_resource type="Script" uid="uid://u3wgqxb8j2fh" path="res://unit/NavigationService.gd" id="5_j4bn1"]
-[ext_resource type="PackedScene" uid="uid://dd6c3nmhvvai0" path="res://unit/Unit.tscn" id="5_wohdj"]
+[ext_resource type="PackedScene" uid="uid://dd6c3nmhvvai0" path="res://unit/unit.tscn" id="5_wohdj"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="6_8rkap"]
 [ext_resource type="Script" uid="uid://dwb6dp01f41m8" path="res://unit/SelectController.gd" id="8_u7dgu"]
 [ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPanel.gd" id="11_o4skl"]
@@ -14,18 +12,14 @@
 [node name="OffenseScene" type="Node2D" unique_id=2102705416]
 script = ExtResource("1_wohdj")
 
+[node name="OffenseSceneManager" type="Node" parent="." unique_id=1633750739 node_paths=PackedStringArray("unitRoot")]
+script = ExtResource("2_2y21u")
+unitRoot = NodePath("../UnitRoot")
+navigationData = ExtResource("4_8rkap")
+metadata/_custom_type_script = "uid://bpyeqqn1v2hxr"
+
 [node name="CommandController" type="Node" parent="." unique_id=496005023]
 script = ExtResource("3_dlxae")
-
-[node name="NavigationService" type="Node" parent="." unique_id=1934783211]
-script = ExtResource("5_j4bn1")
-navigationData = ExtResource("4_8rkap")
-
-[node name="MovementSimulator" type="Node" parent="." unique_id=1834251702]
-script = ExtResource("4_jaojb")
-
-[node name="MovementController" type="Node2D" parent="." unique_id=68440326]
-script = ExtResource("5_dgir3")
 
 [node name="2" type="Sprite2D" parent="." unique_id=1085897008]
 texture = ExtResource("6_8rkap")
@@ -38,22 +32,24 @@ script = ExtResource("8_u7dgu")
 anchor_mode = 0
 zoom = Vector2(0.5, 0.27)
 
-[node name="Unit0" parent="." unique_id=1678754068 instance=ExtResource("5_wohdj")]
+[node name="UnitRoot" type="Node2D" parent="." unique_id=915067606]
+
+[node name="Unit0" parent="UnitRoot" unique_id=1678754068 instance=ExtResource("5_wohdj")]
 position = Vector2(500, 461)
 
-[node name="Unit1" parent="." unique_id=1504537226 instance=ExtResource("5_wohdj")]
+[node name="Unit1" parent="UnitRoot" unique_id=1504537226 instance=ExtResource("5_wohdj")]
 position = Vector2(506, 521)
 unitId = 1
 
-[node name="Unit2" parent="." unique_id=902946586 instance=ExtResource("5_wohdj")]
+[node name="Unit2" parent="UnitRoot" unique_id=902946586 instance=ExtResource("5_wohdj")]
 position = Vector2(543, 476)
 unitId = 2
 
-[node name="Unit3" parent="." unique_id=1187485307 instance=ExtResource("5_wohdj")]
+[node name="Unit3" parent="UnitRoot" unique_id=1187485307 instance=ExtResource("5_wohdj")]
 position = Vector2(516, 395)
 unitId = 3
 
-[node name="Unit4" parent="." unique_id=22581196 instance=ExtResource("5_wohdj")]
+[node name="Unit4" parent="UnitRoot" unique_id=22581196 instance=ExtResource("5_wohdj")]
 position = Vector2(571, 427)
 unitId = 4
 

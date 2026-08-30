@@ -824,7 +824,6 @@ func _MakePortalRoutes(
 							continue
 
 						var cost: float = _GetPathCost(path)
-						path = _CompressPortalPath(path)
 
 						var route: NavigationPortalRouteData = NavigationPortalRouteData.new()
 						route.regionId = region.id
@@ -944,26 +943,6 @@ func _FindPortalRoute(
 			heap.PushOrUpdate(nextIndex)
 
 	return PackedVector2Array()
-
-
-func _CompressPortalPath(path: PackedVector2Array) -> PackedVector2Array:
-	if path.size() <= 2:
-		return path
-
-	var result: PackedVector2Array = PackedVector2Array()
-	result.append(path[0])
-
-	var previousDirection: Vector2 = (path[1] - path[0]).normalized()
-	for index: int in range(1, path.size() - 1):
-		var nextDirection: Vector2 = (path[index + 1] - path[index]).normalized()
-		if not previousDirection.is_equal_approx(nextDirection):
-			result.append(path[index])
-
-		previousDirection = nextDirection
-
-	result.append(path[path.size() - 1])
-
-	return result
 
 
 func _ReconstructPortalRoute(
