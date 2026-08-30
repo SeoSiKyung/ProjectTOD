@@ -19,7 +19,7 @@ signal chaseCommandIssued(units, target)
 signal attackMoveCommandIssued(units, targetWorld)
 signal skillCommandIssued(units, targetWorld, targetUnit, skillSlot)
 
-@export var movementController: MovementController
+@export var offenseSceneManager: OffenseSceneManager
 @export var selectController: SelectController
 @export var moveClickEffectScene: PackedScene
 @export var trackingRefreshInterval: float = 0.1
@@ -38,11 +38,14 @@ func _ready() -> void:
 	var parent: Node = get_parent()
 
 	if parent != null:
-		if movementController == null:
-			var movementNode: Node = parent.get_node_or_null("MovementController")
+		if offenseSceneManager == null:
+			if parent is OffenseSceneManager:
+				offenseSceneManager = parent as OffenseSceneManager
+			else:
+				var sceneManagerNode: Node = parent.get_node_or_null("OffenseSceneManager")
 
-			if movementNode is MovementController:
-				movementController = movementNode as MovementController
+				if sceneManagerNode is OffenseSceneManager:
+					offenseSceneManager = sceneManagerNode as OffenseSceneManager
 
 		if selectController == null:
 			var selectNode: Node = parent.get_node_or_null("SelectController")
@@ -123,7 +126,7 @@ func IssueSmartCommandAt(targetWorld: Vector2) -> bool:
 
 
 func IssueMoveCommand(targetWorld: Vector2) -> int:
-	if movementController == null:
+	if offenseSceneManager == null:
 		return -1
 
 	var units: Array[Unit] = _GetCommandableSelectedUnits()
@@ -133,18 +136,24 @@ func IssueMoveCommand(targetWorld: Vector2) -> int:
 
 	_ClearTrackingForUnits(units)
 
-	var orderId: int = movementController.IssueMoveOrder(units, targetWorld)
+	var commandId: int = offenseSceneManager.IssueMoveCommand(units, targetWorld)
 
-	if orderId >= 0:
-		_ShowMoveClickEffect(targetWorld)
+	if commandId < 0:
+		return commandId
 
-	return orderId
+	for unit: Unit in units:
+		if unit.fsm != null:
+			unit.fsm.RequestMove()
+
+	_ShowMoveClickEffect(targetWorld)
+
+	return commandId
 
 
 func IssueStopCommand() -> int:
 	CancelTargetingCommand()
 
-	if movementController == null:
+	if offenseSceneManager == null:
 		return -1
 
 	var units: Array[Unit] = _GetCommandableSelectedUnits()
@@ -154,14 +163,14 @@ func IssueStopCommand() -> int:
 
 	_ClearTrackingForUnits(units)
 
-	return movementController.IssueStopOrder(units)
+	return offenseSceneManager.IssueStopCommand(units)
 
 
 func IssueFollowCommand(target: Unit) -> bool:
 	if not _IsValidUnitTarget(target):
 		return false
 
-	if movementController == null:
+	if offenseSceneManager == null:
 		return false
 
 	var units: Array[Unit] = _GetCommandableSelectedUnits()
@@ -178,9 +187,9 @@ func IssueFollowCommand(target: Unit) -> bool:
 
 	_ClearTrackingForUnits(followers)
 
-	var orderId: int = movementController.IssueTrackingMoveOrder(followers, target.global_position)
+	var commandId: int = offenseSceneManager.IssueMoveCommand(followers, target.global_position)
 
-	if orderId < 0:
+	if commandId < 0:
 		return false
 
 	var acceptedUnits: Array[Unit] = []
@@ -206,7 +215,7 @@ func IssueChaseCommand(target: Unit) -> bool:
 	if not _IsHostileTarget(target):
 		return false
 
-	if movementController == null:
+	if offenseSceneManager == null:
 		return false
 
 	var units: Array[Unit] = _GetCommandableSelectedUnits()
@@ -216,9 +225,9 @@ func IssueChaseCommand(target: Unit) -> bool:
 
 	_ClearTrackingForUnits(units)
 
-	var orderId: int = movementController.IssueTrackingMoveOrder(units, target.global_position)
+	var commandId: int = offenseSceneManager.IssueMoveCommand(units, target.global_position)
 
-	if orderId < 0:
+	if commandId < 0:
 		return false
 
 	var acceptedUnits: Array[Unit] = []
@@ -245,7 +254,7 @@ func IssueAttackCommand(target: Unit) -> bool:
 
 
 func IssueAttackMoveCommand(targetWorld: Vector2) -> bool:
-	if movementController == null:
+	if offenseSceneManager == null:
 		return false
 
 	var units: Array[Unit] = _GetCommandableSelectedUnits()
@@ -255,9 +264,9 @@ func IssueAttackMoveCommand(targetWorld: Vector2) -> bool:
 
 	_ClearTrackingForUnits(units)
 
-	var orderId: int = movementController.IssueTrackingMoveOrder(units, targetWorld)
+	var commandId: int = offenseSceneManager.IssueMoveCommand(units, targetWorld)
 
-	if orderId < 0:
+	if commandId < 0:
 		return false
 
 	var acceptedUnits: Array[Unit] = []
@@ -388,10 +397,10 @@ func _HandleMouseInput(mouseEvent: InputEventMouseButton) -> void:
 
 
 func _RefreshTrackingOrders() -> void:
-	if movementController == null:
+	if offenseSceneManager == null:
 		return
 
-	if movementController.simulator == null:
+	if not offenseSceneManager.IsReady():
 		return
 
 	var groups: Dictionary[String, Array] = { }
@@ -401,7 +410,7 @@ func _RefreshTrackingOrders() -> void:
 	var repathDistance: float = maxf(trackingRepathDistance, 1.0)
 
 	for unitId: int in _trackingTargetByUnit:
-		var unit: Unit = movementController.simulator.GetUnit(unitId)
+		var unit: Unit = offenseSceneManager.GetUnit(unitId)
 		var target: Unit = _trackingTargetByUnit[unitId]
 
 		if unit == null or not is_instance_valid(unit):
@@ -447,7 +456,7 @@ func _RefreshTrackingOrders() -> void:
 			invalidUnitIds.append(unit.unitId)
 			unit.fsm.RequestIdle()
 
-		movementController.simulator.StopUnits(invalidUnitIds)
+		offenseSceneManager.StopUnits(PackedInt32Array(invalidUnitIds))
 
 	for groupKey: String in groups:
 		var target: Unit = targetByGroup[groupKey]
@@ -460,9 +469,9 @@ func _RefreshTrackingOrders() -> void:
 		if units.is_empty():
 			continue
 
-		var orderId: int = movementController.IssueTrackingMoveOrder(units, target.global_position)
+		var commandId: int = offenseSceneManager.IssueMoveCommand(units, target.global_position)
 
-		if orderId < 0:
+		if commandId < 0:
 			continue
 
 		for unit: Unit in units:
@@ -577,7 +586,7 @@ func _IsHostileTarget(target: Unit) -> bool:
 	return _IsValidUnitTarget(target) and not target.playerControllable
 
 
-func _OnSelectionChanged(selectedUnits: Variant) -> void:
+func _OnSelectionChanged(_selectedUnits: Variant) -> void:
 	if _HasCommandableSelection():
 		return
 

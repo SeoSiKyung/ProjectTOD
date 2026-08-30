@@ -144,11 +144,11 @@ func _OnSkillPressed() -> void:
 	_Refresh()
 
 
-func _OnCommandModeChanged(mode: int) -> void:
+func _OnCommandModeChanged(_mode: int) -> void:
 	_Refresh()
 
 
-func _OnSelectionChanged(selectedUnits: Variant) -> void:
+func _OnSelectionChanged(_selectedUnits: Variant) -> void:
 	_Refresh()
 
 

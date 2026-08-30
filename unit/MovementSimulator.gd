@@ -1,1324 +1,919 @@
 class_name MovementSimulator
-extends Node
+extends RefCounted
 
-const EPSILON: float = 0.00001
-const COLLISION_EPSILON: float = 0.0001
-const PAIR_MEMORY_TICKS: int = 90
-const AVOID_PRIMARY_ANGLE: float = 0.78539816339
-const AVOID_SMALL_ANGLE: float = 0.3490658504
-const AVOID_MEDIUM_ANGLE: float = 0.5235987756
-const AVOID_LARGE_ANGLE: float = 1.0471975512
-const AVOID_WIDE_ANGLE: float = 1.308996939
-const AVOID_SIDE_ANGLE: float = 1.57079632679
-const AVOID_REAR_SOFT_ANGLE: float = 2.09439510239
-const AVOID_REAR_MEDIUM_ANGLE: float = 2.35619449019
-const AVOID_REAR_WIDE_ANGLE: float = 2.61799387799
-const AVOID_REVERSE_ANGLE: float = 3.14159265359
-const ARRIVAL_MAX_AVOID_ANGLE: float = 1.0471975512
-const STATIC_BLOCKER_STEP_THRESHOLD: float = 0.25
-const NEIGHBOR_MARGIN: float = 8.0
-const REPATH_RETRY_TICKS: int = 4
-const REPATH_GOAL_TOLERANCE: float = 2.0
-const MOTION_BLOCKED: int = 0
-const MOTION_RESOLVED: int = 1
-const MOTION_MAP_BLOCKED: int = 2
+const INVALID_INDEX: int = -1
+const MAX_INT32_VALUE: int = 2147483647
+const AVOIDANCE_ITERATION_COUNT: int = 4
+const SAME_DIRECTION_DOT: float = 0.8
+const FOLLOW_SPEED_SCALE: float = 0.5
+const COLLISION_MARGIN: float = 0.001
+const SETTLE_REQUIRED_TICKS: int = 12
+const SETTLE_MAX_SPEED: float = 1.0
+const SETTLE_LATERAL_CHECK_SCALE: float = 2.0
+const AVOIDANCE_DISTANCE_RATIOS: Array[float] = [1.0, 0.75, 0.5, 0.25]
 
-@export var navigationService: NavigationService
+var _navigationService: NavigationService
+var _agents: Array[MovementAgent] = []
+var _agentIndexByUnitId: Dictionary[int, int] = {}
 
-@export_range(30, 240, 1)
-var fixedTickRate: int = 60
+var _startPositions: PackedVector2Array = []
+var _desiredPositions: PackedVector2Array = []
+var _workingPositions: PackedVector2Array = []
+var _nextPositions: PackedVector2Array = []
+var _avoidanceDirections: PackedVector2Array = []
+var _avoidanceSpeedScales: PackedFloat32Array = []
 
-@export var simulationQuantum: float = 1.0 / 1024.0
-@export var candidateSpatialCellSize: float = 64.0
-@export_range(0.8, 1.0, 0.1) var minAvoidSpeedRatio: float = 0.8
-@export_range(0.0, 1.0, 0.05) var avoidPreviousVelocityWeight: float = 0.45
-@export_range(0.0, 1.0, 0.05) var avoidSideChangePenalty: float = 0.2
+var _collisionFlags: PackedByteArray = []
+var _hardStopFlags: PackedByteArray = []
+var _arrivalBlockedFlags: PackedByteArray = []
+var _neighborQueryStamps: PackedInt32Array = []
 
-var simulationTick: int = 0
-
-var _units: Dictionary[int, Unit] = { }
-var _sortedUnitIds: Array[int] = []
-var _orders: Dictionary[int, MoveOrder] = { }
-var _avoidanceByUnit: Dictionary[int, AvoidancePlan] = { }
-var _pairMemory: Dictionary[Vector2i, PairMemory] = { }
-var _nextRepathTickByUnit: Dictionary[int, int] = { }
-
-var _cachedAvoidSpeedRatios: Array[float] = []
-var _cachedMinAvoidSpeedRatio: float = -1.0
+var _collisionFirstAgentIndices: PackedInt32Array = []
+var _collisionSecondAgentIndices: PackedInt32Array = []
+var _sweptAgentIndicesByCell: Dictionary[Vector2i, PackedInt32Array] = {}
+var _queryStamp: int = 0
 
 
-class Snapshot:
-	var unitId: int = -1
-	var position: Vector2 = Vector2.ZERO
-	var halfSize: int = 0
+func _init(navigationService: NavigationService) -> void:
+	SetNavigationService(navigationService)
 
 
-class AvoidancePlan:
-	var otherId: int = -1
-	var side: int = 1
-	var selectedAngle: float = 0.78539816339
+func SetNavigationService(navigationService: NavigationService) -> void:
+	_navigationService = navigationService
+	PathFollower.SetNavigationService(navigationService)
 
 
-class PairMemory:
-	var lowId: int = -1
-	var highId: int = -1
-	var lowSide: int = 1
-	var highSide: int = 1
-	var lastTick: int = 0
+func RegisterAgent(agent: MovementAgent) -> bool:
+	if not is_instance_valid(agent):
+		push_error("유효하지 않은 MovementAgent는 등록할 수 없습니다.")
+		return false
+
+	if agent.unitId < 0 or agent.unitId > MAX_INT32_VALUE:
+		push_error("MovementAgent의 unitId가 유효하지 않습니다.")
+		return false
+
+	if agent.moveSpeed < 0:
+		push_error("MovementAgent의 moveSpeed는 0 이상이어야 합니다.")
+		return false
+
+	if agent.halfSize < 0 or agent.halfSize > MAX_INT32_VALUE:
+		push_error("MovementAgent의 halfSize가 PackedInt32Array 범위를 벗어났습니다.")
+		return false
+
+	if _agentIndexByUnitId.has(agent.unitId):
+		push_error("MovementSimulator에 unitId %d가 이미 등록되어 있습니다." % agent.unitId)
+		return false
+
+	if _agents.has(agent):
+		push_error("같은 MovementAgent가 이미 등록되어 있습니다.")
+		return false
+
+	if is_instance_valid(_navigationService) and not _navigationService.CanPlaceStatic(agent.position, agent.halfSize):
+		push_error("정적 장애물과 겹치는 위치에는 MovementAgent를 등록할 수 없습니다.")
+		return false
+
+	if _wouldOverlapAgent(agent.position, agent.halfSize, agent.unitId):
+		push_error("다른 MovementAgent와 겹치는 위치에는 등록할 수 없습니다.")
+		return false
+
+	_agentIndexByUnitId[agent.unitId] = _agents.size()
+	_agents.append(agent)
+	return true
 
 
-func _ready() -> void:
-	Engine.physics_ticks_per_second = fixedTickRate
+func UnregisterAgent(unitId: int) -> MovementAgent:
+	var index: int = _agentIndexByUnitId.get(unitId, INVALID_INDEX)
 
-	if navigationService == null:
-		var parent: Node = get_parent()
-
-		if parent != null:
-			var node: Node = parent.get_node_or_null("NavigationService")
-
-			if node is NavigationService:
-				navigationService = node as NavigationService
-
-	call_deferred("_RegisterSceneUnits")
-
-
-func _physics_process(delta: float) -> void:
-	if navigationService == null:
-		return
-
-	if not navigationService.IsReady():
-		return
-
-	var dt: float = 1.0 / float(fixedTickRate)
-	simulationTick += 1
-	_CleanupPairMemory()
-
-	var orderIds: Array[int] = []
-
-	for orderId: int in _orders:
-		orderIds.append(orderId)
-
-	orderIds.sort()
-
-	var candidates: Array[MoveOrder.MovementCandidate] = []
-
-	for orderId: int in orderIds:
-		if not _orders.has(orderId):
-			continue
-
-		var order: MoveOrder = _orders[orderId]
-
-		if simulationTick < order.issuedTick:
-			continue
-
-		var orderCandidates: Array[MoveOrder.MovementCandidate] = order.Simulate(dt, _units)
-
-		for candidate: MoveOrder.MovementCandidate in orderCandidates:
-			candidates.append(candidate)
-
-	_ResolveCandidates(candidates, dt)
-	_CommitCandidates(candidates)
-	_CleanupFinishedOrders()
-
-
-func AddMoveOrder(order: MoveOrder) -> void:
-	if order == null:
-		return
-
-	if _orders.has(order.orderId):
-		push_error("중복 MoveOrder ID: %d" % order.orderId)
-		return
-
-	for unitId: int in order.memberIds:
-		if not _units.has(unitId):
-			continue
-
-		_avoidanceByUnit.erase(unitId)
-		_nextRepathTickByUnit.erase(unitId)
-		var unit: Unit = _units[unitId]
-
-		if unit.movement.activeMoveOrder != null:
-			unit.movement.Stop()
-
-	_orders[order.orderId] = order
-	order.Start(_units)
-
-
-func StopUnits(unitIds: Array[int]) -> void:
-	for unitId: int in unitIds:
-		if not _units.has(unitId):
-			continue
-
-		_avoidanceByUnit.erase(unitId)
-		_nextRepathTickByUnit.erase(unitId)
-		_units[unitId].movement.Stop()
-
-	_CleanupFinishedOrders()
-
-
-func RegisterUnit(unit: Unit) -> void:
-	if unit == null:
-		return
-
-	if _units.has(unit.unitId):
-		var existing: Unit = _units[unit.unitId]
-
-		if existing == unit:
-			return
-
-		push_error("중복 unitId: %d" % unit.unitId)
-		return
-
-	if unit.movement == null:
-		push_error("Unit %d에 MovementComponent가 없습니다." % unit.unitId)
-		return
-
-	_units[unit.unitId] = unit
-	unit.movement.BindUnit(unit)
-	_RebuildSortedUnitIds()
-
-
-func UnregisterUnit(unit: Unit) -> void:
-	if unit == null:
-		return
-
-	if not _units.has(unit.unitId):
-		return
-
-	if _units[unit.unitId] != unit:
-		return
-
-	_units.erase(unit.unitId)
-	_avoidanceByUnit.erase(unit.unitId)
-	_nextRepathTickByUnit.erase(unit.unitId)
-	_RebuildSortedUnitIds()
-
-
-func GetUnit(unitId: int) -> Unit:
-	if not _units.has(unitId):
+	if index == INVALID_INDEX:
 		return null
 
-	return _units[unitId]
+	var removedAgent: MovementAgent = _agents[index]
+	var lastIndex: int = _agents.size() - 1
 
+	if index != lastIndex:
+		var lastAgent: MovementAgent = _agents[lastIndex]
 
-func _RegisterSceneUnits() -> void:
-	var nodes: Array[Node] = get_tree().get_nodes_in_group("unit")
+		_agents[index] = lastAgent
+		_agentIndexByUnitId[lastAgent.unitId] = index
 
-	for node: Node in nodes:
-		if node is Unit:
-			RegisterUnit(node as Unit)
+	_agents.pop_back()
+	_agentIndexByUnitId.erase(unitId)
+	return removedAgent
 
 
-func _RebuildSortedUnitIds() -> void:
-	_sortedUnitIds.clear()
+func SetPath(unitId: int, path: PackedVector2Array) -> bool:
+	var agent: MovementAgent = _getAgent(unitId)
 
-	for unitId: int in _units:
-		_sortedUnitIds.append(unitId)
-
-	_sortedUnitIds.sort()
-
-
-func _CleanupFinishedOrders() -> void:
-	var removeIds: Array[int] = []
-
-	for orderId: int in _orders:
-		var order: MoveOrder = _orders[orderId]
-
-		if order.IsFinished(_units):
-			removeIds.append(orderId)
-
-	for orderId: int in removeIds:
-		_orders.erase(orderId)
-
-
-func _ResolveCandidates(candidates: Array[MoveOrder.MovementCandidate], dt: float) -> void:
-	if candidates.is_empty():
-		return
-
-	var candidateById: Dictionary[int, MoveOrder.MovementCandidate] = { }
-
-	for candidate: MoveOrder.MovementCandidate in candidates:
-		candidateById[candidate.unitId] = candidate
-		candidate.desiredPosition = _QuantizeVec(candidate.desiredPosition)
-		candidate.position = candidate.desiredPosition
-		candidate.velocity = (candidate.position - candidate.startPosition) / maxf(dt, EPSILON)
-
-	var maxMoveDistance: float = 0.0
-	var maxHalf: int = 0
-
-	for unitId: int in _sortedUnitIds:
-		var unit: Unit = _units[unitId]
-		maxMoveDistance = maxf(maxMoveDistance, unit.movement.moveSpeed * dt)
-		var halfSize: int = unit.GetHalfSize()
-		maxHalf = maxi(maxHalf, halfSize)
-
-	var spatial: Dictionary = _BuildStartSpatialHash()
-	var neighborsById: Dictionary[int, Array] = { }
-
-	for candidate: MoveOrder.MovementCandidate in candidates:
-		var ownMove: float = maxf(candidate.maxStepDistance, candidate.desiredStepDistance)
-		var extentValue: float = float(candidate.halfSize + maxHalf) + ownMove + maxMoveDistance + NEIGHBOR_MARGIN
-		var extent: Vector2 = Vector2(extentValue, extentValue)
-		neighborsById[candidate.unitId] = _QueryStartSpatial(
-			spatial,
-			candidate.startPosition,
-			extent,
-			candidate.unitId,
-		)
-
-	var freedomById: Dictionary[int, int] = { }
-	var targetDistanceById: Dictionary[int, float] = { }
-
-	for candidate: MoveOrder.MovementCandidate in candidates:
-		freedomById[candidate.unitId] = _ReservationMapFreedom(candidate, dt)
-		targetDistanceById[candidate.unitId] = _ReservationTargetDistance(candidate)
-
-	var sortedCandidates: Array[MoveOrder.MovementCandidate] = candidates.duplicate()
-	sortedCandidates.sort_custom(
-		func(a: MoveOrder.MovementCandidate, b: MoveOrder.MovementCandidate) -> bool:
-			var aFreedom: int = freedomById[a.unitId]
-			var bFreedom: int = freedomById[b.unitId]
-
-			if aFreedom != bFreedom:
-				return aFreedom < bFreedom
-
-			var aDistance: float = targetDistanceById[a.unitId]
-			var bDistance: float = targetDistanceById[b.unitId]
-
-			if absf(aDistance - bDistance) > EPSILON:
-				return aDistance < bDistance
-
-			if a.priority != b.priority:
-				return a.priority < b.priority
-
-			return a.unitId < b.unitId,
-	)
-
-	var workingSnapshots: Dictionary[int, Snapshot] = _BuildCurrentSnapshots()
-
-	for candidate: MoveOrder.MovementCandidate in sortedCandidates:
-		var neighbors: Array = neighborsById[candidate.unitId]
-		var directMapClear: bool = _MapSegmentClear(candidate, candidate.desiredPosition)
-		var blockerId: int = _FirstUnitBlocker(
-			candidate,
-			candidate.desiredPosition,
-			workingSnapshots,
-			neighbors,
-		)
-
-		if directMapClear and blockerId < 0:
-			_avoidanceByUnit.erase(candidate.unitId)
-			_ApplyPosition(candidate, candidate.desiredPosition, dt, candidate.finishOrder)
-			_UpdateSnapshot(workingSnapshots, candidate)
-			continue
-
-		if (
-			directMapClear and _TryApplyStraightSlowdown(candidate, workingSnapshots, neighbors, dt)
-		):
-			_avoidanceByUnit.erase(candidate.unitId)
-			_UpdateSnapshot(workingSnapshots, candidate)
-			continue
-
-		_PrepareReservationPlan(candidate, blockerId, candidateById, dt)
-
-		var nearArrival: bool = _CandidateNearArrival(candidate)
-		var restrictArrivalAvoidance: bool = nearArrival and directMapClear
-		var resolution: int = _ResolveUnitMotion(
-			candidate,
-			workingSnapshots,
-			neighbors,
-			dt,
-			restrictArrivalAvoidance,
-		)
-
-		if resolution == MOTION_MAP_BLOCKED:
-			_avoidanceByUnit.erase(candidate.unitId)
-			_HandleMapBlockedCandidate(candidate, dt)
-			_StopCandidate(candidate, dt)
-		elif resolution != MOTION_RESOLVED:
-			_StopCandidate(candidate, dt)
-
-		_UpdateSnapshot(workingSnapshots, candidate)
-
-
-func _ReservationMapFreedom(candidate: MoveOrder.MovementCandidate, dt: float) -> int:
-	var baseDirection: Vector2 = _CandidateBaseDirection(candidate)
-
-	if baseDirection == Vector2.ZERO:
-		return 0
-
-	var stepDistance: float = candidate.maxStepDistance
-
-	if candidate.finalTick:
-		stepDistance = candidate.desiredStepDistance
-
-	if stepDistance <= EPSILON:
-		return 0
-
-	var angles: Array[float] = [
-		0.0,
-		AVOID_MEDIUM_ANGLE,
-		-AVOID_MEDIUM_ANGLE,
-		AVOID_PRIMARY_ANGLE,
-		-AVOID_PRIMARY_ANGLE,
-		AVOID_SIDE_ANGLE,
-		-AVOID_SIDE_ANGLE,
-	]
-	var count: int = 0
-
-	for angle: float in angles:
-		var position: Vector2 = _QuantizeVec(
-			candidate.startPosition + baseDirection.rotated(angle) * stepDistance
-		)
-
-		if _MapSegmentClear(candidate, position):
-			count += 1
-
-	return count
-
-
-func _ReservationTargetDistance(candidate: MoveOrder.MovementCandidate) -> float:
-	var target: Vector2 = candidate.targetPosition
-
-	if target == Vector2.ZERO:
-		target = candidate.desiredPosition
-
-	return candidate.startPosition.distance_squared_to(target)
-
-
-func _FirstUnitBlocker(
-	candidate: MoveOrder.MovementCandidate,
-	position: Vector2,
-	snapshots: Dictionary[int, Snapshot],
-	neighbors: Array,
-) -> int:
-	var blockerId: int = -1
-	var bestDistance: float = 1.0e30
-
-	for value: Variant in neighbors:
-		var otherId: int = int(value)
-
-		if not snapshots.has(otherId):
-			continue
-
-		var other: Snapshot = snapshots[otherId]
-
-		if not _RectanglesOverlapStrict(
-			position,
-			candidate.halfSize,
-			other.position,
-			other.halfSize,
-		):
-			continue
-
-		var distance: float = position.distance_squared_to(other.position)
-
-		if distance >= bestDistance:
-			continue
-
-		bestDistance = distance
-		blockerId = otherId
-
-	return blockerId
-
-
-func _PrepareReservationPlan(
-	candidate: MoveOrder.MovementCandidate,
-	blockerId: int,
-	candidateById: Dictionary[int, MoveOrder.MovementCandidate],
-	dt: float,
-) -> void:
-	if blockerId < 0:
-		_avoidanceByUnit.erase(candidate.unitId)
-		return
-
-	var side: int = _ReservationPreferredSide(candidate, blockerId, candidateById, dt)
-
-	if _avoidanceByUnit.has(candidate.unitId):
-		var existing: AvoidancePlan = _avoidanceByUnit[candidate.unitId]
-
-		if existing.otherId == blockerId:
-			existing.side = side
-
-			if (
-				absf(existing.selectedAngle) <= EPSILON
-				or existing.selectedAngle * float(side) < 0.0
-			):
-				existing.selectedAngle = AVOID_PRIMARY_ANGLE * float(side)
-
-			return
-
-	var plan: AvoidancePlan = AvoidancePlan.new()
-	plan.otherId = blockerId
-	plan.side = side
-	plan.selectedAngle = AVOID_PRIMARY_ANGLE * float(side)
-	_avoidanceByUnit[candidate.unitId] = plan
-
-
-func _ReservationPreferredSide(
-	candidate: MoveOrder.MovementCandidate,
-	blockerId: int,
-	candidateById: Dictionary[int, MoveOrder.MovementCandidate],
-	dt: float,
-) -> int:
-	var baseDirection: Vector2 = _CandidateBaseDirection(candidate)
-
-	if baseDirection == Vector2.ZERO:
-		return 1 if candidate.unitId % 2 == 0 else -1
-
-	var right: Vector2 = Vector2(-baseDirection.y, baseDirection.x)
-
-	if _units.has(candidate.unitId):
-		var movement: MovementComponent = _units[candidate.unitId].movement
-		var previousVelocity: Vector2 = movement.simVelocity
-		var lateralSpeed: float = previousVelocity.dot(right)
-		var lateralThreshold: float = maxf(1.0, movement.moveSpeed * 0.08)
-
-		if absf(lateralSpeed) >= lateralThreshold:
-			var previousSide: int = 1 if lateralSpeed > 0.0 else -1
-
-			if _ReservationSideHasMapMotion(candidate, baseDirection, previousSide, dt):
-				return previousSide
-
-	if _avoidanceByUnit.has(candidate.unitId):
-		var existing: AvoidancePlan = _avoidanceByUnit[candidate.unitId]
-
-		if existing.otherId == blockerId:
-			var existingSide: int = 1 if existing.side >= 0 else -1
-
-			if _ReservationSideHasMapMotion(candidate, baseDirection, existingSide, dt):
-				return existingSide
-
-	var memory: PairMemory = _GetPairMemory(candidate.unitId, blockerId, candidateById)
-	var memorySide: int = memory.lowSide if candidate.unitId == memory.lowId else memory.highSide
-
-	if _ReservationSideHasMapMotion(candidate, baseDirection, memorySide, dt):
-		return memorySide
-
-	var oppositeSide: int = -memorySide
-
-	if _ReservationSideHasMapMotion(candidate, baseDirection, oppositeSide, dt):
-		return oppositeSide
-
-	return memorySide
-
-
-func _ReservationSideHasMapMotion(
-	candidate: MoveOrder.MovementCandidate,
-	baseDirection: Vector2,
-	side: int,
-	dt: float,
-) -> bool:
-	var stepDistance: float = candidate.maxStepDistance
-
-	if candidate.finalTick:
-		stepDistance = candidate.desiredStepDistance
-
-	if stepDistance <= EPSILON:
+	if agent == null:
 		return false
 
-	var sideValue: float = 1.0 if side >= 0 else -1.0
-	var angles: Array[float] = [
-		AVOID_SMALL_ANGLE,
-		AVOID_MEDIUM_ANGLE,
-		AVOID_PRIMARY_ANGLE,
-		AVOID_LARGE_ANGLE,
-		AVOID_WIDE_ANGLE,
-		AVOID_SIDE_ANGLE,
-		AVOID_REAR_SOFT_ANGLE,
-	]
-
-	for angle: float in angles:
-		for speedRatio: float in _AvoidSpeedRatios():
-			var position: Vector2 = _QuantizeVec(
-				candidate.startPosition
-				+ baseDirection.rotated(angle * sideValue) * stepDistance * speedRatio
-			)
-
-			if _MapSegmentClear(candidate, position):
-				return true
-
-	return false
+	agent.SetPath(path)
+	return true
 
 
-func _BuildCurrentSnapshots() -> Dictionary:
-	var result: Dictionary[int, Snapshot] = { }
-
-	for unitId: int in _sortedUnitIds:
-		var unit: Unit = _units[unitId]
-		var snapshot: Snapshot = Snapshot.new()
-		snapshot.unitId = unitId
-		snapshot.position = unit.position
-		snapshot.halfSize = unit.GetHalfSize()
-		result[unitId] = snapshot
-
-	return result
-
-
-func _HandleMapBlockedCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> void:
-	_RepathCandidate(candidate, dt)
-
-
-func _RepathCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> bool:
-	if not _units.has(candidate.unitId):
-		return false
-
-	if _nextRepathTickByUnit.has(candidate.unitId):
-		if simulationTick < _nextRepathTickByUnit[candidate.unitId]:
-			return false
-
-	var unit: Unit = _units[candidate.unitId]
-	var movement: MovementComponent = unit.movement
-
-	if movement == null or movement.activeMoveOrder == null:
-		return false
-
-	if movement.activeMoveOrder.orderId != candidate.orderId:
-		return false
-
-	var goal: Vector2 = movement.GetEffectiveGoal()
-
-	if candidate.arrivalActive:
-		goal = candidate.arrivalSlot
-
-	var path: PackedVector2Array = navigationService.FindPath(
-		candidate.startPosition,
-		goal,
-		candidate.halfSize,
-	)
-
-	if path.is_empty():
-		_nextRepathTickByUnit[candidate.unitId] = simulationTick + REPATH_RETRY_TICKS
-		return false
-
-	var pathGoal: Vector2 = path[path.size() - 1]
-
-	if pathGoal.distance_to(goal) > REPATH_GOAL_TOLERANCE:
-		_nextRepathTickByUnit[candidate.unitId] = simulationTick + REPATH_RETRY_TICKS
-		return false
-
-	if not movement.ReplacePath(path):
-		_nextRepathTickByUnit[candidate.unitId] = simulationTick + REPATH_RETRY_TICKS
-		return false
-
-	movement.ResetSimVelocity()
-	movement.SyncPathProgress(movement.moveSpeed * dt, navigationService)
-	_avoidanceByUnit.erase(candidate.unitId)
-	_nextRepathTickByUnit.erase(candidate.unitId)
-	_RefreshCandidateFromMovement(candidate, movement, dt)
-	return _MapSegmentClear(candidate, candidate.desiredPosition)
-
-
-func _RefreshCandidateFromMovement(
-	candidate: MoveOrder.MovementCandidate,
-	movement: MovementComponent,
-	dt: float,
-) -> void:
-	var desiredVelocity: Vector2 = movement.GetDesiredVelocity(dt)
-	var desiredPosition: Vector2 = candidate.startPosition + desiredVelocity * dt
-	var finalTick: bool = movement.WantsFinalTick(dt)
-
-	if finalTick:
-		desiredPosition = movement.GetEffectiveGoal()
-
-		if dt > EPSILON:
-			desiredVelocity = (desiredPosition - candidate.startPosition) / dt
-
-	candidate.desiredVelocity = desiredVelocity
-	candidate.desiredPosition = _QuantizeVec(desiredPosition)
-	candidate.position = candidate.desiredPosition
-	candidate.velocity = (candidate.position - candidate.startPosition) / dt
-	candidate.targetPosition = movement.GetCurrentWaypoint()
-	candidate.desiredStepDistance = candidate.startPosition.distance_to(candidate.desiredPosition)
-	candidate.finalTick = finalTick
-	candidate.finishOrder = finalTick
-	candidate.arrivalDistance = candidate.startPosition.distance_to(candidate.arrivalSlot)
-
-
-func _StopCandidate(candidate: MoveOrder.MovementCandidate, dt: float) -> void:
-	_ApplyPosition(candidate, candidate.startPosition, dt, false)
-
-
-func _CandidateActivelyMoving(
+func SetMoveCommand(
 	unitId: int,
-	candidateById: Dictionary[int, MoveOrder.MovementCandidate],
+	path: PackedVector2Array,
+	commandId: int,
+	target: Vector2,
+	arrivalRadius: float,
 ) -> bool:
-	if not candidateById.has(unitId):
+	var agent: MovementAgent = _getAgent(unitId)
+
+	if agent == null:
 		return false
 
-	var candidate: MoveOrder.MovementCandidate = candidateById[unitId]
-
-	if candidate.desiredStepDistance > STATIC_BLOCKER_STEP_THRESHOLD:
-		return true
-
-	return candidate.desiredVelocity.length() > STATIC_BLOCKER_STEP_THRESHOLD
+	agent.BeginMove(path, commandId, target, arrivalRadius)
+	return true
 
 
-func _GetPairMemory(
-	aId: int,
-	bId: int,
-	candidateById: Dictionary[int, MoveOrder.MovementCandidate],
-) -> PairMemory:
-	var lowId: int = mini(aId, bId)
-	var highId: int = maxi(aId, bId)
-	var key: Vector2i = _PairKey(lowId, highId)
+func StopUnit(unitId: int) -> bool:
+	var agent: MovementAgent = _getAgent(unitId)
 
-	if _pairMemory.has(key):
-		var existing: PairMemory = _pairMemory[key]
-		existing.lastTick = simulationTick
-		return existing
+	if agent == null:
+		return false
 
-	var memory: PairMemory = PairMemory.new()
-	memory.lowId = lowId
-	memory.highId = highId
-	memory.lastTick = simulationTick
-
-	var sides: Vector2i = _ChoosePairSides(lowId, highId, candidateById)
-	memory.lowSide = sides.x
-	memory.highSide = sides.y
-
-	_pairMemory[key] = memory
-	return memory
+	agent.Stop()
+	return true
 
 
-func _ChoosePairSides(
-	lowId: int,
-	highId: int,
-	candidateById: Dictionary[int, MoveOrder.MovementCandidate],
-) -> Vector2i:
-	var lowMoving: bool = _CandidateActivelyMoving(lowId, candidateById)
-	var highMoving: bool = _CandidateActivelyMoving(highId, candidateById)
+func PauseUnit(unitId: int) -> bool:
+	var agent: MovementAgent = _getAgent(unitId)
 
-	if lowMoving and not highMoving:
-		return Vector2i(_SideAwayFromUnit(candidateById[lowId], highId), 1)
+	if agent == null:
+		return false
 
-	if highMoving and not lowMoving:
-		return Vector2i(1, _SideAwayFromUnit(candidateById[highId], lowId))
-
-	if not lowMoving or not highMoving:
-		return Vector2i(1, 1)
-
-	var a: MoveOrder.MovementCandidate = candidateById[lowId]
-	var b: MoveOrder.MovementCandidate = candidateById[highId]
-
-	var aDir: Vector2 = _CandidateBaseDirection(a)
-	var bDir: Vector2 = _CandidateBaseDirection(b)
-
-	if aDir == Vector2.ZERO or bDir == Vector2.ZERO:
-		return Vector2i(1, -1)
-
-	var combinations: Array[Vector2i] = [
-		Vector2i(1, 1),
-		Vector2i(1, -1),
-		Vector2i(-1, 1),
-		Vector2i(-1, -1),
-	]
-
-	var best: Vector2i = combinations[0]
-	var bestScore: float = -1.0e30
-	var aStep: float = maxf(a.maxStepDistance, a.desiredStepDistance)
-	var bStep: float = maxf(b.maxStepDistance, b.desiredStepDistance)
-	var aMapClear: Dictionary[int, bool] = { }
-	var bMapClear: Dictionary[int, bool] = { }
-
-	for side: int in [-1, 1]:
-		var aTest: Vector2 = (
-			a.startPosition + aDir.rotated(AVOID_PRIMARY_ANGLE * float(side)) * aStep
-		)
-		var bTest: Vector2 = (
-			b.startPosition + bDir.rotated(AVOID_PRIMARY_ANGLE * float(side)) * bStep
-		)
-
-		aMapClear[side] = navigationService.SegmentClear(a.startPosition, aTest, a.halfSize)
-		bMapClear[side] = navigationService.SegmentClear(b.startPosition, bTest, b.halfSize)
-
-	for combination: Vector2i in combinations:
-		var aEnd: Vector2 = (
-			a.startPosition + aDir.rotated(AVOID_PRIMARY_ANGLE * float(combination.x)) * aStep
-		)
-		var bEnd: Vector2 = (
-			b.startPosition + bDir.rotated(AVOID_PRIMARY_ANGLE * float(combination.y)) * bStep
-		)
-
-		var dx: float = (absf(aEnd.x - bEnd.x) / maxf(a.halfSize + b.halfSize, EPSILON))
-		var dy: float = (absf(aEnd.y - bEnd.y) / maxf(a.halfSize + b.halfSize, EPSILON))
-		var score: float = maxf(dx, dy) * 10.0 + minf(dx, dy)
-
-		if not aMapClear[combination.x]:
-			score -= 1000000.0
-
-		if not bMapClear[combination.y]:
-			score -= 1000000.0
-
-		if combination.x == combination.y:
-			score += 0.01
-
-		if score > bestScore + EPSILON:
-			bestScore = score
-			best = combination
-
-	return best
+	agent.Pause()
+	return true
 
 
-func _SideAwayFromUnit(candidate: MoveOrder.MovementCandidate, otherId: int) -> int:
-	if not _units.has(otherId):
-		return 1
+func ResumeUnit(unitId: int) -> bool:
+	var agent: MovementAgent = _getAgent(unitId)
 
-	var direction: Vector2 = _CandidateBaseDirection(candidate)
+	if agent == null:
+		return false
 
-	if direction == Vector2.ZERO:
-		return 1 if candidate.unitId < otherId else -1
-
-	var right: Vector2 = Vector2(-direction.y, direction.x)
-	var lateral: float = (_units[otherId].position - candidate.startPosition).dot(right)
-
-	var preferred: int = 1
-
-	if absf(lateral) <= 0.25:
-		preferred = 1 if candidate.unitId < otherId else -1
-	else:
-		preferred = -1 if lateral > 0.0 else 1
-
-	var stepDistance: float = maxf(candidate.maxStepDistance, candidate.desiredStepDistance)
-	var preferredEnd: Vector2 = (
-		candidate.startPosition
-		+ direction.rotated(AVOID_PRIMARY_ANGLE * float(preferred)) * stepDistance
-	)
-
-	if navigationService.SegmentClear(candidate.startPosition, preferredEnd, candidate.halfSize):
-		return preferred
-
-	var opposite: int = -preferred
-	var oppositeEnd: Vector2 = (
-		candidate.startPosition
-		+ direction.rotated(AVOID_PRIMARY_ANGLE * float(opposite)) * stepDistance
-	)
-
-	if navigationService.SegmentClear(candidate.startPosition, oppositeEnd, candidate.halfSize):
-		return opposite
-
-	return preferred
+	agent.Resume()
+	return true
 
 
-func _ResolveUnitMotion(
-	candidate: MoveOrder.MovementCandidate,
-	workingSnapshots: Dictionary[int, Snapshot],
-	neighbors: Array,
-	dt: float,
-	nearArrival: bool,
-) -> int:
-	var plan: AvoidancePlan = null
+func IsUnitMoving(unitId: int) -> bool:
+	var agent: MovementAgent = _getAgent(unitId)
 
-	if _avoidanceByUnit.has(candidate.unitId):
-		plan = _avoidanceByUnit[candidate.unitId]
+	if agent == null:
+		return false
 
-	var baseDirection: Vector2 = _CandidateBaseDirection(candidate)
+	return agent.HasPath()
 
-	if baseDirection == Vector2.ZERO:
-		return MOTION_BLOCKED
 
-	var stepDistance: float = candidate.maxStepDistance
+func TeleportUnit(unitId: int, position: Vector2, snapshot: StageSnapshot) -> bool:
+	if not is_instance_valid(snapshot):
+		push_error("TeleportUnit에 StageSnapshot이 없습니다.")
+		return false
 
-	if candidate.finalTick and nearArrival:
-		stepDistance = candidate.desiredStepDistance
+	var agent: MovementAgent = _getAgent(unitId)
 
-	if stepDistance <= EPSILON:
-		return MOTION_BLOCKED
+	if agent == null or not snapshot.HasUnit(unitId):
+		return false
 
-	var angleSets: Array = []
+	if is_instance_valid(_navigationService) and not _navigationService.CanPlaceStatic(position, agent.halfSize):
+		push_error("정적 장애물과 겹치는 위치로 순간이동할 수 없습니다.")
+		return false
 
-	if plan != null:
-		angleSets.append(_AnglesForPlan(plan, nearArrival))
-		angleSets.append(_AnglesForSide(-plan.side, nearArrival))
-	else:
-		angleSets.append(_AnglesWithoutPlan(candidate.unitId, nearArrival))
+	if _wouldOverlapAgent(position, agent.halfSize, unitId):
+		push_error("다른 MovementAgent와 겹치는 위치로 순간이동할 수 없습니다.")
+		return false
 
-	var speedRatios: Array[float] = _AvoidSpeedRatios()
-	var preferredSpeed: float = stepDistance / maxf(dt, EPSILON)
-	var preferredVelocity: Vector2 = baseDirection * preferredSpeed
-	var previousVelocity: Vector2 = Vector2.ZERO
+	agent.Teleport(position)
+	snapshot.UpdatePosition(unitId, position)
+	return true
 
-	if _units.has(candidate.unitId):
-		previousVelocity = _units[candidate.unitId].movement.simVelocity
 
-	var mapBlockedCandidateFound: bool = false
-	var mapClearCandidateFound: bool = false
-	var bestPosition: Vector2 = candidate.startPosition
-	var bestAngle: float = 0.0
-	var bestRatio: float = 0.0
-	var bestFinish: bool = false
+func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
+	if not is_instance_valid(snapshot):
+		push_error("MovementSimulator에 StageSnapshot이 없습니다.")
+		return false
 
-	for setIndex: int in range(angleSets.size()):
-		var angles: Array = angleSets[setIndex]
-		var setBestScore: float = 1.0e30
-		var setBestPosition: Vector2 = candidate.startPosition
-		var setBestAngle: float = 0.0
-		var setBestRatio: float = 0.0
-		var setBestFinish: bool = false
+	if fixedDelta <= Math.EPSILON:
+		push_error("fixedDelta는 0보다 커야 합니다.")
+		return false
 
-		for angleValue: Variant in angles:
-			var angle: float = float(angleValue)
-			var direction: Vector2 = baseDirection.rotated(angle)
+	if not _validateSnapshot(snapshot):
+		return false
 
-			for speedRatio: float in speedRatios:
-				var position: Vector2 = _QuantizeVec(
-					candidate.startPosition + direction * stepDistance * speedRatio
-				)
+	_prepareTickBuffers()
+	_calculateDesiredPositions(fixedDelta)
 
-				if nearArrival and not _MakesArrivalProgress(candidate, position):
-					continue
+	# desiredPosition은 PathFollower가 만든 원래 경로의 결과로 유지한다.
+	# 회피 반복은 workingPosition만 바꾸므로 다음 틱에는 다시 원래 path를 따른다.
+	for iteration: int in range(AVOIDANCE_ITERATION_COUNT):
+		_rebuildSweptSpatialIndex()
 
-				if not _MapSegmentClear(candidate, position):
-					mapBlockedCandidateFound = true
-					continue
-
-				mapClearCandidateFound = true
-
-				if not _PositionClearOfUnits(candidate, position, workingSnapshots, neighbors):
-					continue
-
-				var velocity: Vector2 = ((position - candidate.startPosition) / maxf(dt, EPSILON))
-				var score: float = _VelocityCandidateScore(
-					candidate,
-					velocity,
-					preferredVelocity,
-					previousVelocity,
-					angle,
-					speedRatio,
-					plan,
-				)
-
-				if score >= setBestScore - EPSILON:
-					continue
-
-				setBestScore = score
-				setBestPosition = position
-				setBestAngle = angle
-				setBestRatio = speedRatio
-				setBestFinish = (
-					candidate.finishOrder and absf(angle) <= EPSILON and speedRatio >= 1.0 - EPSILON
-					and position.distance_squared_to(candidate.desiredPosition) <= EPSILON
-				)
-
-		if setBestRatio > EPSILON:
-			bestPosition = setBestPosition
-			bestAngle = setBestAngle
-			bestRatio = setBestRatio
-			bestFinish = setBestFinish
+		if _collectCollisionPairs() == 0:
 			break
 
-	if bestRatio <= EPSILON:
-		if mapClearCandidateFound:
-			return MOTION_BLOCKED
+		_applyCollisionAvoidance(iteration)
 
-		if mapBlockedCandidateFound:
-			return MOTION_MAP_BLOCKED
-
-		return MOTION_BLOCKED
-
-	_ApplyPosition(candidate, bestPosition, dt, bestFinish)
-
-	if plan != null and absf(bestAngle) > EPSILON:
-		var chosenSide: int = 1 if bestAngle > 0.0 else -1
-
-		if chosenSide != plan.side:
-			plan.side = chosenSide
-			_SetPairMemorySide(candidate.unitId, plan.otherId, plan.side)
-
-		plan.selectedAngle = bestAngle
-
-	return MOTION_RESOLVED
-
-
-func _TryApplyStraightSlowdown(
-	candidate: MoveOrder.MovementCandidate,
-	workingSnapshots: Dictionary[int, Snapshot],
-	neighbors: Array,
-	dt: float,
-) -> bool:
-	var baseDirection: Vector2 = _CandidateBaseDirection(candidate)
-
-	if baseDirection == Vector2.ZERO:
+	if not _applyHardCollisionFallback():
 		return false
 
-	var stepDistance: float = candidate.maxStepDistance
+	_commitTick(snapshot, fixedDelta)
+	_updateArrivalSettling()
+	return true
 
-	if candidate.finalTick:
-		stepDistance = candidate.desiredStepDistance
 
-	if stepDistance <= EPSILON:
-		return false
+func Clear() -> void:
+	_agents.clear()
+	_agentIndexByUnitId.clear()
+	_startPositions.clear()
+	_desiredPositions.clear()
+	_workingPositions.clear()
+	_nextPositions.clear()
+	_avoidanceDirections.clear()
+	_avoidanceSpeedScales.clear()
+	_collisionFlags.clear()
+	_hardStopFlags.clear()
+	_arrivalBlockedFlags.clear()
+	_neighborQueryStamps.clear()
+	_collisionFirstAgentIndices.clear()
+	_collisionSecondAgentIndices.clear()
+	_sweptAgentIndicesByCell.clear()
+	_queryStamp = 0
 
-	for speedRatio: float in _AvoidSpeedRatios():
-		if speedRatio >= 1.0 - EPSILON:
+
+func _getAgent(unitId: int) -> MovementAgent:
+	var index: int = _agentIndexByUnitId.get(unitId, INVALID_INDEX)
+
+	if index == INVALID_INDEX:
+		return null
+
+	return _agents[index]
+
+
+func _wouldOverlapAgent(position: Vector2, halfSize: int, ignoredUnitId: int) -> bool:
+	for otherAgent: MovementAgent in _agents:
+		if otherAgent.unitId == ignoredUnitId:
 			continue
 
-		var position: Vector2 = _QuantizeVec(
-			candidate.startPosition + baseDirection * stepDistance * speedRatio
-		)
+		var combinedHalfSize: float = maxf(0.0, float(halfSize + otherAgent.halfSize) - COLLISION_MARGIN)
 
-		if not _PositionClearOfUnits(candidate, position, workingSnapshots, neighbors):
-			continue
-
-		_ApplyPosition(candidate, position, dt, false)
-		return true
+		if absf(position.x - otherAgent.position.x) < combinedHalfSize and absf(position.y - otherAgent.position.y) < combinedHalfSize:
+			return true
 
 	return false
 
 
-func _AnglesForPlan(plan: AvoidancePlan, nearArrival: bool) -> Array[float]:
-	var result: Array[float] = []
-	var used: Dictionary[int, bool] = { }
-	var side: float = 1.0 if plan.side >= 0 else -1.0
-	var selected: float = plan.selectedAngle
+func _validateSnapshot(snapshot: StageSnapshot) -> bool:
+	if snapshot.GetUnitCount() != _agents.size():
+		push_error("StageSnapshot과 MovementSimulator의 유닛 수가 일치하지 않습니다.")
+		return false
 
-	if absf(selected) <= EPSILON or selected * side <= 0.0:
-		selected = AVOID_PRIMARY_ANGLE * side
+	for agent: MovementAgent in _agents:
+		if not snapshot.HasUnit(agent.unitId):
+			push_error("StageSnapshot에 unitId %d가 없습니다." % agent.unitId)
+			return false
 
-	_AppendAngle(result, used, selected, nearArrival)
-	_AppendAngle(result, used, AVOID_SMALL_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_WIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, nearArrival)
+		if not agent.position.is_equal_approx(snapshot.GetPosition(agent.unitId)):
+			push_error("MovementAgent와 StageSnapshot의 위치가 일치하지 않습니다.")
+			return false
 
-	return result
-
-
-func _AnglesForSide(sideValue: int, nearArrival: bool) -> Array[float]:
-	var result: Array[float] = []
-	var used: Dictionary[int, bool] = { }
-	var side: float = 1.0 if sideValue >= 0 else -1.0
-
-	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_WIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_SMALL_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, nearArrival)
-
-	return result
-
-
-func _AnglesWithoutPlan(unitId: int, nearArrival: bool) -> Array[float]:
-	var result: Array[float] = []
-	var used: Dictionary[int, bool] = { }
-	var side: float = 1.0 if unitId % 2 == 0 else -1.0
-
-	_AppendAngle(result, used, 0.0, nearArrival)
-	_AppendAngle(result, used, AVOID_MEDIUM_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, -AVOID_MEDIUM_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_PRIMARY_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, -AVOID_PRIMARY_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_LARGE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, -AVOID_LARGE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_SIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, -AVOID_SIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_SOFT_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, -AVOID_REAR_SOFT_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_MEDIUM_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, -AVOID_REAR_MEDIUM_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REAR_WIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, -AVOID_REAR_WIDE_ANGLE * side, nearArrival)
-	_AppendAngle(result, used, AVOID_REVERSE_ANGLE, nearArrival)
-
-	return result
-
-
-func _AppendAngle(
-	result: Array[float],
-	used: Dictionary[int, bool],
-	angle: float,
-	nearArrival: bool,
-) -> void:
-	if nearArrival and absf(angle) > ARRIVAL_MAX_AVOID_ANGLE + EPSILON:
-		return
-
-	var key: int = roundi(angle * 1000000.0)
-
-	if used.has(key):
-		return
-
-	used[key] = true
-	result.append(angle)
-
-
-func _AvoidSpeedRatios() -> Array[float]:
-	var minimum: float = clampf(minAvoidSpeedRatio, 0.8, 1.0)
-
-	if (
-		not _cachedAvoidSpeedRatios.is_empty()
-		and absf(minimum - _cachedMinAvoidSpeedRatio) <= EPSILON
-	):
-		return _cachedAvoidSpeedRatios
-
-	_cachedMinAvoidSpeedRatio = minimum
-	_cachedAvoidSpeedRatios.clear()
-
-	var step: float = 0.1
-	var ratio: float = 1.0
-
-	while ratio > minimum + EPSILON:
-		_cachedAvoidSpeedRatios.append(ratio)
-		ratio -= step
-
-	if (
-		_cachedAvoidSpeedRatios.is_empty()
-		or absf(_cachedAvoidSpeedRatios[_cachedAvoidSpeedRatios.size() - 1] - minimum) > EPSILON
-	):
-		_cachedAvoidSpeedRatios.append(minimum)
-
-	return _cachedAvoidSpeedRatios
-
-
-func _VelocityCandidateScore(
-	candidate: MoveOrder.MovementCandidate,
-	velocity: Vector2,
-	preferredVelocity: Vector2,
-	previousVelocity: Vector2,
-	angle: float,
-	speedRatio: float,
-	plan: AvoidancePlan,
-) -> float:
-	var speedScale: float = maxf(
-		(
-			_units[candidate.unitId].movement.moveSpeed
-			if _units.has(candidate.unitId)
-			else preferredVelocity.length()
-		),
-		1.0,
-	)
-	var score: float = ((velocity - preferredVelocity).length() / speedScale)
-
-	if previousVelocity.length_squared() > EPSILON:
-		score += ((velocity - previousVelocity).length() / speedScale * avoidPreviousVelocityWeight)
-
-	score += absf(angle) / PI * 0.08
-	score += (1.0 - speedRatio) * 0.03
-
-	if plan != null and absf(angle) > EPSILON:
-		var side: int = 1 if angle > 0.0 else -1
-
-		if side != plan.side:
-			score += avoidSideChangePenalty
-
-	return score
-
-
-func _CandidateBaseDirection(candidate: MoveOrder.MovementCandidate) -> Vector2:
-	if candidate.desiredVelocity.length_squared() > EPSILON:
-		return candidate.desiredVelocity.normalized()
-
-	var delta: Vector2 = (candidate.targetPosition - candidate.startPosition)
-
-	if delta.length_squared() > EPSILON:
-		return delta.normalized()
-
-	return Vector2.ZERO
-
-
-func _CandidateNearArrival(candidate: MoveOrder.MovementCandidate) -> bool:
-	var fullSize: float = float(candidate.halfSize * 2.0)
-
-	return candidate.arrivalDistance <= maxf(fullSize * 1.75, 16.0)
-
-
-func _MakesArrivalProgress(candidate: MoveOrder.MovementCandidate, position: Vector2) -> bool:
-	return (
-		position.distance_to(candidate.arrivalSlot) < candidate.startPosition.distance_to(
-			candidate.arrivalSlot
-		) - EPSILON
-	)
-
-
-func _PositionClearOfUnits(
-	candidate: MoveOrder.MovementCandidate,
-	position: Vector2,
-	snapshots: Dictionary[int, Snapshot],
-	neighbors: Array,
-) -> bool:
-	for value: Variant in neighbors:
-		var otherId: int = int(value)
-
-		if not snapshots.has(otherId):
-			continue
-
-		var other: Snapshot = snapshots[otherId]
-
-		if _RectanglesOverlapStrict(position, candidate.halfSize, other.position, other.halfSize):
+		if agent.halfSize != snapshot.GetHalfSize(agent.unitId):
+			push_error("MovementAgent와 StageSnapshot의 halfSize가 일치하지 않습니다.")
 			return false
 
 	return true
 
 
-func _MapSegmentClear(candidate: MoveOrder.MovementCandidate, position: Vector2) -> bool:
-	return navigationService.SegmentClear(candidate.startPosition, position, candidate.halfSize)
+func _prepareTickBuffers() -> void:
+	var agentCount: int = _agents.size()
+
+	_startPositions.resize(agentCount)
+	_desiredPositions.resize(agentCount)
+	_workingPositions.resize(agentCount)
+	_nextPositions.resize(agentCount)
+	_avoidanceDirections.resize(agentCount)
+	_avoidanceSpeedScales.resize(agentCount)
+	_collisionFlags.resize(agentCount)
+	_hardStopFlags.resize(agentCount)
+	_arrivalBlockedFlags.resize(agentCount)
+	_neighborQueryStamps.resize(agentCount)
+
+	_avoidanceDirections.fill(Vector2.ZERO)
+	_avoidanceSpeedScales.fill(1.0)
+	_collisionFlags.fill(0)
+	_hardStopFlags.fill(0)
+	_arrivalBlockedFlags.fill(0)
+	_neighborQueryStamps.fill(0)
+	_collisionFirstAgentIndices.clear()
+	_collisionSecondAgentIndices.clear()
+	_sweptAgentIndicesByCell.clear()
 
 
-func _ApplyPosition(
-	candidate: MoveOrder.MovementCandidate,
-	position: Vector2,
-	dt: float,
-	finishOrder: bool,
-) -> void:
-	candidate.position = _QuantizeVec(position)
-	candidate.velocity = ((candidate.position - candidate.startPosition) / dt)
-	candidate.finishOrder = finishOrder
+func _calculateDesiredPositions(fixedDelta: float) -> void:
+	for agentIndex: int in range(_agents.size()):
+		var agent: MovementAgent = _agents[agentIndex]
+		var startPosition: Vector2 = agent.position
+		var desiredPosition: Vector2 = agent.GetDesiredPosition(fixedDelta)
+
+		if not _isStaticSegmentClear(agentIndex, startPosition, desiredPosition):
+			desiredPosition = startPosition
+
+		_startPositions[agentIndex] = startPosition
+		_desiredPositions[agentIndex] = desiredPosition
+		_workingPositions[agentIndex] = desiredPosition
+		_nextPositions[agentIndex] = desiredPosition
 
 
-func _UpdateSnapshot(
-	snapshots: Dictionary[int, Snapshot],
-	candidate: MoveOrder.MovementCandidate,
-) -> void:
-	if not snapshots.has(candidate.unitId):
-		var snapshot: Snapshot = Snapshot.new()
-		snapshot.unitId = candidate.unitId
-		snapshot.halfSize = candidate.halfSize
-		snapshots[candidate.unitId] = snapshot
+func _applyCollisionAvoidance(iteration: int) -> void:
+	_collisionFlags.fill(0)
 
-	snapshots[candidate.unitId].position = candidate.position
-	snapshots[candidate.unitId].halfSize = candidate.halfSize
+	for pairIndex: int in range(_collisionFirstAgentIndices.size()):
+		var firstAgentIndex: int = _collisionFirstAgentIndices[pairIndex]
+		var secondAgentIndex: int = _collisionSecondAgentIndices[pairIndex]
 
+		_accumulatePairAvoidance(firstAgentIndex, secondAgentIndex)
 
-func _RectanglesOverlapStrict(
-	aPosition: Vector2,
-	aHalf: int,
-	bPosition: Vector2,
-	bHalf: int,
-) -> bool:
-	var combinedHalf: float = float(aHalf + bHalf) - COLLISION_EPSILON
-	return (
-		absf(aPosition.x - bPosition.x) < combinedHalf
-		and absf(aPosition.y - bPosition.y) < combinedHalf
-	)
+	for agentIndex: int in range(_agents.size()):
+		_nextPositions[agentIndex] = _workingPositions[agentIndex]
+
+		if _collisionFlags[agentIndex] == 0:
+			continue
+
+		_nextPositions[agentIndex] = _findAvoidancePosition(agentIndex, iteration)
+
+	for agentIndex: int in range(_agents.size()):
+		_workingPositions[agentIndex] = _nextPositions[agentIndex]
 
 
-func _PairKey(aId: int, bId: int) -> Vector2i:
-	return Vector2i(mini(aId, bId), maxi(aId, bId))
+func _accumulatePairAvoidance(firstAgentIndex: int, secondAgentIndex: int) -> void:
+	var firstMovementDelta: Vector2 = _workingPositions[firstAgentIndex] - _startPositions[firstAgentIndex]
+	var secondMovementDelta: Vector2 = _workingPositions[secondAgentIndex] - _startPositions[secondAgentIndex]
+	var firstMoves: bool = firstMovementDelta.length_squared() > Math.EPSILON
+	var secondMoves: bool = secondMovementDelta.length_squared() > Math.EPSILON
 
-
-func _SetPairMemorySide(unitId: int, otherId: int, side: int) -> void:
-	var key: Vector2i = _PairKey(unitId, otherId)
-
-	if not _pairMemory.has(key):
+	if not firstMoves and not secondMoves:
 		return
 
-	var memory: PairMemory = _pairMemory[key]
+	_markArrivalBlocking(firstAgentIndex, secondAgentIndex, firstMoves, secondMoves)
 
-	if unitId == memory.lowId:
-		memory.lowSide = side
-	elif unitId == memory.highId:
-		memory.highSide = side
+	if firstMoves and secondMoves and _moveInSameDirection(firstMovementDelta, secondMovementDelta):
+		var travelDirection: Vector2 = (firstMovementDelta.normalized() + secondMovementDelta.normalized()).normalized()
+		var firstProgress: float = _startPositions[firstAgentIndex].dot(travelDirection)
+		var secondProgress: float = _startPositions[secondAgentIndex].dot(travelDirection)
 
-	memory.lastTick = simulationTick
+		if firstProgress < secondProgress - Math.EPSILON:
+			var firstSide: float = _getSideAwayFromBlocker(firstAgentIndex, secondAgentIndex, firstMovementDelta)
+
+			_addAvoidance(firstAgentIndex, _getSideDirection(firstMovementDelta, firstSide), FOLLOW_SPEED_SCALE)
+			return
+
+		if secondProgress < firstProgress - Math.EPSILON:
+			var secondSide: float = _getSideAwayFromBlocker(secondAgentIndex, firstAgentIndex, secondMovementDelta)
+
+			_addAvoidance(secondAgentIndex, _getSideDirection(secondMovementDelta, secondSide), FOLLOW_SPEED_SCALE)
+			return
+
+	if firstMoves and secondMoves:
+		var pairSide: float = _getPairRotationSide(firstAgentIndex, secondAgentIndex, firstMovementDelta, secondMovementDelta)
+
+		_addAvoidance(firstAgentIndex, _getSideDirection(firstMovementDelta, pairSide), 1.0)
+		_addAvoidance(secondAgentIndex, _getSideDirection(secondMovementDelta, pairSide), 1.0)
+		return
+
+	if firstMoves:
+		var firstSide: float = _getSideAwayFromBlocker(firstAgentIndex, secondAgentIndex, firstMovementDelta)
+
+		_addAvoidance(firstAgentIndex, _getSideDirection(firstMovementDelta, firstSide), 1.0)
+		return
+
+	var secondSide: float = _getSideAwayFromBlocker(secondAgentIndex, firstAgentIndex, secondMovementDelta)
+
+	_addAvoidance(secondAgentIndex, _getSideDirection(secondMovementDelta, secondSide), 1.0)
 
 
-func _CleanupPairMemory() -> void:
-	var removeKeys: Array[Vector2i] = []
+func _markArrivalBlocking(
+	firstAgentIndex: int,
+	secondAgentIndex: int,
+	firstMoves: bool,
+	secondMoves: bool,
+) -> void:
+	var firstAgent: MovementAgent = _agents[firstAgentIndex]
+	var secondAgent: MovementAgent = _agents[secondAgentIndex]
 
-	for key: Vector2i in _pairMemory:
-		if (simulationTick - _pairMemory[key].lastTick > PAIR_MEMORY_TICKS):
-			removeKeys.append(key)
+	if (
+		firstAgent.moveCommandId < 0
+		or firstAgent.moveCommandId != secondAgent.moveCommandId
+	):
+		return
 
-	for key: Vector2i in removeKeys:
-		_pairMemory.erase(key)
+	var firstDistance: float = firstAgent.position.distance_to(firstAgent.moveTarget)
+	var secondDistance: float = secondAgent.position.distance_to(secondAgent.moveTarget)
+	var firstInside: bool = firstDistance <= firstAgent.arrivalRadius + float(firstAgent.halfSize)
+	var secondInside: bool = secondDistance <= secondAgent.arrivalRadius + float(secondAgent.halfSize)
+
+	if firstDistance > secondDistance + Math.EPSILON:
+		if firstMoves and firstInside:
+			_arrivalBlockedFlags[firstAgentIndex] = 1
+		return
+
+	if secondDistance > firstDistance + Math.EPSILON:
+		if secondMoves and secondInside:
+			_arrivalBlockedFlags[secondAgentIndex] = 1
+		return
+
+	if firstMoves and firstInside and (not secondMoves or firstAgent.unitId > secondAgent.unitId):
+		_arrivalBlockedFlags[firstAgentIndex] = 1
+	elif secondMoves and secondInside:
+		_arrivalBlockedFlags[secondAgentIndex] = 1
 
 
-func _BuildStartSpatialHash() -> Dictionary:
-	var spatial: Dictionary = { }
-
-	for unitId: int in _sortedUnitIds:
-		var unit: Unit = _units[unitId]
-		var cell: Vector2i = _SpatialCell(unit.position)
-
-		if not spatial.has(cell):
-			spatial[cell] = []
-
-		var bucket: Array = spatial[cell]
-		bucket.append(unitId)
-
-	return spatial
+func _addAvoidance(agentIndex: int, direction: Vector2, speedScale: float) -> void:
+	_avoidanceDirections[agentIndex] += direction
+	_avoidanceSpeedScales[agentIndex] = minf(_avoidanceSpeedScales[agentIndex], speedScale)
+	_collisionFlags[agentIndex] = 1
 
 
-func _QueryStartSpatial(
-	spatial: Dictionary,
-	position: Vector2,
-	extent: Vector2,
-	excludeId: int,
-) -> Array:
-	var result: Array = []
-	var seen: Dictionary[int, bool] = { }
-	var minCell: Vector2i = _SpatialCell(position - extent)
-	var maxCell: Vector2i = _SpatialCell(position + extent)
+func _moveInSameDirection(firstDelta: Vector2, secondDelta: Vector2) -> bool:
+	return firstDelta.normalized().dot(secondDelta.normalized()) >= SAME_DIRECTION_DOT
 
-	for y: int in range(minCell.y, maxCell.y + 1):
-		for x: int in range(minCell.x, maxCell.x + 1):
-			var key: Vector2i = Vector2i(x, y)
 
-			if not spatial.has(key):
-				continue
+func _getPairRotationSide(firstAgentIndex: int, secondAgentIndex: int, firstDesiredDelta: Vector2, secondDesiredDelta: Vector2) -> float:
+	var defaultSide: float = _getDeterministicPairSide(firstAgentIndex, secondAgentIndex)
+	var firstPositiveEnd: Vector2 = _getSteeredEnd(firstAgentIndex, firstDesiredDelta, 1.0)
+	var secondPositiveEnd: Vector2 = _getSteeredEnd(secondAgentIndex, secondDesiredDelta, 1.0)
+	var firstNegativeEnd: Vector2 = _getSteeredEnd(firstAgentIndex, firstDesiredDelta, -1.0)
+	var secondNegativeEnd: Vector2 = _getSteeredEnd(secondAgentIndex, secondDesiredDelta, -1.0)
+	var combinedHalfSize: int = _agents[firstAgentIndex].halfSize + _agents[secondAgentIndex].halfSize
+	var positiveCollides: bool = _movementsIntersect(_startPositions[firstAgentIndex], firstPositiveEnd, _startPositions[secondAgentIndex], secondPositiveEnd, combinedHalfSize)
+	var negativeCollides: bool = _movementsIntersect(_startPositions[firstAgentIndex], firstNegativeEnd, _startPositions[secondAgentIndex], secondNegativeEnd, combinedHalfSize)
 
-			var bucket: Array = spatial[key]
+	if not positiveCollides and negativeCollides:
+		return 1.0
 
-			for value: Variant in bucket:
-				var unitId: int = int(value)
+	if positiveCollides and not negativeCollides:
+		return -1.0
 
-				if unitId == excludeId or seen.has(unitId):
+	return defaultSide
+
+
+func _getSteeredEnd(agentIndex: int, desiredDelta: Vector2, side: float) -> Vector2:
+	var stepDistance: float = desiredDelta.length()
+
+	if stepDistance <= Math.EPSILON:
+		return _startPositions[agentIndex]
+
+	var desiredDirection: Vector2 = desiredDelta / stepDistance
+	var sideDirection: Vector2 = _getSideDirection(desiredDelta, side)
+	var steeredDirection: Vector2 = (desiredDirection + sideDirection).normalized()
+	return _startPositions[agentIndex] + steeredDirection * stepDistance
+
+
+func _getSideAwayFromBlocker(movingAgentIndex: int, blockerAgentIndex: int, movementDelta: Vector2) -> float:
+	var sideDirection: Vector2 = _getSideDirection(movementDelta, 1.0)
+	var separation: float = (_startPositions[movingAgentIndex] - _startPositions[blockerAgentIndex]).dot(sideDirection)
+
+	if absf(separation) <= Math.EPSILON:
+		separation = (_workingPositions[movingAgentIndex] - _workingPositions[blockerAgentIndex]).dot(sideDirection)
+
+	if separation > Math.EPSILON:
+		return 1.0
+
+	if separation < -Math.EPSILON:
+		return -1.0
+
+	return _getDeterministicPairSide(movingAgentIndex, blockerAgentIndex)
+
+
+func _getSideDirection(movementDelta: Vector2, side: float) -> Vector2:
+	var movementDirection: Vector2 = movementDelta.normalized()
+	return Vector2(-movementDirection.y, movementDirection.x) * side
+
+
+func _getDeterministicPairSide(firstAgentIndex: int, secondAgentIndex: int) -> float:
+	var firstUnitId: int = _agents[firstAgentIndex].unitId
+	var secondUnitId: int = _agents[secondAgentIndex].unitId
+	var lowUnitId: int = mini(firstUnitId, secondUnitId)
+	var highUnitId: int = maxi(firstUnitId, secondUnitId)
+
+	if ((lowUnitId + highUnitId) & 1) != 0:
+		return -1.0
+
+	return 1.0
+
+
+func _findAvoidancePosition(agentIndex: int, iteration: int) -> Vector2:
+	var startPosition: Vector2 = _startPositions[agentIndex]
+	var desiredDelta: Vector2 = _desiredPositions[agentIndex] - startPosition
+	var stepDistance: float = desiredDelta.length()
+
+	if stepDistance <= Math.EPSILON:
+		return startPosition
+
+	stepDistance *= _avoidanceSpeedScales[agentIndex]
+	var desiredDirection: Vector2 = desiredDelta.normalized()
+
+	var avoidanceDirection: Vector2 = _avoidanceDirections[agentIndex]
+	avoidanceDirection -= desiredDirection * avoidanceDirection.dot(desiredDirection)
+
+	if avoidanceDirection.length_squared() <= Math.EPSILON:
+		avoidanceDirection = Vector2(-desiredDirection.y, desiredDirection.x)
+
+		if (_agents[agentIndex].unitId & 1) != 0:
+			avoidanceDirection = -avoidanceDirection
+	else:
+		avoidanceDirection = avoidanceDirection.normalized()
+
+	var oppositeAvoidanceDirection: Vector2 = -avoidanceDirection
+	var primaryDirection: Vector2
+	var oppositeDirection: Vector2
+
+	if iteration >= AVOIDANCE_ITERATION_COUNT - 1:
+		primaryDirection = avoidanceDirection
+		oppositeDirection = oppositeAvoidanceDirection
+	else:
+		var avoidanceStrength: float = _getAvoidanceStrength(iteration)
+
+		primaryDirection = (desiredDirection + avoidanceDirection * avoidanceStrength).normalized()
+		oppositeDirection = (desiredDirection + oppositeAvoidanceDirection * avoidanceStrength).normalized()
+
+	var candidatePosition: Vector2 = _findFarthestStaticClearPosition(agentIndex, primaryDirection, stepDistance)
+
+	if not candidatePosition.is_equal_approx(startPosition):
+		return candidatePosition
+
+	candidatePosition = _findFarthestStaticClearPosition(agentIndex, oppositeDirection, stepDistance)
+
+	if not candidatePosition.is_equal_approx(startPosition):
+		return candidatePosition
+
+	if iteration < AVOIDANCE_ITERATION_COUNT - 1:
+		candidatePosition = _findFarthestStaticClearPosition(agentIndex, avoidanceDirection, stepDistance)
+
+		if not candidatePosition.is_equal_approx(startPosition):
+			return candidatePosition
+
+		candidatePosition = _findFarthestStaticClearPosition(agentIndex, oppositeAvoidanceDirection, stepDistance)
+
+		if not candidatePosition.is_equal_approx(startPosition):
+			return candidatePosition
+
+	return startPosition
+
+
+func _getAvoidanceStrength(iteration: int) -> float:
+	if iteration <= 0:
+		return 0.75
+
+	if iteration == 1:
+		return 1.5
+
+	return 3.0
+
+
+func _findFarthestStaticClearPosition(agentIndex: int, direction: Vector2, stepDistance: float) -> Vector2:
+	var startPosition: Vector2 = _startPositions[agentIndex]
+
+	if direction.length_squared() <= Math.EPSILON or stepDistance <= Math.EPSILON:
+		return startPosition
+
+	var normalizedDirection: Vector2 = direction.normalized()
+
+	for ratio: float in AVOIDANCE_DISTANCE_RATIOS:
+		var candidatePosition: Vector2 = startPosition + normalizedDirection * stepDistance * ratio
+
+		if _isStaticSegmentClear(agentIndex, startPosition, candidatePosition):
+			return candidatePosition
+
+	return startPosition
+
+
+func _isStaticSegmentClear(agentIndex: int, startPosition: Vector2, endPosition: Vector2) -> bool:
+	if startPosition.is_equal_approx(endPosition):
+		return true
+
+	if not is_instance_valid(_navigationService):
+		return true
+
+	return _navigationService.SegmentClear(startPosition, endPosition, _agents[agentIndex].halfSize)
+
+
+func _applyHardCollisionFallback() -> bool:
+	_rebuildSweptSpatialIndex()
+
+	if _collectCollisionPairs() == 0:
+		return true
+
+	_hardStopFlags.fill(0)
+	var stoppedAgentIndices: Array[int] = []
+
+	for pairIndex: int in range(_collisionFirstAgentIndices.size()):
+		var firstAgentIndex: int = _collisionFirstAgentIndices[pairIndex]
+		var secondAgentIndex: int = _collisionSecondAgentIndices[pairIndex]
+		var firstMoves: bool = not _workingPositions[firstAgentIndex].is_equal_approx(_startPositions[firstAgentIndex])
+		var secondMoves: bool = not _workingPositions[secondAgentIndex].is_equal_approx(_startPositions[secondAgentIndex])
+
+		if not firstMoves and not secondMoves:
+			push_error("MovementSimulator에 시작 시점부터 겹쳐 있고 분리되지 않는 Agent가 있습니다.")
+			return false
+
+		if firstMoves:
+			_markHardStop(firstAgentIndex, stoppedAgentIndices)
+
+		if secondMoves:
+			_markHardStop(secondAgentIndex, stoppedAgentIndices)
+
+	_propagateHardStops(stoppedAgentIndices)
+
+	for agentIndex: int in range(_agents.size()):
+		if _hardStopFlags[agentIndex] != 0:
+			_workingPositions[agentIndex] = _startPositions[agentIndex]
+
+	_rebuildSweptSpatialIndex()
+
+	if _collectCollisionPairs() == 0:
+		return true
+
+	for agentIndex: int in range(_agents.size()):
+		_workingPositions[agentIndex] = _startPositions[agentIndex]
+
+	_rebuildSweptSpatialIndex()
+
+	if _collectCollisionPairs() == 0:
+		return true
+
+	push_error("MovementSimulator가 시작 시점의 Agent 겹침을 해결하지 못했습니다.")
+	return false
+
+
+func _markHardStop(agentIndex: int, stoppedAgentIndices: Array[int]) -> void:
+	if _hardStopFlags[agentIndex] != 0:
+		return
+
+	_hardStopFlags[agentIndex] = 1
+	stoppedAgentIndices.append(agentIndex)
+
+
+func _propagateHardStops(stoppedAgentIndices: Array[int]) -> void:
+	var queueIndex: int = 0
+
+	while queueIndex < stoppedAgentIndices.size():
+		var blockerAgentIndex: int = stoppedAgentIndices[queueIndex]
+		var blockerAgent: MovementAgent = _agents[blockerAgentIndex]
+		var blockerPosition: Vector2 = _startPositions[blockerAgentIndex]
+		var minCell: Vector2i = _getSweptMinCell(blockerPosition, blockerPosition, blockerAgent.halfSize)
+		var maxCell: Vector2i = _getSweptMaxCell(blockerPosition, blockerPosition, blockerAgent.halfSize)
+		var queryStamp: int = _beginNeighborQuery()
+
+		queueIndex += 1
+
+		for cellX: int in range(minCell.x, maxCell.x + 1):
+			for cellY: int in range(minCell.y, maxCell.y + 1):
+				var cell: Vector2i = Vector2i(cellX, cellY)
+
+				if not _sweptAgentIndicesByCell.has(cell):
 					continue
 
-				seen[unitId] = true
-				result.append(unitId)
+				var cellAgentIndices: PackedInt32Array = _sweptAgentIndicesByCell[cell]
 
-	result.sort()
-	return result
+				for movingAgentIndex: int in cellAgentIndices:
+					if movingAgentIndex == blockerAgentIndex or _hardStopFlags[movingAgentIndex] != 0:
+						continue
+
+					if _neighborQueryStamps[movingAgentIndex] == queryStamp:
+						continue
+
+					_neighborQueryStamps[movingAgentIndex] = queryStamp
+
+					if _workingPositions[movingAgentIndex].is_equal_approx(_startPositions[movingAgentIndex]):
+						continue
+
+					var combinedHalfSize: int = _agents[movingAgentIndex].halfSize + blockerAgent.halfSize
+
+					if _movementsIntersect(_startPositions[movingAgentIndex], _workingPositions[movingAgentIndex], blockerPosition, blockerPosition, combinedHalfSize):
+						_markHardStop(movingAgentIndex, stoppedAgentIndices)
 
 
-func _SpatialCell(position: Vector2) -> Vector2i:
-	return Vector2i(
-		floori(position.x / candidateSpatialCellSize),
-		floori(position.y / candidateSpatialCellSize),
+func _rebuildSweptSpatialIndex() -> void:
+	_sweptAgentIndicesByCell.clear()
+
+	for agentIndex: int in range(_agents.size()):
+		var agent: MovementAgent = _agents[agentIndex]
+		var minCell: Vector2i = _getSweptMinCell(_startPositions[agentIndex], _workingPositions[agentIndex], agent.halfSize)
+		var maxCell: Vector2i = _getSweptMaxCell(_startPositions[agentIndex], _workingPositions[agentIndex], agent.halfSize)
+
+		for cellX: int in range(minCell.x, maxCell.x + 1):
+			for cellY: int in range(minCell.y, maxCell.y + 1):
+				var cell: Vector2i = Vector2i(cellX, cellY)
+				var cellAgentIndices: PackedInt32Array = _sweptAgentIndicesByCell.get(cell, PackedInt32Array())
+
+				cellAgentIndices.append(agentIndex)
+				_sweptAgentIndicesByCell[cell] = cellAgentIndices
+
+
+func _collectCollisionPairs() -> int:
+	_collisionFirstAgentIndices.clear()
+	_collisionSecondAgentIndices.clear()
+
+	for firstAgentIndex: int in range(_agents.size()):
+		var firstAgent: MovementAgent = _agents[firstAgentIndex]
+		var minCell: Vector2i = _getSweptMinCell(_startPositions[firstAgentIndex], _workingPositions[firstAgentIndex], firstAgent.halfSize)
+		var maxCell: Vector2i = _getSweptMaxCell(_startPositions[firstAgentIndex], _workingPositions[firstAgentIndex], firstAgent.halfSize)
+		var queryStamp: int = _beginNeighborQuery()
+
+		for cellX: int in range(minCell.x, maxCell.x + 1):
+			for cellY: int in range(minCell.y, maxCell.y + 1):
+				var cell: Vector2i = Vector2i(cellX, cellY)
+
+				if not _sweptAgentIndicesByCell.has(cell):
+					continue
+
+				var cellAgentIndices: PackedInt32Array = _sweptAgentIndicesByCell[cell]
+
+				for secondAgentIndex: int in cellAgentIndices:
+					if secondAgentIndex <= firstAgentIndex:
+						continue
+
+					if _neighborQueryStamps[secondAgentIndex] == queryStamp:
+						continue
+
+					_neighborQueryStamps[secondAgentIndex] = queryStamp
+					var combinedHalfSize: int = firstAgent.halfSize + _agents[secondAgentIndex].halfSize
+
+					if not _movementsIntersect(_startPositions[firstAgentIndex], _workingPositions[firstAgentIndex], _startPositions[secondAgentIndex], _workingPositions[secondAgentIndex], combinedHalfSize):
+						continue
+
+					_collisionFirstAgentIndices.append(firstAgentIndex)
+					_collisionSecondAgentIndices.append(secondAgentIndex)
+
+	return _collisionFirstAgentIndices.size()
+
+
+func _beginNeighborQuery() -> int:
+	if _queryStamp >= MAX_INT32_VALUE:
+		_neighborQueryStamps.fill(0)
+		_queryStamp = 1
+	else:
+		_queryStamp += 1
+
+	return _queryStamp
+
+
+func _commitTick(snapshot: StageSnapshot, fixedDelta: float) -> void:
+	# 모든 결과가 확정된 뒤 한 번만 커밋한다.
+	# 이때 MovementAgent가 PathFollower.OnMovementCommitted()를 호출해 index를 갱신한다.
+	for agentIndex: int in range(_agents.size()):
+		_agents[agentIndex].CommitMovement(_workingPositions[agentIndex], fixedDelta)
+
+	for agentIndex: int in range(_agents.size()):
+		snapshot.UpdatePosition(_agents[agentIndex].unitId, _workingPositions[agentIndex])
+
+
+func _updateArrivalSettling() -> void:
+	for agentIndex: int in range(_agents.size()):
+		var agent: MovementAgent = _agents[agentIndex]
+
+		if agent.moveCommandId < 0 or agent.isSettled:
+			continue
+
+		if not agent.HasPath():
+			if agent.position.distance_to(agent.moveTarget) < PathFollower.REACH_DISTANCE:
+				agent.Settle()
+			else:
+				agent.ResetSettleProgress()
+			continue
+
+		var insideArrivalArea: bool = (
+			agent.position.distance_to(agent.moveTarget)
+			<= agent.arrivalRadius + float(agent.halfSize)
+		)
+		if not insideArrivalArea or _arrivalBlockedFlags[agentIndex] == 0:
+			agent.ResetSettleProgress()
+			continue
+
+		if agent.lastVelocity.length() > SETTLE_MAX_SPEED:
+			agent.ResetSettleProgress()
+			continue
+
+		if not _hasStaticLateralSpace(agent):
+			agent.ResetSettleProgress()
+			continue
+
+		if (
+			is_instance_valid(_navigationService)
+			and not _navigationService.SegmentClear(
+				agent.position,
+				agent.moveTarget,
+				agent.halfSize,
+			)
+		):
+			agent.ResetSettleProgress()
+			continue
+
+		agent.AdvanceSettleProgress()
+		if agent.settleTickCount >= SETTLE_REQUIRED_TICKS:
+			agent.Settle()
+
+
+func _hasStaticLateralSpace(agent: MovementAgent) -> bool:
+	if not is_instance_valid(_navigationService):
+		return true
+
+	var targetDelta: Vector2 = agent.moveTarget - agent.position
+	if targetDelta.length_squared() <= Math.EPSILON:
+		return true
+
+	var targetDirection: Vector2 = targetDelta.normalized()
+	var lateralDirection: Vector2 = Vector2(-targetDirection.y, targetDirection.x)
+	var checkDistance: float = maxf(
+		float(agent.halfSize) * SETTLE_LATERAL_CHECK_SCALE,
+		1.0,
+	)
+	var positiveTarget: Vector2 = agent.position + lateralDirection * checkDistance
+	var negativeTarget: Vector2 = agent.position - lateralDirection * checkDistance
+
+	return (
+		_navigationService.SegmentClear(
+			agent.position,
+			positiveTarget,
+			agent.halfSize,
+		)
+		or _navigationService.SegmentClear(
+			agent.position,
+			negativeTarget,
+			agent.halfSize,
+		)
 	)
 
 
-func _CommitCandidates(candidates: Array[MoveOrder.MovementCandidate]) -> void:
-	candidates.sort_custom(
-		func(a: MoveOrder.MovementCandidate, b: MoveOrder.MovementCandidate) -> bool:
-			return a.unitId < b.unitId,
-	)
+func _movementsIntersect(firstStart: Vector2, firstEnd: Vector2, secondStart: Vector2, secondEnd: Vector2, combinedHalfSize: int) -> bool:
+	var collisionHalfSize: float = maxf(0.0, float(combinedHalfSize) - COLLISION_MARGIN)
 
-	for candidate: MoveOrder.MovementCandidate in candidates:
-		if not _units.has(candidate.unitId):
-			continue
+	if collisionHalfSize <= Math.EPSILON:
+		return false
 
-		var unit: Unit = _units[candidate.unitId]
-		var movement: MovementComponent = unit.movement
+	var relativeStart: Vector2 = firstStart - secondStart
+	var relativeEnd: Vector2 = firstEnd - secondEnd
+	var startsOverlapping: bool = absf(relativeStart.x) < collisionHalfSize and absf(relativeStart.y) < collisionHalfSize
 
-		if movement.activeMoveOrder == null:
-			continue
+	if startsOverlapping:
+		return true
 
-		if movement.activeMoveOrder.orderId != candidate.orderId:
-			continue
-
-		movement.CommitSimulation(candidate.position, candidate.velocity, candidate.finishOrder)
-
-		if candidate.finishOrder:
-			_avoidanceByUnit.erase(candidate.unitId)
+	return _segmentIntersectsCenteredRect(relativeStart, relativeEnd, collisionHalfSize)
 
 
-func _QuantizeVec(value: Vector2) -> Vector2:
-	if simulationQuantum <= 0.0:
-		return value
+func _segmentIntersectsCenteredRect(startPosition: Vector2, endPosition: Vector2, halfSize: float) -> bool:
+	var movementDelta: Vector2 = endPosition - startPosition
+	var minimumTime: float = 0.0
+	var maximumTime: float = 1.0
 
-	return Vector2(
-		round(value.x / simulationQuantum) * simulationQuantum,
-		round(value.y / simulationQuantum) * simulationQuantum,
-	)
+	if absf(movementDelta.x) <= Math.EPSILON:
+		if absf(startPosition.x) >= halfSize:
+			return false
+	else:
+		var firstXTime: float = (-halfSize - startPosition.x) / movementDelta.x
+		var secondXTime: float = (halfSize - startPosition.x) / movementDelta.x
+
+		if firstXTime > secondXTime:
+			var swappedXTime: float = firstXTime
+			firstXTime = secondXTime
+			secondXTime = swappedXTime
+
+		minimumTime = maxf(minimumTime, firstXTime)
+		maximumTime = minf(maximumTime, secondXTime)
+
+		if minimumTime >= maximumTime:
+			return false
+
+	if absf(movementDelta.y) <= Math.EPSILON:
+		if absf(startPosition.y) >= halfSize:
+			return false
+	else:
+		var firstYTime: float = (-halfSize - startPosition.y) / movementDelta.y
+		var secondYTime: float = (halfSize - startPosition.y) / movementDelta.y
+
+		if firstYTime > secondYTime:
+			var swappedYTime: float = firstYTime
+			firstYTime = secondYTime
+			secondYTime = swappedYTime
+
+		minimumTime = maxf(minimumTime, firstYTime)
+		maximumTime = minf(maximumTime, secondYTime)
+
+		if minimumTime >= maximumTime:
+			return false
+
+	return maximumTime > 0.0 and minimumTime < 1.0
+
+
+func _getSweptMinCell(startPosition: Vector2, endPosition: Vector2, halfSize: int) -> Vector2i:
+	var minimumPosition: Vector2 = Vector2(minf(startPosition.x, endPosition.x) - float(halfSize), minf(startPosition.y, endPosition.y) - float(halfSize))
+	return _getCell(minimumPosition)
+
+
+func _getSweptMaxCell(startPosition: Vector2, endPosition: Vector2, halfSize: int) -> Vector2i:
+	var maximumPosition: Vector2 = Vector2(maxf(startPosition.x, endPosition.x) + float(halfSize), maxf(startPosition.y, endPosition.y) + float(halfSize))
+	return _getCell(maximumPosition)
+
+
+func _getCell(position: Vector2) -> Vector2i:
+	return Vector2i(floori(position.x / StageSnapshot.SPATIAL_CELL_SIZE), floori(position.y / StageSnapshot.SPATIAL_CELL_SIZE))
