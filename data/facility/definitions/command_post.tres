@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="FacilityData" format=3]
+
+[ext_resource type="Script" path="res://scripts/tycoon/data/FacilityLevelData.gd" id="1_p6c16"]
+[ext_resource type="Script" path="res://scripts/tycoon/data/FacilityData.gd" id="2_3t8tk"]
+
+[resource]
+script = ExtResource("2_3t8tk")
+id = &"command_post"
+displayName = "지휘소"
+description = "영지 방어의 핵심 시설입니다."
+category = 0
