@@ -1,33 +1,28 @@
 class_name UnitStats
 extends RefCounted
 
-enum Type {
-	MAX_HP,
-	MAX_MP,
-	HP_REGEN,
-	MP_REGEN,
-	ATK,
-	MAGIC_ATK,
-	DEF,
-	MAGIC_DEF,
-	MOVE_SPEED,
-	ATTACK_RAGNE,
-	ACQUISITION_RANGE,
-	COUNT
-}
-
 var finalStats: PackedInt32Array = PackedInt32Array()
 var _baseStats: PackedInt32Array = PackedInt32Array()
-var _bonusStats: BonusStats
+var _bonusStats: BonusStats = BonusStats.new()
+
+var currentHp: int
+var currentMp: int
 
 func _init() -> void:
-	finalStats.resize(UnitStats.Type.COUNT)
+	finalStats.resize(UnitStatType.COUNT)
+	_baseStats.resize(UnitStatType.COUNT)
+	LoadBaseStats()
 	
-func loadBaseStat() -> void:
+func Set() -> void:
+	UpdateFinalStats()
+	currentHp = finalStats[UnitStatType.MAX_HP]
+	currentMp = finalStats[UnitStatType.MAX_MP]
+	
+func LoadBaseStats() -> void:
 	pass
 
-func Update() -> void:
-	for type in range(UnitStats.Type.COUNT):
+func UpdateFinalStats() -> void:
+	for type in range(UnitStatType.COUNT):
 		var baseStat: int = _baseStats[type]
 		finalStats[type] = baseStat + _bonusStats.GetBonus(type, baseStat)
 		
