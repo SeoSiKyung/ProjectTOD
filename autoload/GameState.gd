@@ -14,6 +14,7 @@ func StartNewGame() -> void:
 	_CreateStates()
 	_SetInitialCampaignState()
 	_SetInitialSettlementState()
+	_CreateInitialFacilities()
 
 
 func _CreateStates() -> void:
@@ -39,6 +40,28 @@ func _SetInitialSettlementState() -> void:
 
 	settlement.population = 10
 	settlement.stability = 100
+
+# =========================================================
+# 초기 시설
+# =========================================================
+
+
+func _CreateInitialFacilities() -> void:
+	_AddInitialFacility(&"lord_manor")
+
+	_AddInitialFacility(&"tavern")
+
+	_AddInitialFacility(&"command_post")
+
+
+func _AddInitialFacility(facilityId: StringName) -> void:
+	var facilityState := FacilityState.new()
+
+	facilityState.facilityId = facilityId
+	facilityState.level = 0
+	facilityState.status = FacilityState.Status.BUILT
+
+	settlement.facilities.append(facilityState)
 
 # =========================================================
 # 저장 데이터에서 복원된 State 장착
