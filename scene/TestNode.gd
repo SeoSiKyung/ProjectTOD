@@ -3,21 +3,41 @@ extends Node
 const FACILITY_CATALOG: FacilityCatalog = preload("res://data/facility/facility_catalog.tres")
 
 var _tycoonController: TycoonController
+var _gameFlowController: GameFlowController
 
-var _offenseStartData: OffenseStartData
+var _campaignData: CampaignData
+
+var _defenseStartData: DefenseStartData
+
+var _nextCycleRequestCount: int = 0
+var _campaignCompletedCount: int = 0
 
 
 func _ready() -> void:
 	print("")
 	print("====================================")
-	print("       Offense Bridge 테스트")
+	print("       Campaign Cycle 테스트")
 	print("====================================")
 
 	GameState.StartNewGame()
 
+	# =====================================================
+	# 테스트 CampaignData 생성
+	#
+	# Cycle 1 = 3턴
+	# Cycle 2 = 5턴
+	# =====================================================
+	_CreateCampaignData()
+
+	# =====================================================
+	# Controller 생성
+	# =====================================================
 	_tycoonController = TycoonController.new()
+	_gameFlowController = GameFlowController.new()
 
 	add_child(_tycoonController)
+
+	add_child(_gameFlowController)
 
 	_tycoonController.Setup(
 		GameState.campaign,
@@ -26,178 +46,106 @@ func _ready() -> void:
 		FACILITY_CATALOG,
 	)
 
-	# =====================================================
-	# Signal 연결
-	# =====================================================
-	_tycoonController.OffenseRequested.connect(_OnOffenseRequested)
-
-	_tycoonController.OffenseFinished.connect(_OnOffenseFinished)
-
-	_tycoonController.TurnReady.connect(_OnTurnReady)
+	_gameFlowController.Setup(GameState.campaign, _tycoonController, _campaignData)
 
 	# =====================================================
-	# 1. Cycle 시작
+	# Signal
 	# =====================================================
-	print("")
-	print("========== Cycle 시작 ==========")
+	_gameFlowController.DefenseSceneRequested.connect(_OnDefenseSceneRequested)
 
-	var cycleStarted := _tycoonController.StartCycle(10)
+	_gameFlowController.NextCycleRequested.connect(_OnNextCycleRequested)
 
-	print("Cycle Started: ", cycleStarted)
-
-	_PrintCurrentState()
+	_gameFlowController.CampaignCompleted.connect(_OnCampaignCompleted)
 
 	# =====================================================
-	# 2. Turn 1에서 농지 건설
-	# =====================================================
-	print("")
-	print("========== Turn 1 농지 건설 ==========")
-
-	var buildSuccess := (_tycoonController.RequestBuild(&"farm"))
-
-	print("Farm Build Success: ", buildSuccess)
-
-	_PrintFarmState()
-
-	# =====================================================
-	# 3. Turn 2로 진행
-	# =====================================================
-	print("")
-	print("========== Turn 2 ==========")
-
-	var nextTurn := (_tycoonController.EndTurn())
-
-	print("EndTurn Result: ", nextTurn)
-
-	_PrintCurrentState()
-	_PrintFarmState()
-
-	# =====================================================
-	# 4. Offense 요청
+	# Cycle 1 시작
 	#
-	# Turn 2에서 3턴짜리 공격
-	# → 귀환 시 Turn 5가 되어야 함
+	# 직접 StartCycle(3)을 호출하지 않음.
+	# CampaignData에서 읽어야 함.
 	# =====================================================
 	print("")
-	print("========== Offense 요청 ==========")
+	print("========== Cycle 1 시작 ==========")
 
-	var offenseRequested := (_tycoonController.RequestOffense(&"test_region", 3))
+	var started := (_gameFlowController.StartCurrentCycle())
 
-	print("RequestOffense Result: ", offenseRequested)
+	print("Cycle Started: ", started)
 
-	print("Current Phase: ", GameState.campaign.currentPhase)
-
-	print("Current Turn: ", GameState.campaign.currentTurn)
+	_PrintCampaign()
 
 	# =====================================================
-	# Request Signal에서 받은 StartData 확인
-	# =====================================================
-	if _offenseStartData == null:
-		push_error("OffenseStartData를 전달받지 못했습니다.")
-		return
-
-	print("")
-	print("========== StartData 확인 ==========")
-
-	print("Region: ", _offenseStartData.regionId)
-
-	print("Turn Cost: ", _offenseStartData.turnCost)
-
-	print("Cycle: ", _offenseStartData.cycle)
-
-	print("Start Turn: ", _offenseStartData.startTurn)
-
-	# =====================================================
-	# 5. 가짜 Offense 결과 생성
+	# Cycle 1
+	# Turn 1 → 2
 	# =====================================================
 	print("")
-	print("========== 가짜 Offense 결과 ==========")
+	print("========== Turn 1 종료 ==========")
 
-	var goldBeforeResult: int = (GameState.settlement.gold)
+	_tycoonController.EndTurn()
 
-	var magicStoneBeforeResult: int = (GameState.settlement.magicStone)
-
-	var result := OffenseResult.new()
-
-	result.victory = true
-
-	result.goldReward = 100
-	result.magicStoneReward = 5
-
-	result.acquiredIntel.append(&"test_offense_intel")
-
-	result.unlockedRegions.append(&"test_region_2")
-
-	print("Victory: ", result.victory)
-
-	print("Gold Reward: ", result.goldReward)
-
-	print("Magic Stone Reward: ", result.magicStoneReward)
+	_PrintCampaign()
 
 	# =====================================================
-	# 6. Offense 결과 적용
+	# Turn 2 → 3
 	# =====================================================
 	print("")
-	print("========== Offense 귀환 ==========")
+	print("========== Turn 2 종료 ==========")
 
-	_tycoonController.ApplyOffenseResult(_offenseStartData, result)
+	_tycoonController.EndTurn()
+
+	_PrintCampaign()
 
 	# =====================================================
-	# 7. 최종 상태
+	# 마지막 Turn 종료
+	# → Defense
 	# =====================================================
-	_PrintCurrentState()
-	_PrintFarmState()
+	print("")
+	print("========== Cycle 1 Defense ==========")
 
+	_tycoonController.EndTurn()
+
+	_PrintCampaign()
+
+	# =====================================================
+	# Defense 승리 결과
+	# =====================================================
+	print("")
+	print("========== Defense 승리 ==========")
+
+	var defenseResult := DefenseResult.new()
+
+	defenseResult.victory = true
+	defenseResult.commandPostDestroyed = false
+
+	var resultAccepted := (_gameFlowController.SubmitDefenseResult(defenseResult))
+
+	print("Defense Result Accepted: ", resultAccepted)
+
+	# =====================================================
+	# 여기서 자동으로:
+	#
+	# Cycle 2
+	# Turn 1/5
+	#
+	# 가 되어야 함.
+	# =====================================================
+	_PrintCampaign()
+
+	# =====================================================
+	# 결과 검증
+	# =====================================================
 	print("")
 	print("========== 결과 검증 ==========")
 
-	# =====================================================
-	# Turn
-	# =====================================================
-	print("Turn 5 Expected: ", GameState.campaign.currentTurn == 5)
+	print("Cycle Is 2: ", GameState.campaign.cycle == 2)
 
-	# =====================================================
-	# Phase
-	# =====================================================
-	print("Tycoon Phase Expected: ", GameState.campaign.currentPhase == CampaignState.Phase.TYCOON)
+	print("Turn Is 1: ", GameState.campaign.currentTurn == 1)
 
-	# =====================================================
-	# 보상
-	# =====================================================
-	print("Gold Reward Applied: ", GameState.settlement.gold == goldBeforeResult + 100)
+	print("Turn Limit Is 5: ", GameState.campaign.cycleTurnLimit == 5)
 
-	print(
-		"Magic Stone Reward Applied: ",
-		GameState.settlement.magicStone == magicStoneBeforeResult + 5,
-	)
+	print("Phase Is Tycoon: ", GameState.campaign.currentPhase == CampaignState.Phase.TYCOON)
 
-	# =====================================================
-	# Intel
-	# =====================================================
-	print("Intel Added: ", GameState.story.HasIntel(&"test_offense_intel"))
+	print("Next Cycle Requested Once: ", _nextCycleRequestCount == 1)
 
-	# =====================================================
-	# Region
-	# =====================================================
-	print("Region Unlocked: ", GameState.campaign.IsRegionUnlocked(&"test_region_2"))
-
-	# =====================================================
-	# Farm
-	# =====================================================
-	var farm := GameState.settlement.GetFacility(&"farm")
-
-	print("Farm Built: ", farm != null and farm.IsBuilt())
-
-	var farmTask := (GameState.settlement.GetConstructionTask(&"farm"))
-
-	print("Farm Construction Finished: ", farmTask == null)
-
-	# =====================================================
-	# Farm Stat
-	# =====================================================
-	var stats := (_tycoonController.GetCurrentStats())
-
-	print("Current Food Delta: ", stats.foodDelta)
+	print("Campaign Not Completed: ", _campaignCompletedCount == 0)
 
 	print("")
 	print("====================================")
@@ -205,65 +153,60 @@ func _ready() -> void:
 	print("====================================")
 
 # =========================================================
+# 테스트 CampaignData
+# =========================================================
+
+
+func _CreateCampaignData() -> void:
+	_campaignData = CampaignData.new()
+
+	var cycle1Data := CycleData.new()
+
+	cycle1Data.cycle = 1
+	cycle1Data.turnLimit = 3
+
+	var cycle2Data := CycleData.new()
+
+	cycle2Data.cycle = 2
+	cycle2Data.turnLimit = 5
+
+	_campaignData.cycles.append(cycle1Data)
+
+	_campaignData.cycles.append(cycle2Data)
+
+# =========================================================
 # Signal
 # =========================================================
 
 
-func _OnOffenseRequested(startData: OffenseStartData) -> void:
+func _OnDefenseSceneRequested(startData: DefenseStartData) -> void:
 	print("")
-	print("[Signal] OffenseRequested")
+	print("[GameFlow] DefenseSceneRequested")
 
-	_offenseStartData = startData
-
-
-func _OnOffenseFinished(result: OffenseResult) -> void:
-	print("[Signal] OffenseFinished: Victory = ", result.victory)
+	_defenseStartData = startData
 
 
-func _OnTurnReady(currentTurn: int) -> void:
-	print("[Signal] TurnReady: ", currentTurn)
+func _OnNextCycleRequested(cycle: int) -> void:
+	print("")
+	print("[GameFlow] NextCycleRequested: ", cycle)
+
+	_nextCycleRequestCount += 1
+
+
+func _OnCampaignCompleted() -> void:
+	print("")
+	print("[GameFlow] CampaignCompleted")
+
+	_campaignCompletedCount += 1
 
 # =========================================================
 # 출력
 # =========================================================
 
 
-func _PrintCurrentState() -> void:
+func _PrintCampaign() -> void:
 	print("Cycle: ", GameState.campaign.cycle)
 
 	print("Turn: ", GameState.campaign.currentTurn, "/", GameState.campaign.cycleTurnLimit)
 
 	print("Phase: ", GameState.campaign.currentPhase)
-
-	print("Gold: ", GameState.settlement.gold)
-
-	print("Food: ", GameState.settlement.food)
-
-	print("Wood: ", GameState.settlement.wood)
-
-	print("Magic Stone: ", GameState.settlement.magicStone)
-
-	print("Population: ", GameState.settlement.population)
-
-	print("Stability: ", GameState.settlement.stability)
-
-
-func _PrintFarmState() -> void:
-	var farm := GameState.settlement.GetFacility(&"farm")
-
-	if farm == null:
-		print("Farm: 없음")
-		return
-
-	print("Farm Level: ", farm.level)
-
-	print("Farm Status: ", farm.status)
-
-	print("Farm Built: ", farm.IsBuilt())
-
-	var task := (GameState.settlement.GetConstructionTask(&"farm"))
-
-	if task == null:
-		print("Farm Construction Task: 없음")
-	else:
-		print("Farm Remaining Turns: ", task.remainingTurns)
