@@ -4,10 +4,10 @@ extends Node
 signal TurnReady(currentTurn: int)
 signal SettlementChanged()
 
-signal DefenseRequested()
-
 signal OffenseRequested(startData: OffenseStartData)
 signal OffenseFinished(result: OffenseResult)
+
+signal DefenseRequested(startData: DefenseStartData)
 
 var _campaign: CampaignState
 var _settlement: SettlementState
@@ -26,6 +26,7 @@ var _facilityInteractionSystem: FacilityInteractionSystem
 var _turnSystem: TurnSystem
 
 var _offenseBridge: OffenseBridge
+var _defenseBridge: DefenseBridge
 
 # =========================================================
 # 초기화
@@ -64,6 +65,7 @@ func _CreateSystems() -> void:
 	_turnSystem = TurnSystem.new()
 
 	_offenseBridge = OffenseBridge.new()
+	_defenseBridge = DefenseBridge.new()
 
 	add_child(_facilitySystem)
 	add_child(_constructionSystem)
@@ -75,6 +77,7 @@ func _CreateSystems() -> void:
 	add_child(_turnSystem)
 
 	add_child(_offenseBridge)
+	add_child(_defenseBridge)
 
 # =========================================================
 # 사이클
@@ -98,6 +101,25 @@ func StartCycle(turnLimit: int) -> bool:
 	return true
 
 
+func PrepareNextCycle() -> void:
+	if _campaign == null:
+		return
+
+	# =====================================================
+	# Defense 승리 여부는 여기서 판단하지 않음.
+	#
+	# 상위 GameFlow가 Defense 결과를 판단한 뒤
+	# 다음 Tycoon Cycle로 진행하기로 결정했을 때
+	# 이 함수를 호출.
+	# =====================================================
+	_campaign.cycle += 1
+
+	_campaign.currentTurn = 0
+	_campaign.cycleTurnLimit = 0
+
+	_campaign.currentPhase = (CampaignState.Phase.TYCOON)
+
+
 func _ProcessCycleStart() -> void:
 	# 추후:
 	# 교회 사이클 버프
@@ -116,10 +138,17 @@ func EndTurn() -> bool:
 
 	var hasNextTurn := _turnSystem.EndTurn(_campaign)
 
+	# =====================================================
+	# 마지막 턴 종료
+	#
+	# TycoonController는
+	# "Defense를 시작해야 한다"까지만 결정.
+	#
+	# Defense 승패 / Game Over 판단은
+	# 상위 GameFlow의 책임.
+	# =====================================================
 	if not hasNextTurn:
-		_campaign.currentPhase = (CampaignState.Phase.DEFENSE)
-
-		DefenseRequested.emit()
+		_RequestDefense()
 
 		return false
 
@@ -177,13 +206,13 @@ func _ProcessTurnStart(notifyPlayer: bool = true) -> void:
 	# EventSystem
 	#
 	# Phase가 OFFENSE라면 발생 이벤트를
-	# StoryState.pendingEvents에 저장
+	# StoryState.pendingEvents에 저장.
 	# =====================================================
 
 	# =====================================================
-	# 일반 Tycoon 턴일 때만 외부 알림
+	# 일반 Tycoon 턴에서만 외부 알림
 	#
-	# Offense 중 시간 진행에서는 내부 정산만 수행
+	# Offense 중 흐르는 턴은 영지 시뮬레이션만 수행.
 	# =====================================================
 	if notifyPlayer:
 		TurnReady.emit(_campaign.currentTurn)
@@ -246,7 +275,7 @@ func RequestOffense(regionId: StringName, turnCost: int) -> bool:
 		return false
 
 	# =====================================================
-	# Tycoon Phase에서만 진입 가능
+	# Tycoon Phase에서만 Offense 진입 가능
 	# =====================================================
 	if (_campaign.currentPhase != CampaignState.Phase.TYCOON):
 		push_warning("TycoonController: Tycoon Phase에서만 Offense에 진입할 수 있습니다.")
@@ -274,19 +303,15 @@ func RequestOffense(regionId: StringName, turnCost: int) -> bool:
 		return false
 
 	# =====================================================
-	# 출발 시점의 StartData 생성
+	# 출발 시점 StartData 생성
 	#
-	# 시간 진행 전에 만들어야 startTurn이
-	# 실제 출발 턴을 가리킴.
+	# 턴 진행 전에 생성해야
+	# startTurn이 실제 출발 턴을 나타냄.
 	# =====================================================
 	var startData := _offenseBridge.CreateStartData(_campaign, regionId, turnCost)
 
 	# =====================================================
-	# Phase 전환
-	#
-	# 이후 진행되는 턴들은 Offense 중에 흐르는 시간임.
-	# 나중에 EventSystem도 이 Phase를 보고 이벤트를
-	# pendingEvents에 저장할 수 있음.
+	# Offense Phase 전환
 	# =====================================================
 	_campaign.currentPhase = (CampaignState.Phase.OFFENSE)
 
@@ -296,17 +321,15 @@ func RequestOffense(regionId: StringName, turnCost: int) -> bool:
 	# 농지 생산
 	# 식량 소비
 	# 안정도
-	# 인구
+	# 인구 변화
 	# 건설 / 업그레이드
 	#
-	# 전부 정상적으로 진행됨.
+	# 모두 정상적으로 진행.
 	# =====================================================
 	_AdvanceOffenseTurns(turnCost)
 
 	# =====================================================
 	# 실제 Offense 시작 요청
-	#
-	# 시간 진행을 먼저 끝낸 뒤 외부 GameFlow에 알림.
 	# =====================================================
 	OffenseRequested.emit(startData)
 
@@ -317,9 +340,6 @@ func ApplyOffenseResult(result: OffenseResult) -> void:
 	if (_campaign == null or _settlement == null or _story == null):
 		return
 
-	# =====================================================
-	# 현재 Offense 상태인지 검사
-	# =====================================================
 	if (_campaign.currentPhase != CampaignState.Phase.OFFENSE):
 		push_warning("TycoonController: 현재 Offense Phase가 아닙니다.")
 		return
@@ -327,8 +347,7 @@ func ApplyOffenseResult(result: OffenseResult) -> void:
 	# =====================================================
 	# Offense 결과 반영
 	#
-	# 시간 진행은 출발할 때 이미 완료했기 때문에
-	# 여기서는 결과만 적용.
+	# 턴 진행은 출발할 때 이미 완료됨.
 	# =====================================================
 	_offenseBridge.ApplyResult(_campaign, _settlement, _story, result)
 
@@ -337,19 +356,10 @@ func ApplyOffenseResult(result: OffenseResult) -> void:
 	# =====================================================
 	_campaign.currentPhase = (CampaignState.Phase.TYCOON)
 
-	# =====================================================
-	# 결과 적용 후 Stat 갱신
-	# =====================================================
 	_RefreshStats()
 
-	# =====================================================
-	# 귀환 후 UI 갱신
-	# =====================================================
 	SettlementChanged.emit()
 
-	# =====================================================
-	# Offense 종료 알림
-	# =====================================================
 	OffenseFinished.emit(result)
 
 
@@ -357,19 +367,42 @@ func _AdvanceOffenseTurns(turnCount: int) -> void:
 	for _turnIndex in range(turnCount):
 		var hasNextTurn := _turnSystem.EndTurn(_campaign)
 
-		# RequestOffense()에서 남은 턴 검사를 했으므로
-		# 정상적인 상황에서는 false가 나올 수 없음.
-		#
-		# 그래도 State 이상에 대비해 방어적으로 종료.
 		if not hasNextTurn:
 			push_warning("TycoonController: Offense 시간 진행 중 마지막 턴을 초과했습니다.")
 			break
 
-		# =================================================
-		# 플레이어에게 턴 알림은 하지 않지만
-		# 영지 내부 시뮬레이션은 정상적으로 수행.
-		# =================================================
+		# 플레이어에게 TurnReady는 보내지 않지만
+		# 영지 내부 시뮬레이션은 정상 진행.
 		_ProcessTurnStart(false)
+
+# =========================================================
+# Defense
+# =========================================================
+
+
+func _RequestDefense() -> void:
+	if _campaign == null:
+		return
+
+	# =====================================================
+	# 마지막 Tycoon 상태 기준 Stat 확정
+	# =====================================================
+	_RefreshStats()
+
+	# =====================================================
+	# Defense 시작 데이터 생성
+	# =====================================================
+	var startData := _defenseBridge.CreateStartData(_campaign, _currentStats)
+
+	# =====================================================
+	# Defense Phase 전환
+	# =====================================================
+	_campaign.currentPhase = (CampaignState.Phase.DEFENSE)
+
+	# =====================================================
+	# 상위 GameFlow에 Defense 시작 요청
+	# =====================================================
+	DefenseRequested.emit(startData)
 
 # =========================================================
 # Stat
