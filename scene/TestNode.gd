@@ -3,210 +3,353 @@ extends Node
 const FACILITY_CATALOG: FacilityCatalog = preload("res://data/facility/facility_catalog.tres")
 
 var _tycoonController: TycoonController
-var _gameFlowController: GameFlowController
+var _eventCatalog: EventCatalog
 
-var _campaignData: CampaignData
+var _eventRequestedCount: int = 0
+var _eventResolvedCount: int = 0
 
-var _defenseStartData: DefenseStartData
+var _requestedEventIds: Array[StringName] = []
+var _resolvedEventIds: Array[StringName] = []
 
-var _nextCycleRequestCount: int = 0
-var _campaignCompletedCount: int = 0
+var _goldBeforeResults: int = 0
+var _foodBeforeResults: int = 0
 
 
 func _ready() -> void:
 	print("")
 	print("====================================")
-	print("       Campaign Cycle 테스트")
+	print("       다중 Event 순차 처리 테스트")
 	print("====================================")
 
+	# =====================================================
+	# 새 게임
+	# =====================================================
 	GameState.StartNewGame()
 
 	# =====================================================
-	# 테스트 CampaignData 생성
-	#
-	# Cycle 1 = 3턴
-	# Cycle 2 = 5턴
+	# 테스트 EventCatalog 생성
 	# =====================================================
-	_CreateCampaignData()
+	_CreateTestEventCatalog()
 
 	# =====================================================
-	# Controller 생성
+	# TycoonController
 	# =====================================================
 	_tycoonController = TycoonController.new()
-	_gameFlowController = GameFlowController.new()
 
 	add_child(_tycoonController)
-
-	add_child(_gameFlowController)
 
 	_tycoonController.Setup(
 		GameState.campaign,
 		GameState.settlement,
 		GameState.story,
 		FACILITY_CATALOG,
+		_eventCatalog,
 	)
-
-	_gameFlowController.Setup(GameState.campaign, _tycoonController, _campaignData)
 
 	# =====================================================
 	# Signal
 	# =====================================================
-	_gameFlowController.DefenseSceneRequested.connect(_OnDefenseSceneRequested)
+	_tycoonController.EventRequested.connect(_OnEventRequested)
 
-	_gameFlowController.NextCycleRequested.connect(_OnNextCycleRequested)
-
-	_gameFlowController.CampaignCompleted.connect(_OnCampaignCompleted)
+	_tycoonController.EventResolved.connect(_OnEventResolved)
 
 	# =====================================================
-	# Cycle 1 시작
+	# Cycle 시작
 	#
-	# 직접 StartCycle(3)을 호출하지 않음.
-	# CampaignData에서 읽어야 함.
+	# Event A / B 둘 다 확률 100%
+	#
+	# 예상:
+	# A → Active
+	# B → Pending
 	# =====================================================
 	print("")
-	print("========== Cycle 1 시작 ==========")
+	print("========== Cycle 시작 ==========")
 
-	var started := (_gameFlowController.StartCurrentCycle())
+	var started := _tycoonController.StartCycle(5)
+
+	_goldBeforeResults = (GameState.settlement.gold)
+
+	_foodBeforeResults = (GameState.settlement.food)
 
 	print("Cycle Started: ", started)
 
-	_PrintCampaign()
+	print("Active Event: ", _tycoonController.GetActiveEventId())
+
+	print("Event Requested Count: ", _eventRequestedCount)
+
+	print("Pending Count: ", GameState.story.pendingEvents.size())
+
+	print("Pending Events: ", GameState.story.pendingEvents)
 
 	# =====================================================
-	# Cycle 1
-	# Turn 1 → 2
+	# 첫 번째 이벤트 상태 검증
 	# =====================================================
+	var firstEventActive := (_tycoonController.GetActiveEventId() == &"event_a")
+
+	var secondEventPending := (
+		GameState.story.pendingEvents.size() == 1 and GameState.story.pendingEvents[0] == &"event_b"
+	)
+
 	print("")
-	print("========== Turn 1 종료 ==========")
+	print("========== 초기 이벤트 상태 ==========")
 
-	_tycoonController.EndTurn()
+	print("Event A Is Active: ", firstEventActive)
 
-	_PrintCampaign()
-
-	# =====================================================
-	# Turn 2 → 3
-	# =====================================================
-	print("")
-	print("========== Turn 2 종료 ==========")
-
-	_tycoonController.EndTurn()
-
-	_PrintCampaign()
+	print("Event B Is Pending: ", secondEventPending)
 
 	# =====================================================
-	# 마지막 Turn 종료
-	# → Defense
-	# =====================================================
-	print("")
-	print("========== Cycle 1 Defense ==========")
-
-	_tycoonController.EndTurn()
-
-	_PrintCampaign()
-
-	# =====================================================
-	# Defense 승리 결과
-	# =====================================================
-	print("")
-	print("========== Defense 승리 ==========")
-
-	var defenseResult := DefenseResult.new()
-
-	defenseResult.victory = true
-	defenseResult.commandPostDestroyed = false
-
-	var resultAccepted := (_gameFlowController.SubmitDefenseResult(defenseResult))
-
-	print("Defense Result Accepted: ", resultAccepted)
-
-	# =====================================================
-	# 여기서 자동으로:
+	# Event A 선택
 	#
-	# Cycle 2
-	# Turn 1/5
-	#
-	# 가 되어야 함.
+	# 결과:
+	# Gold +100
 	# =====================================================
-	_PrintCampaign()
+	print("")
+	print("========== Event A 처리 ==========")
+
+	var firstResolved := (_tycoonController.ResolveActiveEvent(&"accept_a"))
+
+	print("Event A Resolve Result: ", firstResolved)
+
+	print("Active Event After A: [", _tycoonController.GetActiveEventId(), "]")
+
+	print("Pending Count After A: ", GameState.story.pendingEvents.size())
+
+	print("Gold After A: ", GameState.settlement.gold)
 
 	# =====================================================
-	# 결과 검증
+	# 중요
+	#
+	# Event A가 끝났다고 Event B가 자동으로
+	# 표시되면 안 됨.
+	#
+	# UI가 결과 화면을 닫은 뒤
+	# RequestNextPendingEvent()를 호출하는 구조.
+	# =====================================================
+	var noAutomaticSecondEvent := (
+		_tycoonController.GetActiveEventId() == &"" and _eventRequestedCount == 1
+		and GameState.story.pendingEvents.size() == 1
+	)
+
+	print("Event B Not Automatically Opened: ", noAutomaticSecondEvent)
+
+	# =====================================================
+	# 다음 Pending Event 요청
+	# =====================================================
+	print("")
+	print("========== 다음 Pending Event 요청 ==========")
+
+	var secondRequested := (_tycoonController.RequestNextPendingEvent())
+
+	print("RequestNextPendingEvent Result: ", secondRequested)
+
+	print("Active Event: ", _tycoonController.GetActiveEventId())
+
+	print("Event Requested Count: ", _eventRequestedCount)
+
+	print("Pending Count: ", GameState.story.pendingEvents.size())
+
+	# =====================================================
+	# Event B 선택
+	#
+	# 결과:
+	# Food +50
+	# =====================================================
+	print("")
+	print("========== Event B 처리 ==========")
+
+	var secondResolved := (_tycoonController.ResolveActiveEvent(&"accept_b"))
+
+	print("Event B Resolve Result: ", secondResolved)
+
+	print("Active Event After B: [", _tycoonController.GetActiveEventId(), "]")
+
+	print("Pending Count After B: ", GameState.story.pendingEvents.size())
+
+	print("Food After B: ", GameState.settlement.food)
+
+	# =====================================================
+	# 더 이상 Pending Event 없음
+	# =====================================================
+	print("")
+	print("========== 빈 Pending 요청 ==========")
+
+	var thirdRequested := (_tycoonController.RequestNextPendingEvent())
+
+	print("Third Request Result: ", thirdRequested)
+
+	# =====================================================
+	# 최종 검증
 	# =====================================================
 	print("")
 	print("========== 결과 검증 ==========")
 
-	print("Cycle Is 2: ", GameState.campaign.cycle == 2)
+	print("Cycle Started: ", started)
 
-	print("Turn Is 1: ", GameState.campaign.currentTurn == 1)
+	print("Event A Was Active First: ", firstEventActive)
 
-	print("Turn Limit Is 5: ", GameState.campaign.cycleTurnLimit == 5)
+	print("Event B Was Pending First: ", secondEventPending)
 
-	print("Phase Is Tycoon: ", GameState.campaign.currentPhase == CampaignState.Phase.TYCOON)
+	print(
+		"Only One Event Initially Requested: ",
+		_requestedEventIds.size() >= 1 and _requestedEventIds[0] == &"event_a",
+	)
 
-	print("Next Cycle Requested Once: ", _nextCycleRequestCount == 1)
+	print("Event A Resolved: ", firstResolved)
 
-	print("Campaign Not Completed: ", _campaignCompletedCount == 0)
+	print("Event B Did Not Auto Open: ", noAutomaticSecondEvent)
+
+	print("Event B Pending Request Success: ", secondRequested)
+
+	print(
+		"Event B Requested Second: ",
+		_requestedEventIds.size() == 2 and _requestedEventIds[1] == &"event_b",
+	)
+
+	print("Event B Resolved: ", secondResolved)
+
+	print("Event A Gold Result Applied: ", GameState.settlement.gold == _goldBeforeResults + 100)
+
+	print("Event B Food Result Applied: ", GameState.settlement.food == _foodBeforeResults + 50)
+
+	print("Both Events Requested Once: ", _eventRequestedCount == 2)
+
+	print("Both Events Resolved Once: ", _eventResolvedCount == 2)
+
+	print("Requested Order Correct: ", _requestedEventIds == [&"event_a", &"event_b"])
+
+	print("Resolved Order Correct: ", _resolvedEventIds == [&"event_a", &"event_b"])
+
+	print("No Active Event: ", _tycoonController.GetActiveEventId() == &"")
+
+	print("Pending Queue Empty: ", GameState.story.pendingEvents.is_empty())
+
+	print("No Third Event: ", not thirdRequested)
 
 	print("")
 	print("====================================")
-	print("          테스트 종료")
+	print("             테스트 종료")
 	print("====================================")
 
 # =========================================================
-# 테스트 CampaignData
+# 테스트 EventCatalog
 # =========================================================
 
 
-func _CreateCampaignData() -> void:
-	_campaignData = CampaignData.new()
+func _CreateTestEventCatalog() -> void:
+	_eventCatalog = EventCatalog.new()
 
-	var cycle1Data := CycleData.new()
+	# =====================================================
+	# Event A
+	# =====================================================
+	var eventA := EventData.new()
 
-	cycle1Data.cycle = 1
-	cycle1Data.turnLimit = 3
+	eventA.id = (&"event_a")
 
-	var cycle2Data := CycleData.new()
+	eventA.displayName = ("첫 번째 이벤트")
 
-	cycle2Data.cycle = 2
-	cycle2Data.turnLimit = 5
+	eventA.description = ("첫 번째로 처리되어야 하는 이벤트입니다.")
 
-	_campaignData.cycles.append(cycle1Data)
+	eventA.triggerChance = 1.0
 
-	_campaignData.cycles.append(cycle2Data)
+	# =====================================================
+	# Event A Result
+	#
+	# Gold +100
+	# =====================================================
+	var eventAResult := EventResultData.new()
+
+	eventAResult.goldChange = 100
+
+	# =====================================================
+	# Event A Choice
+	# =====================================================
+	var eventAChoice := EventChoiceData.new()
+
+	eventAChoice.id = (&"accept_a")
+
+	eventAChoice.displayText = ("첫 번째 선택")
+
+	eventAChoice.resultText = ("첫 번째 이벤트를 처리했습니다.")
+
+	eventAChoice.result = (eventAResult)
+
+	eventA.choices.append(eventAChoice)
+
+	# =====================================================
+	# Event B
+	# =====================================================
+	var eventB := EventData.new()
+
+	eventB.id = (&"event_b")
+
+	eventB.displayName = ("두 번째 이벤트")
+
+	eventB.description = ("첫 번째 이벤트가 끝난 뒤 처리되어야 합니다.")
+
+	eventB.triggerChance = 1.0
+
+	# =====================================================
+	# Event B Result
+	#
+	# Food +50
+	# =====================================================
+	var eventBResult := EventResultData.new()
+
+	eventBResult.foodChange = 50
+
+	# =====================================================
+	# Event B Choice
+	# =====================================================
+	var eventBChoice := EventChoiceData.new()
+
+	eventBChoice.id = (&"accept_b")
+
+	eventBChoice.displayText = ("두 번째 선택")
+
+	eventBChoice.resultText = ("두 번째 이벤트를 처리했습니다.")
+
+	eventBChoice.result = (eventBResult)
+
+	eventB.choices.append(eventBChoice)
+
+	# =====================================================
+	# 순서 중요
+	#
+	# EventSystem이 Catalog 순서대로 확인하므로
+	# A가 먼저, B가 두 번째로 발생.
+	# =====================================================
+	_eventCatalog.events.append(eventA)
+
+	_eventCatalog.events.append(eventB)
 
 # =========================================================
 # Signal
 # =========================================================
 
 
-func _OnDefenseSceneRequested(startData: DefenseStartData) -> void:
+func _OnEventRequested(eventData: EventData) -> void:
+	_eventRequestedCount += 1
+
+	_requestedEventIds.append(eventData.id)
+
 	print("")
-	print("[GameFlow] DefenseSceneRequested")
+	print("[Signal] EventRequested")
 
-	_defenseStartData = startData
+	print("ID: ", eventData.id)
+
+	print("Name: ", eventData.displayName)
 
 
-func _OnNextCycleRequested(cycle: int) -> void:
+func _OnEventResolved(eventData: EventData, choiceData: EventChoiceData) -> void:
+	_eventResolvedCount += 1
+
+	_resolvedEventIds.append(eventData.id)
+
 	print("")
-	print("[GameFlow] NextCycleRequested: ", cycle)
+	print("[Signal] EventResolved")
 
-	_nextCycleRequestCount += 1
+	print("Event ID: ", eventData.id)
 
+	print("Choice ID: ", choiceData.id)
 
-func _OnCampaignCompleted() -> void:
-	print("")
-	print("[GameFlow] CampaignCompleted")
-
-	_campaignCompletedCount += 1
-
-# =========================================================
-# 출력
-# =========================================================
-
-
-func _PrintCampaign() -> void:
-	print("Cycle: ", GameState.campaign.cycle)
-
-	print("Turn: ", GameState.campaign.currentTurn, "/", GameState.campaign.cycleTurnLimit)
-
-	print("Phase: ", GameState.campaign.currentPhase)
+	print("Result Text: ", choiceData.resultText)
