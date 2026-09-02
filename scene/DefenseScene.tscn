@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://cj4opnny2kf7v"]
+
+[ext_resource type="Script" uid="uid://bjaevfcc2xfl8" path="res://scene/DefenseScene.gd" id="1_aixx4"]
+[ext_resource type="Texture2D" uid="uid://b0q3fa72fdubk" path="res://picture/defense/DefenseTemp.png" id="1_gg6bu"]
+
+[node name="DefenseScene" type="Node2D" unique_id=745379328]
+script = ExtResource("1_aixx4")
+
+[node name="TempMap" type="Sprite2D" parent="." unique_id=914540186]
+scale = Vector2(3, 3)
+texture = ExtResource("1_gg6bu")
+centered = false
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1161908486]
+anchor_mode = 0
+zoom = Vector2(0.65, 0.65)
+
+[node name="Pools" type="Node" parent="." unique_id=804699937]
+
+[node name="MonsterPool" type="Node2D" parent="Pools" unique_id=1837535940]
+
+[node name="UnitPool" type="Node2D" parent="Pools" unique_id=839823060]
+
+[node name="TrapPool" type="Node2D" parent="Pools" unique_id=1188199146]
