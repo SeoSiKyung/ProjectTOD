@@ -4,6 +4,8 @@ const EPSILON: float = 0.00001
 const BIG_NUMBER: float = 1.0e30
 const SQRT_2: float = 1.41421356237
 
+const RATIO_SCALE: int = 1000
+
 const DIRECTIONS_4: Array[Vector2i] = [
 	Vector2i(0, -1),
 	Vector2i(1, 0),
@@ -21,6 +23,14 @@ const DIRECTIONS_8: Array[Vector2i] = [
 	Vector2i(0, -1),
 	Vector2i(1, -1),
 ]
+
+
+static func ApplyRatio(value: int, ratio: int) -> int:
+	return (value * ratio) / RATIO_SCALE
+
+
+static func CeilDivide(value: int, divisor: int) -> int:
+	return (value + divisor - 1) / divisor
 
 
 static func OctileDistance(a: Vector2i, b: Vector2i) -> float:
