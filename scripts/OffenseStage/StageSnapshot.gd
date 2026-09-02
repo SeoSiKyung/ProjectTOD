@@ -2,131 +2,107 @@ class_name StageSnapshot
 extends RefCounted
 
 const SPATIAL_CELL_SIZE: float = 64.0
+const DEFAULT_SLOT_CAPACITY: int = 512
 
-var _positionsByUnitId: Dictionary[int, Vector2] = {}
-var _halfSizesByUnitId: Dictionary[int, int] = {}
-var _minCellsByUnitId: Dictionary[int, Vector2i] = {}
-var _maxCellsByUnitId: Dictionary[int, Vector2i] = {}
-var _unitIdsByCell: Dictionary[Vector2i, Array] = {}
-var _unitIds: Array[int] = []
+var _slots: UnitSlotStorage
+var _slotsByCell: Dictionary[Vector2i, Array] = {}
+
+
+func _init(initialCapacity: int = DEFAULT_SLOT_CAPACITY) -> void:
+	_slots = UnitSlotStorage.new(initialCapacity)
 
 
 func GetUnitCount() -> int:
-	return _unitIds.size()
+	return _slots.GetUnitCount()
+
+
+func GetSlotCapacity() -> int:
+	return _slots.GetSlotCapacity()
 
 
 func HasUnit(unitId: int) -> bool:
-	return _positionsByUnitId.has(unitId)
+	return _slots.HasUnit(unitId)
 
 
 func GetPosition(unitId: int) -> Vector2:
-	if not _positionsByUnitId.has(unitId):
-		push_error("StageSnapshot에 unitId %d가 없습니다." % unitId)
+	var slot: int = _getSlotOrError(unitId)
+
+	if slot == UnitSlotStorage.INVALID_SLOT:
 		return Vector2.ZERO
 
-	return _positionsByUnitId[unitId]
+	return _slots.GetPositionBySlot(slot)
 
 
 func GetHalfSize(unitId: int) -> int:
-	if not _halfSizesByUnitId.has(unitId):
-		push_error("StageSnapshot에 unitId %d가 없습니다." % unitId)
+	var slot: int = _getSlotOrError(unitId)
+
+	if slot == UnitSlotStorage.INVALID_SLOT:
 		return 0
 
-	return _halfSizesByUnitId[unitId]
+	return _slots.GetHalfSizeBySlot(slot)
 
 
 func GetUnitIds() -> Array[int]:
-	return _unitIds.duplicate()
+	return _slots.GetUnitIds()
 
 
 func RegisterUnit(unitId: int, position: Vector2, halfSize: int) -> void:
-	if _positionsByUnitId.has(unitId):
-		push_error("StageSnapshot에 unitId %d가 이미 등록되어 있습니다." % unitId)
-		return
+	var slot: int = _slots.Allocate(unitId, position, halfSize)
 
-	if halfSize < 0:
-		push_error("halfSize는 0 이상이어야 합니다.")
+	if slot == UnitSlotStorage.INVALID_SLOT:
 		return
 
 	var extent: Vector2 = Vector2(float(halfSize), float(halfSize))
 	var minCell: Vector2i = _getCell(position - extent)
 	var maxCell: Vector2i = _getCell(position + extent)
 
-	_positionsByUnitId[unitId] = position
-	_halfSizesByUnitId[unitId] = halfSize
-	_minCellsByUnitId[unitId] = minCell
-	_maxCellsByUnitId[unitId] = maxCell
-	_unitIds.append(unitId)
-	_addUnitToCells(unitId, minCell, maxCell)
+	_slots.SetCellBoundsBySlot(slot, minCell, maxCell)
+	_addSlotToCells(slot, minCell, maxCell)
 
 
 func UnregisterUnit(unitId: int) -> void:
-	if not _positionsByUnitId.has(unitId):
+	var slot: int = _slots.FindSlot(unitId)
+
+	if slot == UnitSlotStorage.INVALID_SLOT:
 		return
 
-	_removeUnitFromCells(
-		unitId,
-		_minCellsByUnitId[unitId],
-		_maxCellsByUnitId[unitId],
-	)
+	var minCell: Vector2i = _slots.GetMinCellBySlot(slot)
+	var maxCell: Vector2i = _slots.GetMaxCellBySlot(slot)
 
-	_positionsByUnitId.erase(unitId)
-	_halfSizesByUnitId.erase(unitId)
-	_minCellsByUnitId.erase(unitId)
-	_maxCellsByUnitId.erase(unitId)
-	_unitIds.erase(unitId)
+	_removeSlotFromCells(slot, minCell, maxCell)
+	_slots.ReleaseSlot(slot)
 
 
 func UpdateUnit(unitId: int, position: Vector2, halfSize: int) -> void:
-	if not _positionsByUnitId.has(unitId):
-		push_error("StageSnapshot에 unitId %d가 없습니다." % unitId)
+	var slot: int = _getSlotOrError(unitId)
+
+	if slot == UnitSlotStorage.INVALID_SLOT:
 		return
 
-	if halfSize < 0:
-		push_error("halfSize는 0 이상이어야 합니다.")
-		return
-
-	var oldMinCell: Vector2i = _minCellsByUnitId[unitId]
-	var oldMaxCell: Vector2i = _maxCellsByUnitId[unitId]
-	var extent: Vector2 = Vector2(float(halfSize), float(halfSize))
-	var newMinCell: Vector2i = _getCell(position - extent)
-	var newMaxCell: Vector2i = _getCell(position + extent)
-
-	_positionsByUnitId[unitId] = position
-	_halfSizesByUnitId[unitId] = halfSize
-
-	if oldMinCell == newMinCell and oldMaxCell == newMaxCell:
-		return
-
-	_removeUnitFromCells(unitId, oldMinCell, oldMaxCell)
-	_addUnitToCells(unitId, newMinCell, newMaxCell)
-	_minCellsByUnitId[unitId] = newMinCell
-	_maxCellsByUnitId[unitId] = newMaxCell
+	_updateSlot(slot, position, halfSize)
 
 
 func UpdatePosition(unitId: int, position: Vector2) -> void:
-	if not _halfSizesByUnitId.has(unitId):
-		push_error("StageSnapshot에 unitId %d가 없습니다." % unitId)
+	var slot: int = _getSlotOrError(unitId)
+
+	if slot == UnitSlotStorage.INVALID_SLOT:
 		return
 
-	UpdateUnit(unitId, position, _halfSizesByUnitId[unitId])
+	_updateSlot(slot, position, _slots.GetHalfSizeBySlot(slot))
 
 
 func UpdateHalfSize(unitId: int, halfSize: int) -> void:
-	if not _positionsByUnitId.has(unitId):
-		push_error("StageSnapshot에 unitId %d가 없습니다." % unitId)
+	var slot: int = _getSlotOrError(unitId)
+
+	if slot == UnitSlotStorage.INVALID_SLOT:
 		return
 
-	UpdateUnit(unitId, _positionsByUnitId[unitId], halfSize)
+	_updateSlot(slot, _slots.GetPositionBySlot(slot), halfSize)
 
 
 func Clear() -> void:
-	_positionsByUnitId.clear()
-	_halfSizesByUnitId.clear()
-	_minCellsByUnitId.clear()
-	_maxCellsByUnitId.clear()
-	_unitIdsByCell.clear()
-	_unitIds.clear()
+	_slotsByCell.clear()
+	_slots.Clear()
 
 
 func FindUnitIdsInCircle(center: Vector2, radius: float) -> Array[int]:
@@ -140,11 +116,23 @@ func FindUnitIdsInCircle(center: Vector2, radius: float) -> Array[int]:
 	var minCell: Vector2i = _getCell(center - radiusVector)
 	var maxCell: Vector2i = _getCell(center + radiusVector)
 	var radiusSquared: float = radius * radius
-	var candidateUnitIds: Array[int] = _collectCandidateUnitIds(minCell, maxCell)
+	var queryStamp: int = _slots.BeginQuery()
 
-	for unitId: int in candidateUnitIds:
-		if _intersectsCircle(unitId, center, radiusSquared):
-			result.append(unitId)
+	for cellX: int in range(minCell.x, maxCell.x + 1):
+		for cellY: int in range(minCell.y, maxCell.y + 1):
+			var cell: Vector2i = Vector2i(cellX, cellY)
+
+			if not _slotsByCell.has(cell):
+				continue
+
+			var cellSlots: Array = _slotsByCell[cell]
+
+			for slot: int in cellSlots:
+				if not _slots.TryMarkQuerySlot(slot, queryStamp):
+					continue
+
+				if _intersectsCircle(slot, center, radiusSquared):
+					result.append(_slots.GetUnitIdBySlot(slot))
 
 	return result
 
@@ -154,11 +142,23 @@ func FindUnitIdsInRect(center: Vector2, halfExtent: Vector2) -> Array[int]:
 	var extent: Vector2 = Vector2(absf(halfExtent.x), absf(halfExtent.y))
 	var minCell: Vector2i = _getCell(center - extent)
 	var maxCell: Vector2i = _getCell(center + extent)
-	var candidateUnitIds: Array[int] = _collectCandidateUnitIds(minCell, maxCell)
+	var queryStamp: int = _slots.BeginQuery()
 
-	for unitId: int in candidateUnitIds:
-		if _intersectsRect(unitId, center, extent):
-			result.append(unitId)
+	for cellX: int in range(minCell.x, maxCell.x + 1):
+		for cellY: int in range(minCell.y, maxCell.y + 1):
+			var cell: Vector2i = Vector2i(cellX, cellY)
+
+			if not _slotsByCell.has(cell):
+				continue
+
+			var cellSlots: Array = _slotsByCell[cell]
+
+			for slot: int in cellSlots:
+				if not _slots.TryMarkQuerySlot(slot, queryStamp):
+					continue
+
+				if _intersectsRect(slot, center, extent):
+					result.append(_slots.GetUnitIdBySlot(slot))
 
 	return result
 
@@ -171,13 +171,36 @@ func FindUnitIdsInBounds(center: Vector2, halfExtent: Vector2) -> Array[int]:
 	return FindUnitIdsInRect(center, halfExtent)
 
 
-func _intersectsCircle(
-	unitId: int,
-	center: Vector2,
-	radiusSquared: float
-) -> bool:
-	var unitPosition: Vector2 = _positionsByUnitId[unitId]
-	var halfSize: float = float(_halfSizesByUnitId[unitId])
+func _getSlotOrError(unitId: int) -> int:
+	var slot: int = _slots.FindSlot(unitId)
+
+	if slot == UnitSlotStorage.INVALID_SLOT:
+		push_error("StageSnapshot에 unitId %d가 없습니다." % unitId)
+
+	return slot
+
+
+func _updateSlot(slot: int, position: Vector2, halfSize: int) -> void:
+	var oldMinCell: Vector2i = _slots.GetMinCellBySlot(slot)
+	var oldMaxCell: Vector2i = _slots.GetMaxCellBySlot(slot)
+	var extent: Vector2 = Vector2(float(halfSize), float(halfSize))
+	var newMinCell: Vector2i = _getCell(position - extent)
+	var newMaxCell: Vector2i = _getCell(position + extent)
+
+	if not _slots.UpdateStateBySlot(slot, position, halfSize):
+		return
+
+	if oldMinCell == newMinCell and oldMaxCell == newMaxCell:
+		return
+
+	_removeSlotFromCells(slot, oldMinCell, oldMaxCell)
+	_addSlotToCells(slot, newMinCell, newMaxCell)
+	_slots.SetCellBoundsBySlot(slot, newMinCell, newMaxCell)
+
+
+func _intersectsCircle(slot: int, center: Vector2, radiusSquared: float) -> bool:
+	var unitPosition: Vector2 = _slots.GetPositionBySlot(slot)
+	var halfSize: float = float(_slots.GetHalfSizeBySlot(slot))
 	var minPosition: Vector2 = unitPosition - Vector2(halfSize, halfSize)
 	var maxPosition: Vector2 = unitPosition + Vector2(halfSize, halfSize)
 	var closestPoint: Vector2 = Vector2(
@@ -188,13 +211,9 @@ func _intersectsCircle(
 	return center.distance_squared_to(closestPoint) <= radiusSquared
 
 
-func _intersectsRect(
-	unitId: int,
-	center: Vector2,
-	halfExtent: Vector2
-) -> bool:
-	var unitPosition: Vector2 = _positionsByUnitId[unitId]
-	var halfSize: float = float(_halfSizesByUnitId[unitId])
+func _intersectsRect(slot: int, center: Vector2, halfExtent: Vector2) -> bool:
+	var unitPosition: Vector2 = _slots.GetPositionBySlot(slot)
+	var halfSize: float = float(_slots.GetHalfSizeBySlot(slot))
 
 	return (
 		absf(unitPosition.x - center.x) <= halfExtent.x + halfSize
@@ -202,70 +221,48 @@ func _intersectsRect(
 	)
 
 
-func _collectCandidateUnitIds(
-	minCell: Vector2i,
-	maxCell: Vector2i
-) -> Array[int]:
-	var result: Array[int] = []
-	var collectedUnitIds: Dictionary[int, bool] = {}
+func _addSlotToCells(slot: int, minCell: Vector2i, maxCell: Vector2i) -> void:
+	for cellX: int in range(minCell.x, maxCell.x + 1):
+		for cellY: int in range(minCell.y, maxCell.y + 1):
+			var cell: Vector2i = Vector2i(cellX, cellY)
+			var cellSlots: Array = []
 
+			if _slotsByCell.has(cell):
+				cellSlots = _slotsByCell[cell]
+
+			cellSlots.append(slot)
+			_slotsByCell[cell] = cellSlots
+
+
+func _removeSlotFromCells(slot: int, minCell: Vector2i, maxCell: Vector2i) -> void:
 	for cellX: int in range(minCell.x, maxCell.x + 1):
 		for cellY: int in range(minCell.y, maxCell.y + 1):
 			var cell: Vector2i = Vector2i(cellX, cellY)
 
-			if not _unitIdsByCell.has(cell):
+			if not _slotsByCell.has(cell):
 				continue
 
-			var cellUnitIds: Array = _unitIdsByCell[cell]
+			var cellSlots: Array = _slotsByCell[cell]
+			var slotIndex: int = cellSlots.find(slot)
 
-			for unitId: int in cellUnitIds:
-				if collectedUnitIds.has(unitId):
-					continue
-
-				collectedUnitIds[unitId] = true
-				result.append(unitId)
-
-	return result
-
-
-func _addUnitToCells(
-	unitId: int,
-	minCell: Vector2i,
-	maxCell: Vector2i
-) -> void:
-	for cellX: int in range(minCell.x, maxCell.x + 1):
-		for cellY: int in range(minCell.y, maxCell.y + 1):
-			var cell: Vector2i = Vector2i(cellX, cellY)
-
-			if not _unitIdsByCell.has(cell):
-				var newCellUnitIds: Array[int] = []
-				_unitIdsByCell[cell] = newCellUnitIds
-
-			var cellUnitIds: Array = _unitIdsByCell[cell]
-			cellUnitIds.append(unitId)
-
-
-func _removeUnitFromCells(
-	unitId: int,
-	minCell: Vector2i,
-	maxCell: Vector2i
-) -> void:
-	for cellX: int in range(minCell.x, maxCell.x + 1):
-		for cellY: int in range(minCell.y, maxCell.y + 1):
-			var cell: Vector2i = Vector2i(cellX, cellY)
-
-			if not _unitIdsByCell.has(cell):
+			if slotIndex < 0:
 				continue
 
-			var cellUnitIds: Array = _unitIdsByCell[cell]
-			cellUnitIds.erase(unitId)
+			var lastIndex: int = cellSlots.size() - 1
 
-			if cellUnitIds.is_empty():
-				_unitIdsByCell.erase(cell)
+			if slotIndex != lastIndex:
+				cellSlots[slotIndex] = cellSlots[lastIndex]
+
+			cellSlots.pop_back()
+
+			if cellSlots.is_empty():
+				_slotsByCell.erase(cell)
+			else:
+				_slotsByCell[cell] = cellSlots
 
 
 func _getCell(position: Vector2) -> Vector2i:
 	return Vector2i(
 		floori(position.x / SPATIAL_CELL_SIZE),
 		floori(position.y / SPATIAL_CELL_SIZE),
-	)z
+	)
