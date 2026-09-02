@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://dpkmyj5hdm0op"]
 
 [ext_resource type="Script" uid="uid://djxreqs452a78" path="res://scene/OffenseScene.gd" id="1_wohdj"]
+[ext_resource type="Script" uid="uid://db6fmgy4ibavf" path="res://scripts/OffenseStage/OffenseStageManager.gd" id="2_nq1oc"]
 [ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/CommandController.gd" id="3_dlxae"]
 [ext_resource type="Resource" path="res://maps/2_navigation.res" id="4_8rkap"]
 [ext_resource type="Script" uid="uid://b7ert7hoc8245" path="res://unit/MovementSimulator.gd" id="4_jaojb"]
@@ -11,15 +12,21 @@
 [ext_resource type="Script" uid="uid://dwb6dp01f41m8" path="res://unit/SelectController.gd" id="8_u7dgu"]
 [ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPanel.gd" id="11_o4skl"]
 
+[sub_resource type="Resource" id="Resource_pdnc6"]
+script = ExtResource("5_j4bn1")
+navigationData = ExtResource("4_8rkap")
+metadata/_custom_type_script = "uid://u3wgqxb8j2fh"
+
 [node name="OffenseScene" type="Node2D" unique_id=2102705416]
 script = ExtResource("1_wohdj")
 
+[node name="OffenseStageManager" type="Node" parent="." unique_id=1632319742]
+script = ExtResource("2_nq1oc")
+_navigationService = SubResource("Resource_pdnc6")
+metadata/_custom_type_script = "uid://db6fmgy4ibavf"
+
 [node name="CommandController" type="Node" parent="." unique_id=496005023]
 script = ExtResource("3_dlxae")
-
-[node name="NavigationService" type="Node" parent="." unique_id=1934783211]
-script = ExtResource("5_j4bn1")
-navigationData = ExtResource("4_8rkap")
 
 [node name="MovementSimulator" type="Node" parent="." unique_id=1834251702]
 script = ExtResource("4_jaojb")

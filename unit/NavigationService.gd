@@ -1,5 +1,5 @@
 class_name NavigationService
-extends Node
+extends Resource
 
 const CONTACT_EPSILON: float = 0.001
 
@@ -165,7 +165,7 @@ class RegionAnchorTopology:
 
 #endregion
 
-func _ready() -> void:
+func Ready() -> void:
 	_LoadNavigationData()
 
 #region Public
