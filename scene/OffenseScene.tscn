@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://djxreqs452a78" path="res://scene/OffenseScene.gd" id="1_wohdj"]
 [ext_resource type="Script" uid="uid://db6fmgy4ibavf" path="res://scripts/OffenseStage/OffenseStageManager.gd" id="2_nq1oc"]
 [ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/CommandController.gd" id="3_dlxae"]
-[ext_resource type="Resource" uid="uid://p6ykady54y8q" path="res://maps/2_navigation.res" id="4_8rkap"]
+[ext_resource type="Resource" path="res://maps/2_navigation.res" id="4_8rkap"]
 [ext_resource type="Script" uid="uid://b7ert7hoc8245" path="res://unit/MovementSimulator.gd" id="4_jaojb"]
 [ext_resource type="Script" uid="uid://bhe58qkgp1ycw" path="res://unit/MovementController.gd" id="5_dgir3"]
 [ext_resource type="Script" uid="uid://u3wgqxb8j2fh" path="res://unit/NavigationService.gd" id="5_j4bn1"]
