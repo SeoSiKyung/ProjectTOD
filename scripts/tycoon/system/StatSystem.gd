@@ -81,8 +81,5 @@ func _ApplyEffect(stats: DerivedStats, effect: FacilityEffectData) -> void:
 		FacilityEffectData.EffectType.DEVELOPMENT:
 			stats.development += effect.value
 
-		FacilityEffectData.EffectType.DEFENSE_PHYSICAL_ATTACK_BONUS:
-			stats.defensePhysicalAttackBonus += effect.value
-
 		FacilityEffectData.EffectType.STABILITY_MINIMUM:
 			stats.stabilityMinimum = max(stats.stabilityMinimum, effect.value)

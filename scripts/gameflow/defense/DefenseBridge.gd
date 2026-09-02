@@ -2,11 +2,10 @@ class_name DefenseBridge
 extends Node
 
 
-func CreateStartData(campaign: CampaignState, stats: DerivedStats) -> DefenseStartData:
-	var startData := DefenseStartData.new()
-
+# 타이쿤에서 호출
+func CreateStartData(campaign: CampaignState, population: int) -> DefenseStartData:
+	var startData: DefenseStartData = DefenseStartData.new()
 	startData.cycle = campaign.cycle
-
-	startData.defensePhysicalAttackBonus = (stats.defensePhysicalAttackBonus)
+	startData.population = population
 
 	return startData
