@@ -122,20 +122,20 @@ func Start(units: Dictionary[int, Unit]) -> void:
 	_PrepareFormationMetrics(units)
 	_AssignSlots(units)
 
-	for unitId: int in memberIds:
-		if not units.has(unitId):
-			continue
+	# for unitId: int in memberIds:
+	# 	if not units.has(unitId):
+	# 		continue
 
-		var unit: Unit = units[unitId]
-		var slot: Vector2 = _slotByUnit.get(unitId, _arrivalCenter)
-		var path: PackedVector2Array = _navigationService.BuildUnitPath(unit, slot, anchorPath)
-		if path.is_empty():
-			path = _navigationService.FindPath(unit.position, slot, unit.GetHalfSize())
+	# 	var unit: Unit = units[unitId]
+	# 	var slot: Vector2 = _slotByUnit.get(unitId, _arrivalCenter)
+	# 	var path: PackedVector2Array = _navigationService.BuildUnitPath(unit, slot, anchorPath)
+	# 	if path.is_empty():
+	# 		path = _navigationService.FindPath(unit.position, slot, unit.GetHalfSize())
 
-		if not path.is_empty():
-			_slotByUnit[unitId] = path[path.size() - 1]
+	# 	if not path.is_empty():
+	# 		_slotByUnit[unitId] = path[path.size() - 1]
 
-		unit.movement.BeginMoveOrder(self, path)
+	# 	unit.movement.BeginMoveOrder(self, path)
 
 
 func Simulate(dt: float, allUnits: Dictionary[int, Unit]) -> Array[MovementCandidate]:
