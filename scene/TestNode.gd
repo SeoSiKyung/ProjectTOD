@@ -2,180 +2,346 @@ extends Node
 
 const FACILITY_CATALOG: FacilityCatalog = preload("res://data/facility/facility_catalog.tres")
 
-var _tycoonController: TycoonController
 var _eventCatalog: EventCatalog
 
-var _eventRequestedCount: int = 0
-var _eventResolvedCount: int = 0
+var _firstController: TycoonController
+var _loadedController: TycoonController
 
-var _requestedEventIds: Array[StringName] = []
-var _resolvedEventIds: Array[StringName] = []
+var _beforeSaveRequestedCount: int = 0
+var _afterLoadRequestedCount: int = 0
 
-var _goldBeforeResults: int = 0
-var _foodBeforeResults: int = 0
+var _loadedRequestedEventIds: Array[StringName] = []
 
 
 func _ready() -> void:
 	print("")
 	print("====================================")
-	print("       다중 Event 순차 처리 테스트")
+	print("       Active Event Save 테스트")
 	print("====================================")
 
 	# =====================================================
 	# 새 게임
+	#
+	# GameState
+	# ├ campaign
+	# ├ settlement
+	# ├ story
+	# └ event
 	# =====================================================
 	GameState.StartNewGame()
 
+	print("")
+	print("========== 초기 GameState 확인 ==========")
+
+	print("Event State Exists: ", GameState.event != null)
+
 	# =====================================================
-	# 테스트 EventCatalog 생성
+	# 테스트 Event Catalog
 	# =====================================================
 	_CreateTestEventCatalog()
 
 	# =====================================================
-	# TycoonController
+	# 첫 번째 TycoonController
 	# =====================================================
-	_tycoonController = TycoonController.new()
+	_firstController = TycoonController.new()
 
-	add_child(_tycoonController)
+	add_child(_firstController)
 
-	_tycoonController.Setup(
+	_firstController.Setup(
 		GameState.campaign,
 		GameState.settlement,
 		GameState.story,
+		GameState.event,
 		FACILITY_CATALOG,
 		_eventCatalog,
 	)
 
-	# =====================================================
-	# Signal
-	# =====================================================
-	_tycoonController.EventRequested.connect(_OnEventRequested)
-
-	_tycoonController.EventResolved.connect(_OnEventResolved)
+	_firstController.EventRequested.connect(_OnBeforeSaveEventRequested)
 
 	# =====================================================
 	# Cycle 시작
 	#
-	# Event A / B 둘 다 확률 100%
+	# Event A
+	# → OneShot
+	# → Active
 	#
-	# 예상:
-	# A → Active
-	# B → Pending
+	# Event B
+	# → 반복 가능
+	# → Pending
 	# =====================================================
 	print("")
-	print("========== Cycle 시작 ==========")
+	print("========== 이벤트 발생 ==========")
 
-	var started := _tycoonController.StartCycle(5)
-
-	_goldBeforeResults = (GameState.settlement.gold)
-
-	_foodBeforeResults = (GameState.settlement.food)
+	var started: bool = (_firstController.StartCycle(5))
 
 	print("Cycle Started: ", started)
 
-	print("Active Event: ", _tycoonController.GetActiveEventId())
+	print("Active Before Save: ", GameState.event.GetActiveEventId())
 
-	print("Event Requested Count: ", _eventRequestedCount)
+	print("Pending Before Save: ", GameState.event.GetPendingEventIds())
 
-	print("Pending Count: ", GameState.story.pendingEvents.size())
+	print("OneShot Before Save: ", GameState.event.GetTriggeredOneShotEventIds())
 
-	print("Pending Events: ", GameState.story.pendingEvents)
+	print("Before Save Request Count: ", _beforeSaveRequestedCount)
 
 	# =====================================================
-	# 첫 번째 이벤트 상태 검증
+	# 저장 직전 상태 검증
 	# =====================================================
-	var firstEventActive := (_tycoonController.GetActiveEventId() == &"event_a")
+	var activeBeforeSaveCorrect: bool = (GameState.event.GetActiveEventId() == &"event_a")
 
-	var secondEventPending := (
-		GameState.story.pendingEvents.size() == 1 and GameState.story.pendingEvents[0] == &"event_b"
+	var pendingBeforeSaveIds: Array[StringName] = (GameState.event.GetPendingEventIds())
+
+	var pendingBeforeSaveCorrect: bool = (
+		pendingBeforeSaveIds.size() == 1 and pendingBeforeSaveIds[0] == &"event_b"
+	)
+
+	var oneShotBeforeSaveCorrect: bool = (GameState.event.HasTriggeredOneShotEvent(&"event_a"))
+
+	print("")
+	print("========== 저장 전 상태 검증 ==========")
+
+	print("Event A Active: ", activeBeforeSaveCorrect)
+
+	print("Event B Pending: ", pendingBeforeSaveCorrect)
+
+	print("Event A OneShot Recorded: ", oneShotBeforeSaveCorrect)
+
+	# =====================================================
+	# Save
+	#
+	# Event A를 선택하지 않은 상태에서 저장.
+	# =====================================================
+	print("")
+	print("========== Save ==========")
+
+	var saveData: GameSaveData = (
+		GameSaveMapper.CreateSaveData(
+			GameState.campaign,
+			GameState.settlement,
+			GameState.story,
+			GameState.event,
+		)
+	)
+
+	print("Saved Active: ", saveData.event.activeEventId)
+
+	print("Saved Pending: ", saveData.event.pendingEventIds)
+
+	print("Saved OneShot: ", saveData.event.triggeredOneShotEventIds)
+
+	# =====================================================
+	# SaveData 검증
+	# =====================================================
+	var activeSavedCorrectly: bool = (saveData.event.activeEventId == "event_a")
+
+	var pendingSavedCorrectly: bool = (
+		saveData.event.pendingEventIds.size() == 1
+		and saveData.event.pendingEventIds[0] == "event_b"
+	)
+
+	var oneShotSavedCorrectly: bool = (
+		saveData.event.triggeredOneShotEventIds.size() == 1
+		and saveData.event.triggeredOneShotEventIds[0] == "event_a"
 	)
 
 	print("")
-	print("========== 초기 이벤트 상태 ==========")
+	print("========== SaveData 검증 ==========")
 
-	print("Event A Is Active: ", firstEventActive)
+	print("Active Saved Correctly: ", activeSavedCorrectly)
 
-	print("Event B Is Pending: ", secondEventPending)
+	print("Pending Saved Correctly: ", pendingSavedCorrectly)
+
+	print("OneShot Saved Correctly: ", oneShotSavedCorrectly)
 
 	# =====================================================
-	# Event A 선택
+	# SaveData -> 새로운 Runtime State
 	#
-	# 결과:
-	# Gold +100
+	# 실제 게임을 껐다 켠 상황을 흉내냄.
 	# =====================================================
 	print("")
-	print("========== Event A 처리 ==========")
+	print("========== Runtime State 복구 ==========")
 
-	var firstResolved := (_tycoonController.ResolveActiveEvent(&"accept_a"))
+	var loadedCampaign: CampaignState = (GameSaveMapper.CreateCampaignState(saveData.campaign))
 
-	print("Event A Resolve Result: ", firstResolved)
+	var loadedSettlement: SettlementState = (
+		GameSaveMapper.CreateSettlementState(saveData.settlement)
+	)
 
-	print("Active Event After A: [", _tycoonController.GetActiveEventId(), "]")
+	var loadedStory: StoryState = (GameSaveMapper.CreateStoryState(saveData.story))
 
-	print("Pending Count After A: ", GameState.story.pendingEvents.size())
+	var loadedEvent: EventState = (GameSaveMapper.CreateEventState(saveData.event))
 
-	print("Gold After A: ", GameState.settlement.gold)
+	# =====================================================
+	# GameState에 복구 State 장착
+	# =====================================================
+	GameState.LoadGame(loadedCampaign, loadedSettlement, loadedStory, loadedEvent)
+
+	print("Loaded Active: ", GameState.event.GetActiveEventId())
+
+	print("Loaded Pending: ", GameState.event.GetPendingEventIds())
+
+	print("Loaded OneShot: ", GameState.event.GetTriggeredOneShotEventIds())
+
+	# =====================================================
+	# 로드 직후 상태를 바로 검증
+	#
+	# 이후 Event A를 처리하면 Active가 비워지므로
+	# 반드시 여기서 먼저 기록.
+	# =====================================================
+	var activeLoadedCorrectly: bool = (GameState.event.GetActiveEventId() == &"event_a")
+
+	var loadedPendingIds: Array[StringName] = (GameState.event.GetPendingEventIds())
+
+	var pendingLoadedCorrectly: bool = (
+		loadedPendingIds.size() == 1 and loadedPendingIds[0] == &"event_b"
+	)
+
+	var oneShotLoadedCorrectly: bool = (GameState.event.HasTriggeredOneShotEvent(&"event_a"))
+
+	print("")
+	print("========== 로드 상태 검증 ==========")
+
+	print("Active Restored Correctly: ", activeLoadedCorrectly)
+
+	print("Pending Restored Correctly: ", pendingLoadedCorrectly)
+
+	print("OneShot Restored Correctly: ", oneShotLoadedCorrectly)
+
+	# =====================================================
+	# 새로운 Controller 생성
+	#
+	# GameState는 Load된 새로운 State를 가지고 있음.
+	# =====================================================
+	_loadedController = TycoonController.new()
+
+	add_child(_loadedController)
+
+	_loadedController.Setup(
+		GameState.campaign,
+		GameState.settlement,
+		GameState.story,
+		GameState.event,
+		FACILITY_CATALOG,
+		_eventCatalog,
+	)
+
+	_loadedController.EventRequested.connect(_OnAfterLoadEventRequested)
 
 	# =====================================================
 	# 중요
 	#
-	# Event A가 끝났다고 Event B가 자동으로
-	# 표시되면 안 됨.
+	# Setup 과정에서 Active Event가 사라지면 안 됨.
+	# =====================================================
+	var activeSurvivedControllerSetup: bool = (GameState.event.GetActiveEventId() == &"event_a")
+
+	print("")
+	print("========== Controller 재생성 ==========")
+
+	print("Active Survived Setup: ", activeSurvivedControllerSetup)
+
+	# =====================================================
+	# 저장되어 있던 Active Event 다시 표시
 	#
-	# UI가 결과 화면을 닫은 뒤
-	# RequestNextPendingEvent()를 호출하는 구조.
-	# =====================================================
-	var noAutomaticSecondEvent := (
-		_tycoonController.GetActiveEventId() == &"" and _eventRequestedCount == 1
-		and GameState.story.pendingEvents.size() == 1
-	)
-
-	print("Event B Not Automatically Opened: ", noAutomaticSecondEvent)
-
-	# =====================================================
-	# 다음 Pending Event 요청
+	# 실제로는 Tycoon Scene UI 준비 완료 후 호출.
 	# =====================================================
 	print("")
-	print("========== 다음 Pending Event 요청 ==========")
+	print("========== Active Event 재표시 ==========")
 
-	var secondRequested := (_tycoonController.RequestNextPendingEvent())
+	var activeRequested: bool = (_loadedController.RequestActiveEvent())
 
-	print("RequestNextPendingEvent Result: ", secondRequested)
+	print("RequestActiveEvent Result: ", activeRequested)
 
-	print("Active Event: ", _tycoonController.GetActiveEventId())
+	print("Active After Request: ", GameState.event.GetActiveEventId())
 
-	print("Event Requested Count: ", _eventRequestedCount)
+	print("Pending After Request: ", GameState.event.GetPendingEventIds())
 
-	print("Pending Count: ", GameState.story.pendingEvents.size())
+	print("After Load Request Count: ", _afterLoadRequestedCount)
+
+	var eventARequestedAfterLoad: bool = (
+		_loadedRequestedEventIds.size() == 1 and _loadedRequestedEventIds[0] == &"event_a"
+	)
 
 	# =====================================================
-	# Event B 선택
+	# 복구된 Event A 처리
 	#
-	# 결과:
+	# Gold +100
+	# =====================================================
+	print("")
+	print("========== 복구된 Event A 처리 ==========")
+
+	var goldBeforeA: int = (GameState.settlement.gold)
+
+	var eventAResolved: bool = (_loadedController.ResolveActiveEvent(&"accept_a"))
+
+	var eventAResultApplied: bool = (GameState.settlement.gold == goldBeforeA + 100)
+
+	var activeClearedAfterA: bool = (not GameState.event.HasActiveEvent())
+
+	var pendingAfterAIds: Array[StringName] = (GameState.event.GetPendingEventIds())
+
+	var eventBStillPending: bool = (
+		pendingAfterAIds.size() == 1 and pendingAfterAIds[0] == &"event_b"
+	)
+
+	print("Event A Resolve Result: ", eventAResolved)
+
+	print("Gold After A: ", GameState.settlement.gold)
+
+	print("Active After A: [", GameState.event.GetActiveEventId(), "]")
+
+	print("Pending After A: ", GameState.event.GetPendingEventIds())
+
+	# =====================================================
+	# Pending B → Active
+	# =====================================================
+	print("")
+	print("========== Pending Event B 요청 ==========")
+
+	var eventBRequested: bool = (_loadedController.RequestNextPendingEvent())
+
+	var eventBActive: bool = (GameState.event.GetActiveEventId() == &"event_b")
+
+	var pendingEmptyAfterBActivation: bool = (not GameState.event.HasPendingEvents())
+
+	print("Event B Request Result: ", eventBRequested)
+
+	print("Active Event: ", GameState.event.GetActiveEventId())
+
+	print("Pending Events: ", GameState.event.GetPendingEventIds())
+
+	var eventBRequestedSecond: bool = (
+		_loadedRequestedEventIds.size() == 2 and _loadedRequestedEventIds[1] == &"event_b"
+	)
+
+	# =====================================================
+	# Event B 처리
+	#
 	# Food +50
 	# =====================================================
 	print("")
 	print("========== Event B 처리 ==========")
 
-	var secondResolved := (_tycoonController.ResolveActiveEvent(&"accept_b"))
+	var foodBeforeB: int = (GameState.settlement.food)
 
-	print("Event B Resolve Result: ", secondResolved)
+	var eventBResolved: bool = (_loadedController.ResolveActiveEvent(&"accept_b"))
 
-	print("Active Event After B: [", _tycoonController.GetActiveEventId(), "]")
+	var eventBResultApplied: bool = (GameState.settlement.food == foodBeforeB + 50)
 
-	print("Pending Count After B: ", GameState.story.pendingEvents.size())
+	var noActiveEvent: bool = (not GameState.event.HasActiveEvent())
+
+	var noPendingEvents: bool = (not GameState.event.HasPendingEvents())
+
+	var oneShotStillRecorded: bool = (GameState.event.HasTriggeredOneShotEvent(&"event_a"))
+
+	print("Event B Resolve Result: ", eventBResolved)
 
 	print("Food After B: ", GameState.settlement.food)
 
-	# =====================================================
-	# 더 이상 Pending Event 없음
-	# =====================================================
-	print("")
-	print("========== 빈 Pending 요청 ==========")
+	print("Final Active: [", GameState.event.GetActiveEventId(), "]")
 
-	var thirdRequested := (_tycoonController.RequestNextPendingEvent())
+	print("Final Pending: ", GameState.event.GetPendingEventIds())
 
-	print("Third Request Result: ", thirdRequested)
+	print("Final OneShot: ", GameState.event.GetTriggeredOneShotEventIds())
 
 	# =====================================================
 	# 최종 검증
@@ -183,47 +349,76 @@ func _ready() -> void:
 	print("")
 	print("========== 결과 검증 ==========")
 
+	print("Event State Exists: ", GameState.event != null)
+
 	print("Cycle Started: ", started)
 
-	print("Event A Was Active First: ", firstEventActive)
+	print("Active Before Save Correct: ", activeBeforeSaveCorrect)
 
-	print("Event B Was Pending First: ", secondEventPending)
+	print("Pending Before Save Correct: ", pendingBeforeSaveCorrect)
 
-	print(
-		"Only One Event Initially Requested: ",
-		_requestedEventIds.size() >= 1 and _requestedEventIds[0] == &"event_a",
+	print("OneShot Before Save Correct: ", oneShotBeforeSaveCorrect)
+
+	print("Active Saved Correctly: ", activeSavedCorrectly)
+
+	print("Pending Saved Correctly: ", pendingSavedCorrectly)
+
+	print("OneShot Saved Correctly: ", oneShotSavedCorrectly)
+
+	print("Active Loaded Correctly: ", activeLoadedCorrectly)
+
+	print("Pending Loaded Correctly: ", pendingLoadedCorrectly)
+
+	print("OneShot Loaded Correctly: ", oneShotLoadedCorrectly)
+
+	print("Active Survived Controller Setup: ", activeSurvivedControllerSetup)
+
+	print("Active Event Re-Requested: ", activeRequested)
+
+	print("Loaded Event A Requested First: ", eventARequestedAfterLoad)
+
+	print("Event A Resolved After Load: ", eventAResolved)
+
+	print("Event A Result Applied Once: ", eventAResultApplied)
+
+	print("Active Cleared After A: ", activeClearedAfterA)
+
+	print("Event B Stayed Pending: ", eventBStillPending)
+
+	print("Event B Requested From Pending: ", eventBRequested)
+
+	print("Event B Became Active: ", eventBActive)
+
+	print("Pending Removed On Activation: ", pendingEmptyAfterBActivation)
+
+	print("Loaded Event B Requested Second: ", eventBRequestedSecond)
+
+	print("Event B Resolved: ", eventBResolved)
+
+	print("Event B Result Applied: ", eventBResultApplied)
+
+	print("OneShot Record Still Exists: ", oneShotStillRecorded)
+
+	print("No Active Event: ", noActiveEvent)
+
+	print("No Pending Events: ", noPendingEvents)
+
+	# =====================================================
+	# 전체 결과
+	# =====================================================
+	var allPassed: bool = (
+		GameState.event != null and started and activeBeforeSaveCorrect and pendingBeforeSaveCorrect
+		and oneShotBeforeSaveCorrect and activeSavedCorrectly and pendingSavedCorrectly
+		and oneShotSavedCorrectly and activeLoadedCorrectly and pendingLoadedCorrectly
+		and oneShotLoadedCorrectly and activeSurvivedControllerSetup and activeRequested
+		and eventARequestedAfterLoad and eventAResolved and eventAResultApplied
+		and activeClearedAfterA and eventBStillPending and eventBRequested and eventBActive
+		and pendingEmptyAfterBActivation and eventBRequestedSecond and eventBResolved
+		and eventBResultApplied and oneShotStillRecorded and noActiveEvent and noPendingEvents
 	)
 
-	print("Event A Resolved: ", firstResolved)
-
-	print("Event B Did Not Auto Open: ", noAutomaticSecondEvent)
-
-	print("Event B Pending Request Success: ", secondRequested)
-
-	print(
-		"Event B Requested Second: ",
-		_requestedEventIds.size() == 2 and _requestedEventIds[1] == &"event_b",
-	)
-
-	print("Event B Resolved: ", secondResolved)
-
-	print("Event A Gold Result Applied: ", GameState.settlement.gold == _goldBeforeResults + 100)
-
-	print("Event B Food Result Applied: ", GameState.settlement.food == _foodBeforeResults + 50)
-
-	print("Both Events Requested Once: ", _eventRequestedCount == 2)
-
-	print("Both Events Resolved Once: ", _eventResolvedCount == 2)
-
-	print("Requested Order Correct: ", _requestedEventIds == [&"event_a", &"event_b"])
-
-	print("Resolved Order Correct: ", _resolvedEventIds == [&"event_a", &"event_b"])
-
-	print("No Active Event: ", _tycoonController.GetActiveEventId() == &"")
-
-	print("Pending Queue Empty: ", GameState.story.pendingEvents.is_empty())
-
-	print("No Third Event: ", not thirdRequested)
+	print("")
+	print("All Active Event Save Tests Passed: ", allPassed)
 
 	print("")
 	print("====================================")
@@ -240,36 +435,33 @@ func _CreateTestEventCatalog() -> void:
 
 	# =====================================================
 	# Event A
+	#
+	# OneShot
+	# Active
+	# Gold +100
 	# =====================================================
-	var eventA := EventData.new()
+	var eventA: EventData = (EventData.new())
 
 	eventA.id = (&"event_a")
 
-	eventA.displayName = ("첫 번째 이벤트")
+	eventA.displayName = ("저장 테스트 이벤트 A")
 
-	eventA.description = ("첫 번째로 처리되어야 하는 이벤트입니다.")
+	eventA.description = ("저장 시 Active 상태로 남아야 합니다.")
 
 	eventA.triggerChance = 1.0
+	eventA.oneShot = true
 
-	# =====================================================
-	# Event A Result
-	#
-	# Gold +100
-	# =====================================================
-	var eventAResult := EventResultData.new()
+	var eventAResult: EventResultData = (EventResultData.new())
 
 	eventAResult.goldChange = 100
 
-	# =====================================================
-	# Event A Choice
-	# =====================================================
-	var eventAChoice := EventChoiceData.new()
+	var eventAChoice: EventChoiceData = (EventChoiceData.new())
 
 	eventAChoice.id = (&"accept_a")
 
-	eventAChoice.displayText = ("첫 번째 선택")
+	eventAChoice.displayText = ("A 선택")
 
-	eventAChoice.resultText = ("첫 번째 이벤트를 처리했습니다.")
+	eventAChoice.resultText = ("복구된 이벤트 A를 처리했습니다.")
 
 	eventAChoice.result = (eventAResult)
 
@@ -277,46 +469,43 @@ func _CreateTestEventCatalog() -> void:
 
 	# =====================================================
 	# Event B
+	#
+	# Repeat
+	# Pending
+	# Food +50
 	# =====================================================
-	var eventB := EventData.new()
+	var eventB: EventData = (EventData.new())
 
 	eventB.id = (&"event_b")
 
-	eventB.displayName = ("두 번째 이벤트")
+	eventB.displayName = ("저장 테스트 이벤트 B")
 
-	eventB.description = ("첫 번째 이벤트가 끝난 뒤 처리되어야 합니다.")
+	eventB.description = ("저장 시 Pending 상태로 남아야 합니다.")
 
 	eventB.triggerChance = 1.0
+	eventB.oneShot = false
 
-	# =====================================================
-	# Event B Result
-	#
-	# Food +50
-	# =====================================================
-	var eventBResult := EventResultData.new()
+	var eventBResult: EventResultData = (EventResultData.new())
 
 	eventBResult.foodChange = 50
 
-	# =====================================================
-	# Event B Choice
-	# =====================================================
-	var eventBChoice := EventChoiceData.new()
+	var eventBChoice: EventChoiceData = (EventChoiceData.new())
 
 	eventBChoice.id = (&"accept_b")
 
-	eventBChoice.displayText = ("두 번째 선택")
+	eventBChoice.displayText = ("B 선택")
 
-	eventBChoice.resultText = ("두 번째 이벤트를 처리했습니다.")
+	eventBChoice.resultText = ("복구된 Pending 이벤트 B를 처리했습니다.")
 
 	eventBChoice.result = (eventBResult)
 
 	eventB.choices.append(eventBChoice)
 
 	# =====================================================
-	# 순서 중요
+	# Catalog 순서
 	#
-	# EventSystem이 Catalog 순서대로 확인하므로
-	# A가 먼저, B가 두 번째로 발생.
+	# A → Active
+	# B → Pending
 	# =====================================================
 	_eventCatalog.events.append(eventA)
 
@@ -327,29 +516,17 @@ func _CreateTestEventCatalog() -> void:
 # =========================================================
 
 
-func _OnEventRequested(eventData: EventData) -> void:
-	_eventRequestedCount += 1
-
-	_requestedEventIds.append(eventData.id)
+func _OnBeforeSaveEventRequested(eventData: EventData) -> void:
+	_beforeSaveRequestedCount += 1
 
 	print("")
-	print("[Signal] EventRequested")
-
-	print("ID: ", eventData.id)
-
-	print("Name: ", eventData.displayName)
+	print("[Before Save] EventRequested: ", eventData.id)
 
 
-func _OnEventResolved(eventData: EventData, choiceData: EventChoiceData) -> void:
-	_eventResolvedCount += 1
+func _OnAfterLoadEventRequested(eventData: EventData) -> void:
+	_afterLoadRequestedCount += 1
 
-	_resolvedEventIds.append(eventData.id)
+	_loadedRequestedEventIds.append(eventData.id)
 
 	print("")
-	print("[Signal] EventResolved")
-
-	print("Event ID: ", eventData.id)
-
-	print("Choice ID: ", choiceData.id)
-
-	print("Result Text: ", choiceData.resultText)
+	print("[After Load] EventRequested: ", eventData.id)
