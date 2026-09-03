@@ -30,14 +30,14 @@ func _initIndex() -> void:
 	_goalIndex = _path.size() - 1
 
 
-func GetDesirePosition(curPosition: Vector2, speed: float) -> Vector2:
+func GetDesirePosition(curPosition: Vector2, speed: int) -> Vector2:
 	if IsEmpty():
 		return curPosition
 	
 	var curWaypoint: Vector2 = _path[_shortcutIndex]
 	var remainDistance = curWaypoint - curPosition
 	var maxDelta = remainDistance.normalized() * speed
-	return maxDelta if remainDistance.length() > maxDelta.length() else remainDistance
+	return curPosition + maxDelta if remainDistance.length() > maxDelta.length() else curPosition + remainDistance
 	
 func IsEmpty() -> bool:
 	return _path.is_empty()

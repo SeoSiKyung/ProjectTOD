@@ -1,7 +1,6 @@
 [gd_scene format=3 uid="uid://dpkmyj5hdm0op"]
 
 [ext_resource type="Script" uid="uid://djxreqs452a78" path="res://scene/OffenseScene.gd" id="1_wohdj"]
-[ext_resource type="Script" uid="uid://db6fmgy4ibavf" path="res://scripts/OffenseStage/OffenseStageManager.gd" id="2_nq1oc"]
 [ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/CommandController.gd" id="3_dlxae"]
 [ext_resource type="Resource" path="res://maps/2_navigation.res" id="4_8rkap"]
 [ext_resource type="Script" uid="uid://b7ert7hoc8245" path="res://unit/MovementSimulator.gd" id="4_jaojb"]
@@ -12,6 +11,22 @@
 [ext_resource type="Script" uid="uid://dwb6dp01f41m8" path="res://unit/SelectController.gd" id="8_u7dgu"]
 [ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPanel.gd" id="11_o4skl"]
 
+[sub_resource type="GDScript" id="GDScript_cp4ls"]
+script/source = "class_name OffenseStageManager
+extends Node
+
+@export var _navigationService: NavigationService
+var movementSimulator: MovementSimulator = MovementSimulator.new(_navigationService)
+var unitManager: UnitManager = UnitManager.new()
+var snapshot: StageSnapshot = null
+
+func _ready() -> void:
+	_navigationService.Ready()
+
+func _process(delta: float) -> void:
+	pass
+"
+
 [sub_resource type="Resource" id="Resource_pdnc6"]
 script = ExtResource("5_j4bn1")
 navigationData = ExtResource("4_8rkap")
@@ -21,7 +36,7 @@ metadata/_custom_type_script = "uid://u3wgqxb8j2fh"
 script = ExtResource("1_wohdj")
 
 [node name="OffenseStageManager" type="Node" parent="." unique_id=1632319742]
-script = ExtResource("2_nq1oc")
+script = SubResource("GDScript_cp4ls")
 _navigationService = SubResource("Resource_pdnc6")
 metadata/_custom_type_script = "uid://db6fmgy4ibavf"
 

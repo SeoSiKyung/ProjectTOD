@@ -30,17 +30,7 @@ func GetPosition(unitId: int) -> Vector2:
 	if slot == UnitSlotStorage.INVALID_SLOT:
 		return Vector2.ZERO
 
-	return _slots.GetPositionBySlot(slot)
-
-
-func GetHalfSize(unitId: int) -> int:
-	var slot: int = _getSlotOrError(unitId)
-
-	if slot == UnitSlotStorage.INVALID_SLOT:
-		return 0
-
-	return _slots.GetHalfSizeBySlot(slot)
-
+	return _slots.GetPosition(slot)
 
 func GetUnitIds() -> Array[int]:
 	return _slots.GetUnitIds()
@@ -56,7 +46,7 @@ func RegisterUnit(unitId: int, position: Vector2, halfSize: int) -> void:
 	var minCell: Vector2i = _getCell(position - extent)
 	var maxCell: Vector2i = _getCell(position + extent)
 
-	_slots.SetCellBoundsBySlot(slot, minCell, maxCell)
+	_slots.SetCellBounds(slot, minCell, maxCell)
 	_addSlotToCells(slot, minCell, maxCell)
 
 
@@ -66,21 +56,12 @@ func UnregisterUnit(unitId: int) -> void:
 	if slot == UnitSlotStorage.INVALID_SLOT:
 		return
 
-	var minCell: Vector2i = _slots.GetMinCellBySlot(slot)
-	var maxCell: Vector2i = _slots.GetMaxCellBySlot(slot)
+	var minCell: Vector2i = _slots.GetMinCell(slot)
+	var maxCell: Vector2i = _slots.GetMaxCell(slot)
 
 	_removeSlotFromCells(slot, minCell, maxCell)
 	_slots.ReleaseSlot(slot)
-
-
-func UpdateUnit(unitId: int, position: Vector2, halfSize: int) -> void:
-	var slot: int = _getSlotOrError(unitId)
-
-	if slot == UnitSlotStorage.INVALID_SLOT:
-		return
-
-	_updateSlot(slot, position, halfSize)
-
+	
 
 func UpdatePosition(unitId: int, position: Vector2) -> void:
 	var slot: int = _getSlotOrError(unitId)
@@ -88,16 +69,7 @@ func UpdatePosition(unitId: int, position: Vector2) -> void:
 	if slot == UnitSlotStorage.INVALID_SLOT:
 		return
 
-	_updateSlot(slot, position, _slots.GetHalfSizeBySlot(slot))
-
-
-func UpdateHalfSize(unitId: int, halfSize: int) -> void:
-	var slot: int = _getSlotOrError(unitId)
-
-	if slot == UnitSlotStorage.INVALID_SLOT:
-		return
-
-	_updateSlot(slot, _slots.GetPositionBySlot(slot), halfSize)
+	_updateSlot(slot, position)
 
 
 func Clear() -> void:
@@ -132,7 +104,7 @@ func FindUnitIdsInCircle(center: Vector2, radius: float) -> Array[int]:
 					continue
 
 				if _intersectsCircle(slot, center, radiusSquared):
-					result.append(_slots.GetUnitIdBySlot(slot))
+					result.append(_slots.GetUnitId(slot))
 
 	return result
 
@@ -158,7 +130,7 @@ func FindUnitIdsInRect(center: Vector2, halfExtent: Vector2) -> Array[int]:
 					continue
 
 				if _intersectsRect(slot, center, extent):
-					result.append(_slots.GetUnitIdBySlot(slot))
+					result.append(_slots.GetUnitId(slot))
 
 	return result
 
@@ -180,14 +152,15 @@ func _getSlotOrError(unitId: int) -> int:
 	return slot
 
 
-func _updateSlot(slot: int, position: Vector2, halfSize: int) -> void:
-	var oldMinCell: Vector2i = _slots.GetMinCellBySlot(slot)
-	var oldMaxCell: Vector2i = _slots.GetMaxCellBySlot(slot)
-	var extent: Vector2 = Vector2(float(halfSize), float(halfSize))
+func _updateSlot(slot: int, position: Vector2) -> void:
+	var oldMinCell: Vector2i = _slots.GetMinCell(slot)
+	var oldMaxCell: Vector2i = _slots.GetMaxCell(slot)
+	var halfSize: float = _slots.GetHalfSize(slot)
+	var extent: Vector2 = Vector2(halfSize, halfSize)
 	var newMinCell: Vector2i = _getCell(position - extent)
 	var newMaxCell: Vector2i = _getCell(position + extent)
 
-	if not _slots.UpdateStateBySlot(slot, position, halfSize):
+	if not _slots.UpdateState(slot, position):
 		return
 
 	if oldMinCell == newMinCell and oldMaxCell == newMaxCell:
@@ -195,12 +168,12 @@ func _updateSlot(slot: int, position: Vector2, halfSize: int) -> void:
 
 	_removeSlotFromCells(slot, oldMinCell, oldMaxCell)
 	_addSlotToCells(slot, newMinCell, newMaxCell)
-	_slots.SetCellBoundsBySlot(slot, newMinCell, newMaxCell)
+	_slots.SetCellBounds(slot, newMinCell, newMaxCell)
 
 
 func _intersectsCircle(slot: int, center: Vector2, radiusSquared: float) -> bool:
-	var unitPosition: Vector2 = _slots.GetPositionBySlot(slot)
-	var halfSize: float = float(_slots.GetHalfSizeBySlot(slot))
+	var unitPosition: Vector2 = _slots.GetPosition(slot)
+	var halfSize: float = float(_slots.GetHalfSize(slot))
 	var minPosition: Vector2 = unitPosition - Vector2(halfSize, halfSize)
 	var maxPosition: Vector2 = unitPosition + Vector2(halfSize, halfSize)
 	var closestPoint: Vector2 = Vector2(
@@ -212,8 +185,8 @@ func _intersectsCircle(slot: int, center: Vector2, radiusSquared: float) -> bool
 
 
 func _intersectsRect(slot: int, center: Vector2, halfExtent: Vector2) -> bool:
-	var unitPosition: Vector2 = _slots.GetPositionBySlot(slot)
-	var halfSize: float = float(_slots.GetHalfSizeBySlot(slot))
+	var unitPosition: Vector2 = _slots.GetPosition(slot)
+	var halfSize: float = float(_slots.GetHalfSize(slot))
 
 	return (
 		absf(unitPosition.x - center.x) <= halfExtent.x + halfSize

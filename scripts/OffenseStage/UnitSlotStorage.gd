@@ -9,16 +9,16 @@ const MAX_INT32_VALUE: int = 2147483647
 
 var _slotByUnitId: Dictionary[int, int] = {}
 
-var _unitIdsBySlot: PackedInt32Array = []
-var _positionsBySlot: PackedVector2Array = []
-var _halfSizesBySlot: PackedInt32Array = []
-var _minCellXsBySlot: PackedInt32Array = []
-var _minCellYsBySlot: PackedInt32Array = []
-var _maxCellXsBySlot: PackedInt32Array = []
-var _maxCellYsBySlot: PackedInt32Array = []
-var _activeFlagsBySlot: PackedByteArray = []
-var _queryStampsBySlot: PackedInt32Array = []
-var _activeListIndicesBySlot: PackedInt32Array = []
+var _unitIds: PackedInt32Array = []
+var _positions: PackedVector2Array = []
+var _halfSizes: PackedInt32Array = []
+var _minCellXs: PackedInt32Array = []
+var _minCellYs: PackedInt32Array = []
+var _maxCellXs: PackedInt32Array = []
+var _maxCellYs: PackedInt32Array = []
+var _activeFlags: PackedByteArray = []
+var _queryStamps: PackedInt32Array = []
+var _activeListIndices: PackedInt32Array = []
 
 var _activeSlots: Array[int] = []
 var _freeSlots: Array[int] = []
@@ -39,7 +39,7 @@ func GetUnitCount() -> int:
 
 
 func GetSlotCapacity() -> int:
-	return _positionsBySlot.size()
+	return _positions.size()
 
 
 func HasUnit(unitId: int) -> bool:
@@ -69,15 +69,15 @@ func Allocate(unitId: int, position: Vector2, halfSize: int) -> int:
 	var slot: int = _acquireSlot()
 
 	_slotByUnitId[unitId] = slot
-	_unitIdsBySlot[slot] = unitId
-	_positionsBySlot[slot] = position
-	_halfSizesBySlot[slot] = halfSize
-	_minCellXsBySlot[slot] = 0
-	_minCellYsBySlot[slot] = 0
-	_maxCellXsBySlot[slot] = 0
-	_maxCellYsBySlot[slot] = 0
-	_activeFlagsBySlot[slot] = 1
-	_queryStampsBySlot[slot] = 0
+	_unitIds[slot] = unitId
+	_positions[slot] = position
+	_halfSizes[slot] = halfSize
+	_minCellXs[slot] = 0
+	_minCellYs[slot] = 0
+	_maxCellXs[slot] = 0
+	_maxCellYs[slot] = 0
+	_activeFlags[slot] = 1
+	_queryStamps[slot] = 0
 	_addActiveSlot(slot)
 
 	return slot
@@ -87,64 +87,58 @@ func ReleaseSlot(slot: int) -> bool:
 	if not _isActiveSlot(slot):
 		return false
 
-	var unitId: int = _unitIdsBySlot[slot]
+	var unitId: int = _unitIds[slot]
 
 	_removeActiveSlot(slot)
 	_slotByUnitId.erase(unitId)
-	_unitIdsBySlot[slot] = INVALID_UNIT_ID
-	_positionsBySlot[slot] = Vector2.ZERO
-	_halfSizesBySlot[slot] = 0
-	_minCellXsBySlot[slot] = 0
-	_minCellYsBySlot[slot] = 0
-	_maxCellXsBySlot[slot] = 0
-	_maxCellYsBySlot[slot] = 0
-	_activeFlagsBySlot[slot] = 0
-	_queryStampsBySlot[slot] = 0
+	_unitIds[slot] = INVALID_UNIT_ID
+	_positions[slot] = Vector2.ZERO
+	_halfSizes[slot] = 0
+	_minCellXs[slot] = 0
+	_minCellYs[slot] = 0
+	_maxCellXs[slot] = 0
+	_maxCellYs[slot] = 0
+	_activeFlags[slot] = 0
+	_queryStamps[slot] = 0
 	_freeSlots.append(slot)
 
 	return true
 
 
-func UpdateStateBySlot(slot: int, position: Vector2, halfSize: int) -> bool:
+func UpdateState(slot: int, position: Vector2) -> bool:
 	if not _isActiveSlot(slot):
 		push_error("활성 상태가 아닌 슬롯은 갱신할 수 없습니다.")
 		return false
 
-	if not _isValidInt32(halfSize):
-		push_error("halfSize가 PackedInt32Array 범위를 벗어났습니다.")
-		return false
-
-	_positionsBySlot[slot] = position
-	_halfSizesBySlot[slot] = halfSize
-
+	_positions[slot] = position
 	return true
 
 
-func GetUnitIdBySlot(slot: int) -> int:
-	return _unitIdsBySlot[slot]
+func GetUnitId(slot: int) -> int:
+	return _unitIds[slot]
 
 
-func GetPositionBySlot(slot: int) -> Vector2:
-	return _positionsBySlot[slot]
+func GetPosition(slot: int) -> Vector2:
+	return _positions[slot]
 
 
-func GetHalfSizeBySlot(slot: int) -> int:
-	return _halfSizesBySlot[slot]
+func GetHalfSize(slot: int) -> int:
+	return _halfSizes[slot]
 
 
-func GetMinCellBySlot(slot: int) -> Vector2i:
-	return Vector2i(_minCellXsBySlot[slot], _minCellYsBySlot[slot])
+func GetMinCell(slot: int) -> Vector2i:
+	return Vector2i(_minCellXs[slot], _minCellYs[slot])
 
 
-func GetMaxCellBySlot(slot: int) -> Vector2i:
-	return Vector2i(_maxCellXsBySlot[slot], _maxCellYsBySlot[slot])
+func GetMaxCell(slot: int) -> Vector2i:
+	return Vector2i(_maxCellXs[slot], _maxCellYs[slot])
 
 
-func SetCellBoundsBySlot(slot: int, minCell: Vector2i, maxCell: Vector2i) -> void:
-	_minCellXsBySlot[slot] = minCell.x
-	_minCellYsBySlot[slot] = minCell.y
-	_maxCellXsBySlot[slot] = maxCell.x
-	_maxCellYsBySlot[slot] = maxCell.y
+func SetCellBounds(slot: int, minCell: Vector2i, maxCell: Vector2i) -> void:
+	_minCellXs[slot] = minCell.x
+	_minCellYs[slot] = minCell.y
+	_maxCellXs[slot] = maxCell.x
+	_maxCellYs[slot] = maxCell.y
 
 
 func GetUnitIds() -> Array[int]:
@@ -153,14 +147,14 @@ func GetUnitIds() -> Array[int]:
 
 	for index: int in range(_activeSlots.size()):
 		var slot: int = _activeSlots[index]
-		result[index] = _unitIdsBySlot[slot]
+		result[index] = _unitIds[slot]
 
 	return result
 
 
 func BeginQuery() -> int:
 	if _queryStamp >= MAX_INT32_VALUE:
-		_queryStampsBySlot.fill(0)
+		_queryStamps.fill(0)
 		_queryStamp = 1
 	else:
 		_queryStamp += 1
@@ -172,10 +166,10 @@ func TryMarkQuerySlot(slot: int, queryStamp: int) -> bool:
 	if not _isActiveSlot(slot):
 		return false
 
-	if _queryStampsBySlot[slot] == queryStamp:
+	if _queryStamps[slot] == queryStamp:
 		return false
 
-	_queryStampsBySlot[slot] = queryStamp
+	_queryStamps[slot] = queryStamp
 	return true
 
 
@@ -187,16 +181,16 @@ func Clear() -> void:
 	_freeSlots.clear()
 	_queryStamp = 0
 
-	_unitIdsBySlot.fill(INVALID_UNIT_ID)
-	_positionsBySlot.fill(Vector2.ZERO)
-	_halfSizesBySlot.fill(0)
-	_minCellXsBySlot.fill(0)
-	_minCellYsBySlot.fill(0)
-	_maxCellXsBySlot.fill(0)
-	_maxCellYsBySlot.fill(0)
-	_activeFlagsBySlot.fill(0)
-	_queryStampsBySlot.fill(0)
-	_activeListIndicesBySlot.fill(INVALID_SLOT)
+	_unitIds.fill(INVALID_UNIT_ID)
+	_positions.fill(Vector2.ZERO)
+	_halfSizes.fill(0)
+	_minCellXs.fill(0)
+	_minCellYs.fill(0)
+	_maxCellXs.fill(0)
+	_maxCellYs.fill(0)
+	_activeFlags.fill(0)
+	_queryStamps.fill(0)
+	_activeListIndices.fill(INVALID_SLOT)
 
 	for slot: int in range(capacity - 1, -1, -1):
 		_freeSlots.append(slot)
@@ -210,21 +204,21 @@ func _acquireSlot() -> int:
 
 
 func _addActiveSlot(slot: int) -> void:
-	_activeListIndicesBySlot[slot] = _activeSlots.size()
+	_activeListIndices[slot] = _activeSlots.size()
 	_activeSlots.append(slot)
 
 
 func _removeActiveSlot(slot: int) -> void:
-	var activeIndex: int = _activeListIndicesBySlot[slot]
+	var activeIndex: int = _activeListIndices[slot]
 	var lastIndex: int = _activeSlots.size() - 1
 	var lastSlot: int = _activeSlots[lastIndex]
 
 	if activeIndex != lastIndex:
 		_activeSlots[activeIndex] = lastSlot
-		_activeListIndicesBySlot[lastSlot] = activeIndex
+		_activeListIndices[lastSlot] = activeIndex
 
 	_activeSlots.pop_back()
-	_activeListIndicesBySlot[slot] = INVALID_SLOT
+	_activeListIndices[slot] = INVALID_SLOT
 
 
 func _growSlots(growSize: int) -> void:
@@ -234,22 +228,22 @@ func _growSlots(growSize: int) -> void:
 	var oldCapacity: int = GetSlotCapacity()
 	var newCapacity: int = oldCapacity + growSize
 
-	_unitIdsBySlot.resize(newCapacity)
-	_positionsBySlot.resize(newCapacity)
-	_halfSizesBySlot.resize(newCapacity)
-	_minCellXsBySlot.resize(newCapacity)
-	_minCellYsBySlot.resize(newCapacity)
-	_maxCellXsBySlot.resize(newCapacity)
-	_maxCellYsBySlot.resize(newCapacity)
-	_activeFlagsBySlot.resize(newCapacity)
-	_queryStampsBySlot.resize(newCapacity)
-	_activeListIndicesBySlot.resize(newCapacity)
+	_unitIds.resize(newCapacity)
+	_positions.resize(newCapacity)
+	_halfSizes.resize(newCapacity)
+	_minCellXs.resize(newCapacity)
+	_minCellYs.resize(newCapacity)
+	_maxCellXs.resize(newCapacity)
+	_maxCellYs.resize(newCapacity)
+	_activeFlags.resize(newCapacity)
+	_queryStamps.resize(newCapacity)
+	_activeListIndices.resize(newCapacity)
 
 	for slot: int in range(oldCapacity, newCapacity):
-		_unitIdsBySlot[slot] = INVALID_UNIT_ID
-		_activeFlagsBySlot[slot] = 0
-		_queryStampsBySlot[slot] = 0
-		_activeListIndicesBySlot[slot] = INVALID_SLOT
+		_unitIds[slot] = INVALID_UNIT_ID
+		_activeFlags[slot] = 0
+		_queryStamps[slot] = 0
+		_activeListIndices[slot] = INVALID_SLOT
 
 	for slot: int in range(newCapacity - 1, oldCapacity - 1, -1):
 		_freeSlots.append(slot)
@@ -259,7 +253,7 @@ func _isActiveSlot(slot: int) -> bool:
 	return (
 		slot >= 0
 		and slot < GetSlotCapacity()
-		and _activeFlagsBySlot[slot] != 0
+		and _activeFlags[slot] != 0
 	)
 
 

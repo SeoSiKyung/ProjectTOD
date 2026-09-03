@@ -1,6 +1,6 @@
 class_name CommandController
 extends Node
-
+'
 enum CommandMode {
 	SMART,
 	MOVE,
@@ -631,3 +631,4 @@ func _ShowMoveClickEffect(targetWorld: Vector2) -> void:
 
 func _ScreenToWorld(screenPosition: Vector2) -> Vector2:
 	return get_viewport().get_canvas_transform().affine_inverse() * screenPosition
+'

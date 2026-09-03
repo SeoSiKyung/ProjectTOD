@@ -1,7 +1,7 @@
 class_name MovementController
 extends Node
 
-@export var simulator: MovementSimulator
+var simulator: MovementSimulator 
 @export var selectController: SelectController
 
 var _nextOrderId: int = 1
