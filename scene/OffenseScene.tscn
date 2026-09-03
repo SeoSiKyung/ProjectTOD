@@ -38,7 +38,6 @@ script = ExtResource("1_wohdj")
 [node name="OffenseStageManager" type="Node" parent="." unique_id=1632319742]
 script = SubResource("GDScript_cp4ls")
 _navigationService = SubResource("Resource_pdnc6")
-metadata/_custom_type_script = "uid://db6fmgy4ibavf"
 
 [node name="CommandController" type="Node" parent="." unique_id=496005023]
 script = ExtResource("3_dlxae")
