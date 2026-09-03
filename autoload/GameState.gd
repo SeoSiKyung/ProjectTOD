@@ -7,7 +7,7 @@ var event: EventState
 
 
 func _ready() -> void:
-	if (campaign == null or settlement == null or story == null):
+	if (campaign == null or settlement == null or story == null or event == null):
 		StartNewGame()
 
 
