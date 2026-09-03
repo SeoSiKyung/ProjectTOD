@@ -3,6 +3,7 @@ extends Node
 var campaign: CampaignState
 var settlement: SettlementState
 var story: StoryState
+var event: EventState
 
 
 func _ready() -> void:
@@ -21,6 +22,7 @@ func _CreateStates() -> void:
 	campaign = CampaignState.new()
 	settlement = SettlementState.new()
 	story = StoryState.new()
+	event = EventState.new()
 
 
 func _SetInitialCampaignState() -> void:
@@ -72,10 +74,12 @@ func LoadGame(
 	campaignState: CampaignState,
 	settlementState: SettlementState,
 	storyState: StoryState,
+	eventState: EventState,
 ) -> void:
 	campaign = campaignState
 	settlement = settlementState
 	story = storyState
+	event = eventState
 
 
 func ResetGame() -> void:

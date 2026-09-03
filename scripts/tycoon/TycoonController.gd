@@ -15,11 +15,10 @@ signal DefenseRequested(startData: DefenseStartData)
 var _campaign: CampaignState
 var _settlement: SettlementState
 var _story: StoryState
+var _eventState: EventState
 
 var _currentStats: DerivedStats
 var _currentTurnContext: TurnContext
-
-var _activeEventId: StringName = &""
 
 var _facilitySystem: FacilitySystem
 var _constructionSystem: ConstructionSystem
@@ -46,14 +45,14 @@ func Setup(
 	campaign: CampaignState,
 	settlement: SettlementState,
 	story: StoryState,
+	eventState: EventState,
 	facilityCatalog: FacilityCatalog,
 	eventCatalog: EventCatalog,
 ) -> void:
 	_campaign = campaign
 	_settlement = settlement
 	_story = story
-
-	_activeEventId = &""
+	_eventState = eventState
 
 	_CreateSystems()
 
@@ -234,7 +233,7 @@ func _ProcessTurnStart(notifyPlayer: bool = true) -> void:
 	# =====================================================
 	# 9. 게임 이벤트 발생 판정
 	# =====================================================
-	_eventSystem.ProcessTurnStart(_currentTurnContext)
+	_eventSystem.ProcessTurnStart(_campaign, _settlement, _story, _eventState, _currentTurnContext)
 
 	# =====================================================
 	# 10. 발생한 게임 이벤트 처리
@@ -265,7 +264,7 @@ func _ProcessTurnStart(notifyPlayer: bool = true) -> void:
 
 
 func _ProcessTriggeredEvents() -> void:
-	if (_campaign == null or _story == null or _currentTurnContext == null):
+	if (_campaign == null or _eventState == null or _currentTurnContext == null):
 		return
 
 	for eventId in _currentTurnContext.triggeredEvents:
@@ -273,10 +272,10 @@ func _ProcessTriggeredEvents() -> void:
 		# Offense 중 발생한 이벤트
 		#
 		# 플레이어가 영지를 떠나 있으므로
-		# 즉시 표시하지 않고 대기열에 저장.
+		# 즉시 표시하지 않고 Pending으로 저장.
 		# =================================================
 		if (_campaign.currentPhase == CampaignState.Phase.OFFENSE):
-			_story.AddPendingEvent(eventId)
+			_eventState.AddPendingEvent(eventId)
 
 			continue
 
@@ -290,29 +289,28 @@ func _ProcessTriggeredEvents() -> void:
 		# 이미 다른 이벤트가 처리 중이면
 		# 동시에 UI를 띄우지 않고 Pending 처리.
 		# =================================================
-		if _activeEventId != &"":
-			_story.AddPendingEvent(eventId)
+		if _eventState.HasActiveEvent():
+			_eventState.AddPendingEvent(eventId)
 
 			continue
 
 		# =================================================
 		# 현재 처리 중인 이벤트가 없다면
-		# 즉시 이벤트 표시 요청.
+		# Active로 전환하고 즉시 이벤트 표시 요청.
 		# =================================================
 		_RequestEvent(eventId)
 
 
 func _RequestEvent(eventId: StringName) -> bool:
-	if eventId == &"":
+	if (_eventState == null or eventId == &""):
 		return false
 
 	# =====================================================
-	# 이벤트 하나가 이미 열려 있다면
-	# 새 이벤트를 동시에 열 수 없음.
+	# 먼저 EventData가 실제로 존재하는지 확인.
+	#
+	# 잘못된 ID를 Active 상태로 만들어버리지 않도록
+	# State 변경 전에 Catalog를 검사.
 	# =====================================================
-	if _activeEventId != &"":
-		return false
-
 	var eventData := _eventSystem.GetEventData(eventId)
 
 	if eventData == null:
@@ -321,12 +319,15 @@ func _RequestEvent(eventId: StringName) -> bool:
 		return false
 
 	# =====================================================
-	# 현재 활성 이벤트 기록
+	# EventState에서 Active 전환.
 	# =====================================================
-	_activeEventId = eventId
+	var activated := _eventState.ActivateEvent(eventId)
+
+	if not activated:
+		return false
 
 	# =====================================================
-	# UI / 외부 흐름에 이벤트 표시 요청
+	# UI / 외부 흐름에 이벤트 표시 요청.
 	# =====================================================
 	EventRequested.emit(eventData)
 
@@ -334,7 +335,7 @@ func _RequestEvent(eventId: StringName) -> bool:
 
 
 func ResolveActiveEvent(choiceId: StringName) -> bool:
-	if (_campaign == null or _settlement == null or _story == null):
+	if (_campaign == null or _settlement == null or _story == null or _eventState == null):
 		return false
 
 	# =====================================================
@@ -346,7 +347,7 @@ func ResolveActiveEvent(choiceId: StringName) -> bool:
 	# =====================================================
 	# 현재 처리 중인 이벤트가 없는 경우
 	# =====================================================
-	if _activeEventId == &"":
+	if not _eventState.HasActiveEvent():
 		push_warning("TycoonController: 현재 처리 중인 이벤트가 없습니다.")
 
 		return false
@@ -354,10 +355,12 @@ func ResolveActiveEvent(choiceId: StringName) -> bool:
 	# =====================================================
 	# 현재 EventData 조회
 	# =====================================================
-	var eventData := _eventSystem.GetEventData(_activeEventId)
+	var activeEventId := _eventState.GetActiveEventId()
+
+	var eventData := _eventSystem.GetEventData(activeEventId)
 
 	if eventData == null:
-		push_warning("TycoonController: 현재 EventData를 찾을 수 없습니다: %s" % _activeEventId)
+		push_warning("TycoonController: 현재 EventData를 찾을 수 없습니다: %s" % activeEventId)
 
 		return false
 
@@ -380,7 +383,7 @@ func ResolveActiveEvent(choiceId: StringName) -> bool:
 	# =====================================================
 	# 이벤트 처리 완료
 	# =====================================================
-	_activeEventId = &""
+	_eventState.CompleteActiveEvent()
 
 	# =====================================================
 	# 이벤트 결과로 State가 변경되었으므로
@@ -403,16 +406,50 @@ func ResolveActiveEvent(choiceId: StringName) -> bool:
 
 	return true
 
+# =========================================================
+# 저장 / 로드된 Active Event 재표시
+#
+# EventState에 Active Event가 이미 존재하는 경우
+# 새로 Activate하지 않고 UI 요청만 다시 보냄.
+#
+# Save → Load 후 Tycoon Scene이 준비된 시점에
+# 호출하기 위한 함수.
+# =========================================================
 
-func HasPendingEvents() -> bool:
-	if _story == null:
+
+func RequestActiveEvent() -> bool:
+	if (_campaign == null or _eventState == null):
 		return false
 
-	return not _story.pendingEvents.is_empty()
+	if (_campaign.currentPhase != CampaignState.Phase.TYCOON):
+		return false
+
+	if not _eventState.HasActiveEvent():
+		return false
+
+	var eventId := _eventState.GetActiveEventId()
+
+	var eventData := _eventSystem.GetEventData(eventId)
+
+	if eventData == null:
+		push_warning("TycoonController: Active EventData를 찾을 수 없습니다: %s" % eventId)
+
+		return false
+
+	EventRequested.emit(eventData)
+
+	return true
+
+
+func HasPendingEvents() -> bool:
+	if _eventState == null:
+		return false
+
+	return _eventState.HasPendingEvents()
 
 
 func RequestNextPendingEvent() -> bool:
-	if (_campaign == null or _story == null):
+	if (_campaign == null or _eventState == null):
 		return false
 
 	# =====================================================
@@ -426,29 +463,42 @@ func RequestNextPendingEvent() -> bool:
 	# 이미 이벤트 하나를 처리 중이라면
 	# 다음 Pending Event를 열지 않음.
 	# =====================================================
-	if _activeEventId != &"":
+	if _eventState.HasActiveEvent():
 		return false
 
 	# =====================================================
-	# 유효한 EventData를 찾을 때까지 확인
+	# Pending Event를 하나씩 Active로 전환.
 	#
-	# 데이터가 삭제되었거나 Catalog에 없는 ID가
-	# Save에 남아있을 경우 해당 항목은 건너뜀.
+	# 데이터가 삭제되어 Catalog에 존재하지 않는 ID라면
+	# 해당 Active를 비우고 다음 Pending을 확인.
 	# =====================================================
-	while not _story.pendingEvents.is_empty():
-		var eventId := _story.PopPendingEvent()
+	while _eventState.HasPendingEvents():
+		var eventId: StringName = _eventState.ActivateNextPendingEvent()
 
 		if eventId == &"":
 			return false
 
-		if _RequestEvent(eventId):
-			return true
+		var eventData := _eventSystem.GetEventData(eventId)
+
+		if eventData == null:
+			push_warning("TycoonController: Pending EventData를 찾을 수 없습니다: %s" % eventId)
+
+			_eventState.CompleteActiveEvent()
+
+			continue
+
+		EventRequested.emit(eventData)
+
+		return true
 
 	return false
 
 
 func GetActiveEventId() -> StringName:
-	return _activeEventId
+	if _eventState == null:
+		return &""
+
+	return _eventState.GetActiveEventId()
 
 # =========================================================
 # 시설 건설 / 업그레이드
@@ -549,7 +599,7 @@ func RequestOffense(regionId: StringName, turnCost: int) -> bool:
 	# Offense Phase 전환
 	#
 	# 이후 진행되는 턴에서 발생한 게임 이벤트는
-	# pendingEvents로 저장됨.
+	# EventState의 Pending으로 저장됨.
 	# =====================================================
 	_campaign.currentPhase = (CampaignState.Phase.OFFENSE)
 
@@ -682,6 +732,10 @@ func GetSettlement() -> SettlementState:
 
 func GetStory() -> StoryState:
 	return _story
+
+
+func GetEventState() -> EventState:
+	return _eventState
 
 
 func GetCurrentTurnContext() -> TurnContext:
