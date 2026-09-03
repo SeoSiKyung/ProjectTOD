@@ -16,3 +16,4 @@ var campaign: CampaignSaveData
 var settlement: SettlementSaveData
 
 var story: StorySaveData
+var event: EventSaveData
