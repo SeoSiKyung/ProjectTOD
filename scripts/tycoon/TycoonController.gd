@@ -165,7 +165,10 @@ func _ProcessCycleStart() -> void:
 func EndTurn() -> bool:
 	if _campaign == null:
 		return false
+	if (_eventState != null and _eventState.HasActiveEvent()):
+		push_warning("TycoonController: 현재 이벤트를 먼저 처리해야 합니다.")
 
+		return false
 	var hasNextTurn := _turnSystem.EndTurn(_campaign)
 
 	# =====================================================
@@ -554,7 +557,9 @@ func GetFacilityInteractionId(facilityId: StringName) -> StringName:
 func RequestOffense(regionId: StringName, turnCost: int) -> bool:
 	if (_campaign == null or _settlement == null or _story == null):
 		return false
-
+	if (_eventState != null and _eventState.HasActiveEvent()):
+		push_warning("TycoonController: 현재 이벤트를 먼저 처리해야 합니다.")
+		return false
 	# =====================================================
 	# Tycoon Phase에서만 Offense 진입 가능
 	# =====================================================
