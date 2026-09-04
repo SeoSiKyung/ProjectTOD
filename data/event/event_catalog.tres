@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="EventCatalog" format=3]
+
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventData.gd" id="1_18yj4"]
+[ext_resource type="Resource" path="res://data/event/definitions/tavern_rumor.tres" id="2_gme4m"]
+[ext_resource type="Resource" path="res://data/event/definitions/tavern_brawl.tres" id="3_w8r81"]
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventCatalog.gd" id="4_xbwbj"]
+
+[resource]
+script = ExtResource("4_xbwbj")
+events = Array[ExtResource("1_18yj4")]([ExtResource("2_gme4m"), ExtResource("3_w8r81")])
