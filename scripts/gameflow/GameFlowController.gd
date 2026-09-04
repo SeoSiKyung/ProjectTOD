@@ -126,10 +126,12 @@ func SubmitDefenseResult(result: DefenseResult) -> bool:
 		push_warning("GameFlowController: 현재 Defense Phase가 아닙니다.")
 		return false
 
+	_tycoonController.ApplyDefenseResult(result)
+
 	# =====================================================
 	# Defense 패배
 	# =====================================================
-	if (not result.victory or result.commandPostDestroyed):
+	if (not result.isVictory or result.commandPostDestroyed):
 		GameOverRequested.emit(result)
 
 		return true

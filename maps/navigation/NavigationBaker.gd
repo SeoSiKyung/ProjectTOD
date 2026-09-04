@@ -17,6 +17,11 @@ class MaskBakeData:
 	var portalMap: PackedByteArray = PackedByteArray()
 
 
+class PortalBakeResult:
+	var portals: Array[NavigationPortalData] = []
+	var success: bool = true
+
+
 class RouteSearchState:
 	var g: PackedFloat64Array = PackedFloat64Array()
 	var f: PackedFloat64Array = PackedFloat64Array()
@@ -44,6 +49,7 @@ class RouteSearchState:
 		heapPosition.fill(-1)
 
 		touchedMap.fill(0)
+		touched.clear()
 
 
 	func Reset() -> void:
@@ -109,6 +115,8 @@ func BakeNavigation() -> bool:
 		gridWidth,
 		gridHeight,
 	)
+	if data == null:
+		return false
 
 	if not _SaveNavigationData(data, outputPath):
 		return false
@@ -127,9 +135,32 @@ func _ValidateBakeSettings() -> bool:
 		push_error("cellSize는 1 이상이어야 합니다.")
 		return false
 
+	if not _ValidateBakeHalfSizes():
+		return false
+
 	if _GetOutputPath().is_empty():
 		push_error("Navigation Mask의 파일 경로를 찾을 수 없습니다.")
 		return false
+
+	return true
+
+
+func _ValidateBakeHalfSizes() -> bool:
+	if bakeHalfSizes.is_empty():
+		push_error("bakeHalfSizes에는 하나 이상의 halfSize가 필요합니다.")
+		return false
+
+	var usedHalfSizes: Dictionary[int, bool] = { }
+	for halfSize: int in bakeHalfSizes:
+		if halfSize <= 0:
+			push_error("bakeHalfSizes의 halfSize는 1 이상이어야 합니다: %d" % halfSize)
+			return false
+
+		if usedHalfSizes.has(halfSize):
+			push_error("bakeHalfSizes에 중복된 halfSize가 있습니다: %d" % halfSize)
+			return false
+
+		usedHalfSizes[halfSize] = true
 
 	return true
 
@@ -165,7 +196,6 @@ func _GetOutputPath() -> String:
 #endregion
 
 #region Analyze Mask
-
 func _AnalyzeMask(image: Image, gridWidth: int, gridHeight: int) -> MaskBakeData:
 	var result: MaskBakeData = MaskBakeData.new()
 	var total: int = gridWidth * gridHeight
@@ -211,7 +241,6 @@ func _IsPortalPixel(color: Color) -> bool:
 
 func _IsBlockedPixel(color: Color) -> bool:
 	var brightness: float = (color.r + color.g + color.b) / 3.0
-
 	return brightness < blockedThreshold
 
 #endregion
@@ -249,12 +278,17 @@ func _MakeNavigationData(
 	var regionMap: PackedInt32Array = _MakeRegionMap(blocked, portalMap, gridWidth, gridHeight)
 
 	var regions: Array[NavigationRegionData] = _MakeRegions(regionMap)
-	var portals: Array[NavigationPortalData] = _MakePortals(
+
+	var portalBakeResult: PortalBakeResult = _MakePortals(
 		portalMap,
 		regionMap,
 		gridWidth,
 		gridHeight,
 	)
+	if not portalBakeResult.success:
+		return null
+
+	var portals: Array[NavigationPortalData] = portalBakeResult.portals
 
 	_ConnectRegionsToPortals(regions, portals)
 	_ConnectPortalNeighbors(regions, portals)
@@ -377,8 +411,8 @@ func _MakePortals(
 	regionMap: PackedInt32Array,
 	gridWidth: int,
 	gridHeight: int,
-) -> Array[NavigationPortalData]:
-	var result: Array[NavigationPortalData] = []
+) -> PortalBakeResult:
+	var result: PortalBakeResult = PortalBakeResult.new()
 
 	var total: int = gridWidth * gridHeight
 	var visited: PackedByteArray = PackedByteArray()
@@ -423,14 +457,17 @@ func _MakePortals(
 				queue.append(nextIndex)
 
 		var portal: NavigationPortalData = _MakePortalData(
-			result.size(),
+			result.portals.size(),
 			portalCells,
 			regionMap,
 			gridWidth,
 			gridHeight,
 		)
-		if portal != null:
-			result.append(portal)
+		if portal == null:
+			result.success = false
+			return result
+
+		result.portals.append(portal)
 
 	return result
 
@@ -467,7 +504,7 @@ func _MakePortalData(
 
 	regionIds.sort()
 	if regionIds.size() != 2:
-		push_warning("Portal %d의 인접 Region 수가 %d개입니다." % [portalId, regionIds.size()])
+		push_error("Portal %d의 인접 Region 수가 %d개입니다." % [portalId, regionIds.size()])
 		return null
 
 	var endpoints: Array[Vector2i] = _FindPortalEndpoints(portalCells)
@@ -549,45 +586,32 @@ func _MakeFootprints(
 	var result: Array[NavigationFootprintData] = []
 
 	for halfSize: int in bakeHalfSizes:
-		if halfSize <= 0:
-			continue
+		var placeableMap: PackedByteArray = _MakePlaceableMap(
+			halfSize,
+			prefixSum,
+			gridWidth,
+			gridHeight,
+		)
 
 		var footprint: NavigationFootprintData = NavigationFootprintData.new()
 		footprint.halfSize = halfSize
+
 		for portal: NavigationPortalData in portals:
 			var portalData: NavigationFootprintPortalData = _MakeFootprintPortalData(
 				portal,
 				halfSize,
-				prefixSum,
+				placeableMap,
 				gridWidth,
-				gridHeight,
-			)
-			print(
-				"Portal Anchors / halfSize: ",
-				halfSize,
-				" / P",
-				portal.id,
-				" / count: ",
-				portalData.anchors.size(),
-				" / ",
-				portalData.anchors,
 			)
 			footprint.portals.append(portalData)
 
 		footprint.portalRoutes = _MakePortalRoutes(
 			regions,
-			portals,
 			footprint,
 			regionMap,
-			prefixSum,
+			placeableMap,
 			gridWidth,
 			gridHeight,
-		)
-		print(
-			"Footprint Routes / halfSize: ",
-			halfSize,
-			" / count: ",
-			footprint.portalRoutes.size(),
 		)
 
 		result.append(footprint)
@@ -598,23 +622,14 @@ func _MakeFootprints(
 func _MakeFootprintPortalData(
 	portal: NavigationPortalData,
 	halfSize: int,
-	prefixSum: PackedInt32Array,
+	placeableMap: PackedByteArray,
 	gridWidth: int,
-	gridHeight: int,
 ) -> NavigationFootprintPortalData:
 	var result: NavigationFootprintPortalData = NavigationFootprintPortalData.new()
-	result.portalId = portal.id
 
-	var candidates: Array[Vector2i] = _GetTraversablePortalCells(
-		portal,
-		halfSize,
-		prefixSum,
-		gridWidth,
-		gridHeight,
-	)
+	var candidates: Array[Vector2i] = _GetTraversablePortalCells(portal, placeableMap, gridWidth)
 
 	result.anchors = _MakePortalAnchors(candidates, halfSize)
-	result.traversable = not result.anchors.is_empty()
 
 	return result
 
@@ -656,15 +671,14 @@ func _MakePortalAnchors(candidates: Array[Vector2i], halfSize: int) -> PackedVec
 
 func _GetTraversablePortalCells(
 	portal: NavigationPortalData,
-	halfSize: int,
-	prefixSum: PackedInt32Array,
+	placeableMap: PackedByteArray,
 	gridWidth: int,
-	gridHeight: int,
 ) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
+
 	for cell: Vector2i in _GetPortalCells(portal):
-		var point: Vector2 = _CellCenterToWorld(cell)
-		if not _CanPlaceStatic(point, halfSize, prefixSum, gridWidth, gridHeight):
+		var index: int = cell.y * gridWidth + cell.x
+		if placeableMap[index] == 0:
 			continue
 
 		result.append(cell)
@@ -698,6 +712,26 @@ func _GetPortalCells(portal: NavigationPortalData) -> Array[Vector2i]:
 		if error2 <= dx:
 			error += dx
 			y0 += stepY
+
+	return result
+
+
+func _MakePlaceableMap(
+	halfSize: int,
+	prefixSum: PackedInt32Array,
+	gridWidth: int,
+	gridHeight: int,
+) -> PackedByteArray:
+	var total: int = gridWidth * gridHeight
+	var result: PackedByteArray = PackedByteArray()
+	result.resize(total)
+	result.fill(0)
+
+	for index: int in range(total):
+		var cell: Vector2i = Vector2i(index % gridWidth, int(index / gridWidth))
+		var center: Vector2 = _CellCenterToWorld(cell)
+		if _CanPlaceStatic(center, halfSize, prefixSum, gridWidth, gridHeight):
+			result[index] = 1
 
 	return result
 
@@ -743,10 +777,9 @@ func _CanPlaceStatic(
 #region Portal Route
 func _MakePortalRoutes(
 	regions: Array[NavigationRegionData],
-	portals: Array[NavigationPortalData],
 	footprint: NavigationFootprintData,
 	regionMap: PackedInt32Array,
-	prefixSum: PackedInt32Array,
+	placeableMap: PackedByteArray,
 	gridWidth: int,
 	gridHeight: int,
 ) -> Array[NavigationPortalRouteData]:
@@ -754,23 +787,25 @@ func _MakePortalRoutes(
 
 	var searchState: RouteSearchState = RouteSearchState.new()
 	searchState.Resize(gridWidth * gridHeight)
+
 	for region: NavigationRegionData in regions:
 		var portalCount: int = region.portalIds.size()
 		for aIndex: int in range(portalCount - 1):
 			var portalAId: int = region.portalIds[aIndex]
 			var portalAData: NavigationFootprintPortalData = footprint.portals[portalAId]
-			if not portalAData.traversable:
+			if portalAData.anchors.is_empty():
 				continue
 
 			for bIndex: int in range(aIndex + 1, portalCount):
 				var portalBId: int = region.portalIds[bIndex]
 				var portalBData: NavigationFootprintPortalData = footprint.portals[portalBId]
-				if not portalBData.traversable:
+				if portalBData.anchors.is_empty():
 					continue
 
 				for fromAnchorIndex: int in range(portalAData.anchors.size()):
 					var fromPoint: Vector2 = portalAData.anchors[fromAnchorIndex]
 					var startCell: Vector2i = _WorldToCell(fromPoint)
+
 					for toAnchorIndex: int in range(portalBData.anchors.size()):
 						var toPoint: Vector2 = portalBData.anchors[toAnchorIndex]
 						var targetCell: Vector2i = _WorldToCell(toPoint)
@@ -779,9 +814,8 @@ func _MakePortalRoutes(
 							startCell,
 							targetCell,
 							region.id,
-							footprint.halfSize,
 							regionMap,
-							prefixSum,
+							placeableMap,
 							gridWidth,
 							gridHeight,
 							searchState,
@@ -810,9 +844,8 @@ func _FindPortalRoute(
 	startCell: Vector2i,
 	targetCell: Vector2i,
 	regionId: int,
-	halfSize: int,
 	regionMap: PackedInt32Array,
-	prefixSum: PackedInt32Array,
+	placeableMap: PackedByteArray,
 	gridWidth: int,
 	gridHeight: int,
 	state: RouteSearchState,
@@ -855,9 +888,8 @@ func _FindPortalRoute(
 				regionId,
 				startCell,
 				targetCell,
-				halfSize,
 				regionMap,
-				prefixSum,
+				placeableMap,
 				gridWidth,
 				gridHeight,
 			):
@@ -873,9 +905,8 @@ func _FindPortalRoute(
 					regionId,
 					startCell,
 					targetCell,
-					halfSize,
 					regionMap,
-					prefixSum,
+					placeableMap,
 					gridWidth,
 					gridHeight,
 				):
@@ -886,9 +917,8 @@ func _FindPortalRoute(
 					regionId,
 					startCell,
 					targetCell,
-					halfSize,
 					regionMap,
-					prefixSum,
+					placeableMap,
 					gridWidth,
 					gridHeight,
 				):
@@ -959,25 +989,23 @@ func _IsRouteCellAllowed(
 	regionId: int,
 	startCell: Vector2i,
 	targetCell: Vector2i,
-	halfSize: int,
 	regionMap: PackedInt32Array,
-	prefixSum: PackedInt32Array,
+	placeableMap: PackedByteArray,
 	gridWidth: int,
 	gridHeight: int,
 ) -> bool:
 	if not Grid.IsCellInGrid(cell, gridWidth, gridHeight):
 		return false
 
-	if not _CanPlaceStatic(_CellCenterToWorld(cell), halfSize, prefixSum, gridWidth, gridHeight):
+	var index: int = cell.y * gridWidth + cell.x
+	if placeableMap[index] == 0:
 		return false
 
 	if cell == startCell or cell == targetCell:
 		return true
 
 	# 현재 Region 내부 또는 Portal 셀은 이동 가능.
-	# blocked 셀은 위의 _CanPlaceStatic()에서 이미 제거된다.
-	var index: int = cell.y * gridWidth + cell.x
-	return (regionMap[index] == regionId or regionMap[index] < 0)
+	return regionMap[index] == regionId or regionMap[index] < 0
 
 #endregion
 

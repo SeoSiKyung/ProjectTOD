@@ -13,9 +13,10 @@ var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
 
 
 func Initialize(cycle: int, monsterPoolManager: DefensePoolManager.MonsterPoolManager) -> void:
-	_spawnDataList.assign(GameDataManager.GetDefenseSpawnData(cycle))
-	_nextSpawnIndex = 0
+	_spawnDataList = GameDataManager.GetDefenseSpawnData(cycle)
+	_spawnDataList.sort_custom(_CompareSpawnTime)
 
+	_nextSpawnIndex = 0
 	_monsterPoolManager = monsterPoolManager
 
 
@@ -25,7 +26,7 @@ func Update(elapsedTimeMs: int) -> void:
 		if spawnData.spawnTimeMs > elapsedTimeMs:
 			break
 
-		_Spawn(spawnData)
+		_SpawnGroup(spawnData)
 		_nextSpawnIndex += 1
 
 
@@ -33,14 +34,22 @@ func IsSpawnFinished() -> bool:
 	return _nextSpawnIndex >= _spawnDataList.size()
 
 
-func _Spawn(spawnData: DefenseSpawnData) -> void:
+func _SpawnGroup(spawnData: DefenseSpawnData) -> void:
 	for i: int in range(spawnData.count):
-		var spawnIndex: int = _monsterPoolManager.GetActiveCount()
-
-		var column: int = spawnIndex % TEMP_SPAWN_COLUMNS
-		var row: int = floori(float(spawnIndex) / TEMP_SPAWN_COLUMNS)
-
-		var spawnPosition: Vector2 = (
-			TEMP_SPAWN_POSITION + Vector2(column, row) * TEMP_SPAWN_SPACING
-		)
+		var spawnPosition: Vector2 = _GetNextSpawnPosition()
 		_monsterPoolManager.SpawnMonster(spawnData.characterKey, spawnPosition)
+
+
+func _GetNextSpawnPosition() -> Vector2:
+	var spawnIndex: int = _monsterPoolManager.GetActiveCount()
+
+	var column: int = spawnIndex % TEMP_SPAWN_COLUMNS
+	var row: int = floori(float(spawnIndex) / TEMP_SPAWN_COLUMNS)
+
+	return TEMP_SPAWN_POSITION + Vector2(column, row) * TEMP_SPAWN_SPACING
+	#TODO:
+	#return _spawnPointManager.GetSpawnPosition()
+
+
+func _CompareSpawnTime(a: DefenseSpawnData, b: DefenseSpawnData) -> bool:
+	return a.spawnTimeMs < b.spawnTimeMs

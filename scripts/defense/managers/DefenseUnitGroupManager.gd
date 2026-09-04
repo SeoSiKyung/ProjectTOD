@@ -8,19 +8,19 @@ class DefenseUnitGroupState:
 	var initialSoldierCount: int
 	var aliveSoldierCount: int
 
-	var hpPerSoldier: int = 0
-	var maxHp: int = 0
-	var currentHp: int = 0
+	var hpPerSoldier: int
+	var maxHp: int
+	var currentHp: int
 
 
-	func _init(pCharacterKey: int, pSoldierCount: int, pHpPerSoldier: int):
+	func _init(pCharacterKey: int, pSoldierCount: int, pHpPerSoldier: int) -> void:
 		characterKey = pCharacterKey
 
 		initialSoldierCount = pSoldierCount
 		aliveSoldierCount = pSoldierCount
 
 		hpPerSoldier = pHpPerSoldier
-		maxHp = hpPerSoldier * aliveSoldierCount
+		maxHp = hpPerSoldier * initialSoldierCount
 		currentHp = maxHp
 
 
@@ -56,41 +56,11 @@ func Initialize(deploymentManager: DefenseDeploymentManager, population: int) ->
 			cell
 		)
 
-		var soldierCount: int = Math.ApplyRatio(population, deployment.recruitRatio)
-		if soldierCount <= 0:
+		var state: DefenseUnitGroupState = _CreateUnitGroupState(deployment, population)
+		if state == null:
 			continue
-
-		var characterData: CharacterData = GameDataManager.GetCharacterData(deployment.characterKey)
-		if characterData == null:
-			push_error(
-				"DefenseUnitGroupManager: 존재하지 않는 characterKey입니다. key: "
-				+ str(deployment.characterKey)
-			)
-			continue
-
-		if characterData.characterType != CharacterData.CharacterType.UNIT:
-			push_error(
-				"DefenseUnitGroupManager: UNIT 타입이 아닌 캐릭터가 배치되었습니다. key: "
-				+ str(deployment.characterKey)
-			)
-			continue
-
-		var state: DefenseUnitGroupState = DefenseUnitGroupState.new(
-			deployment.characterKey,
-			soldierCount,
-			characterData.maxHp,
-		)
 
 		_unitGroupStates[cell] = state
-
-
-func GetUnitGroupCells() -> Array[Vector2i]:
-	var cells: Array[Vector2i] = []
-
-	for cell: Vector2i in _unitGroupStates.keys():
-		cells.append(cell)
-
-	return cells
 
 
 func GetUnitGroupState(cell: Vector2i) -> DefenseUnitGroupState:
@@ -98,9 +68,34 @@ func GetUnitGroupState(cell: Vector2i) -> DefenseUnitGroupState:
 
 
 func GetTotalDeadSoldierCount() -> int:
-	var total: int = 0
+	var totalDeadSoldierCount: int = 0
+	for cell: Vector2i in _unitGroupStates:
+		var unitGroupState: DefenseUnitGroupState = _unitGroupStates[cell]
+		totalDeadSoldierCount += unitGroupState.initialSoldierCount - unitGroupState.aliveSoldierCount
 
-	for state: DefenseUnitGroupState in _unitGroupStates.values():
-		total += state.GetDeadSoldierCount()
+	return totalDeadSoldierCount
 
-	return total
+
+func _CreateUnitGroupState(
+	deployment: DefenseDeploymentManager.DefenseDeployment,
+	population: int,
+) -> DefenseUnitGroupState:
+	var soldierCount: int = Math.ApplyRatio(population, deployment.recruitRatio)
+	if soldierCount <= 0:
+		return null
+
+	var characterData: CharacterData = GameDataManager.GetCharacterData(deployment.characterKey)
+	if characterData == null:
+		push_error(
+			"DefenseUnitGroupManager: 존재하지 않는 characterKey입니다. key: " + str(deployment.characterKey)
+		)
+		return null
+
+	if characterData.characterType != CharacterData.CharacterType.UNIT:
+		push_error(
+			"DefenseUnitGroupManager: UNIT 타입이 아닌 캐릭터가 배치되었습니다. key: "
+			+ str(deployment.characterKey)
+		)
+		return null
+
+	return DefenseUnitGroupState.new(deployment.characterKey, soldierCount, characterData.maxHp)

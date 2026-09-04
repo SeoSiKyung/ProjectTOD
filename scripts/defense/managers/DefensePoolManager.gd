@@ -5,8 +5,7 @@ extends RefCounted
 var _pool: Node2D
 
 var _inactiveObjectsByCharacterKey: Dictionary = { }
-var _characterKeyByObject: Dictionary = { }
-var _activeObjects: Dictionary = { }
+var _characterKeyByActiveObject: Dictionary = { }
 
 
 func _init(pool: Node2D) -> void:
@@ -21,45 +20,45 @@ func _Spawn(characterKey: int, spawnPosition: Vector2) -> Node2D:
 			return null
 
 		_pool.add_child(object)
-		_characterKeyByObject[object] = characterKey
 
 	_ActivateObject(object, spawnPosition)
-	_activeObjects[object] = true
+	_characterKeyByActiveObject[object] = characterKey
 
 	return object
 
 
 func Return(object: Node2D) -> bool:
-	if not _activeObjects.has(object):
+	if not _characterKeyByActiveObject.has(object):
 		return false
 
-	var characterKey: int = _characterKeyByObject[object]
-
-	_activeObjects.erase(object)
+	var characterKey: int = _characterKeyByActiveObject[object]
+	_characterKeyByActiveObject.erase(object)
 
 	_DeactivateObject(object)
 	_OnObjectReturned(object)
-
-	if not _inactiveObjectsByCharacterKey.has(characterKey):
-		_inactiveObjectsByCharacterKey[characterKey] = []
-	_inactiveObjectsByCharacterKey[characterKey].append(object)
+	_AddInactiveObject(characterKey, object)
 
 	return true
 
 
 func GetActiveCount() -> int:
-	return _activeObjects.size()
+	return _characterKeyByActiveObject.size()
 
 
 func _TakeInactiveObject(characterKey: int) -> Node2D:
-	if not _inactiveObjectsByCharacterKey.has(characterKey):
-		return null
-
-	var inactiveObjects: Array = _inactiveObjectsByCharacterKey[characterKey]
+	var inactiveObjects: Array = _inactiveObjectsByCharacterKey.get(characterKey, [])
 	if inactiveObjects.is_empty():
 		return null
 
 	return inactiveObjects.pop_back()
+
+
+func _AddInactiveObject(characterKey: int, object: Node2D) -> void:
+	if not _inactiveObjectsByCharacterKey.has(characterKey):
+		_inactiveObjectsByCharacterKey[characterKey] = []
+
+	var inactiveObjects: Array = _inactiveObjectsByCharacterKey[characterKey]
+	inactiveObjects.append(object)
 
 
 @abstract
@@ -83,7 +82,7 @@ func _OnObjectReturned(_object: Node2D) -> void:
 
 class MonsterPoolManager extends DefensePoolManager:
 	# TODO: 실제 Monster Scene 구현 후 CharacterData.path 기반 생성으로 교체
-	const TEMP_MONSTER_SCENE: PackedScene = preload("res://unit/unit.tscn")
+	const TEMP_MONSTER_SCENE: PackedScene = preload("res://unit/Unit.tscn")
 	const TEMP_MONSTER_COLOR: Color = Color(1.0, 0.25, 0.25, 1.0)
 
 
@@ -116,19 +115,23 @@ class UnitPoolManager extends DefensePoolManager:
 	var _unitGroupStateByUnit: Dictionary = { }
 
 
-	func SpawnUnit(
-		characterKey: int,
-		spawnPosition: Vector2,
-		unitGroupState: DefenseUnitGroupManager.DefenseUnitGroupState = null,
-	) -> Unit:
-		var unit: Unit = _Spawn(characterKey, spawnPosition) as Unit
-		if unit == null:
-			return null
+	func SpawnUnit(characterKey: int, spawnPosition: Vector2) -> Unit:
+		return _Spawn(characterKey, spawnPosition) as Unit
 
-		if unitGroupState != null:
-			_unitGroupStateByUnit[unit] = unitGroupState
 
-		return unit
+	func SetUnitGroupState(
+		unit: Unit,
+		unitGroupState: DefenseUnitGroupManager.DefenseUnitGroupState,
+	) -> bool:
+		if not _characterKeyByActiveObject.has(unit):
+			return false
+
+		if unitGroupState == null:
+			return false
+
+		_unitGroupStateByUnit[unit] = unitGroupState
+
+		return true
 
 
 	func GetUnitGroupState(unit: Unit) -> DefenseUnitGroupManager.DefenseUnitGroupState:
@@ -163,5 +166,4 @@ class UnitPoolManager extends DefensePoolManager:
 
 
 	func _OnObjectReturned(object: Node2D) -> void:
-		var unit: Unit = object as Unit
-		_unitGroupStateByUnit.erase(unit)
+		_unitGroupStateByUnit.erase(object)
