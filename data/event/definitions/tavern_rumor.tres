@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="EventData" format=3]
+
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventChoiceData.gd" id="1_tqxl7"]
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventResultData.gd" id="2_r2dge"]
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventConditionData.gd" id="3_e4rkd"]
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventData.gd" id="4_jjvyw"]
+
+[sub_resource type="Resource" id="Resource_08h8h"]
+script = ExtResource("2_r2dge")
+setStoryFlags = Array[StringName]([&"heard_northern_ruins_rumor"])
+intelToAdd = Array[StringName]([&"northern_ruins_rumor"])
+
+[sub_resource type="Resource" id="Resource_d65of"]
+script = ExtResource("1_tqxl7")
+id = &"listen"
+displayText = "소문을 자세히 들어본다."
+resultText = "북쪽 폐허에 대한 수상한 소문을 들었다."
+result = SubResource("Resource_08h8h")
+
+[sub_resource type="Resource" id="Resource_rx337"]
+script = ExtResource("2_r2dge")
+setStoryFlags = Array[StringName]([&"ignored_northern_ruins_rumor"])
+
+[sub_resource type="Resource" id="Resource_cgd14"]
+script = ExtResource("1_tqxl7")
+id = &"ignore"
+displayText = "대수롭지 않게 넘긴다."
+resultText = "술집의 흔한 소문이라 생각하고 흘려들었다."
+result = SubResource("Resource_rx337")
+
+[sub_resource type="Resource" id="Resource_ltya1"]
+script = ExtResource("3_e4rkd")
+requiredFacilityIds = Array[StringName]([&"tavern"])
+
+[resource]
+script = ExtResource("4_jjvyw")
+id = &"tavern_rumor"
+displayName = "술집의 수상한 소문"
+description = "술집 한쪽에서 북쪽 폐허에 관한 이야기가 들려온다."
+triggerChance = 1.0
+oneShot = true
+condition = SubResource("Resource_ltya1")
+choices = Array[ExtResource("1_tqxl7")]([SubResource("Resource_d65of"), SubResource("Resource_cgd14")])
