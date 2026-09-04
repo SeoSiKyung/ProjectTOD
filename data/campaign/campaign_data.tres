@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="CampaignData" format=3]
+
+[ext_resource type="Script" path="res://scripts/gameflow/CycleData.gd" id="1_m2goy"]
+[ext_resource type="Script" path="res://scripts/gameflow/CampaignData.gd" id="2_4nn3s"]
+
+[sub_resource type="Resource" id="Resource_a88xg"]
+script = ExtResource("1_m2goy")
+turnLimit = 5
+
+[sub_resource type="Resource" id="Resource_2xf10"]
+script = ExtResource("1_m2goy")
+cycle = 2
+turnLimit = 5
+
+[sub_resource type="Resource" id="Resource_t0xws"]
+script = ExtResource("1_m2goy")
+cycle = 3
+turnLimit = 5
+
+[sub_resource type="Resource" id="Resource_fbqnw"]
+script = ExtResource("1_m2goy")
+cycle = 4
+turnLimit = 5
+
+[sub_resource type="Resource" id="Resource_cd5q1"]
+script = ExtResource("1_m2goy")
+cycle = 5
+turnLimit = 5
+
+[resource]
+script = ExtResource("2_4nn3s")
+cycles = Array[ExtResource("1_m2goy")]([SubResource("Resource_a88xg"), SubResource("Resource_2xf10"), SubResource("Resource_t0xws"), SubResource("Resource_fbqnw"), SubResource("Resource_cd5q1")])
