@@ -3,7 +3,7 @@ extends RefCounted
 
 
 class DefenseUnitGroupState:
-	var unitType: int
+	var characterKey: int
 
 	var initialSoldierCount: int
 	var aliveSoldierCount: int
@@ -13,8 +13,8 @@ class DefenseUnitGroupState:
 	var currentHp: int = 0
 
 
-	func _init(pUnitType: int, pSoldierCount: int, pHpPerSoldier: int):
-		unitType = pUnitType
+	func _init(pCharacterKey: int, pSoldierCount: int, pHpPerSoldier: int):
+		characterKey = pCharacterKey
 
 		initialSoldierCount = pSoldierCount
 		aliveSoldierCount = pSoldierCount
@@ -52,9 +52,55 @@ func Initialize(deploymentManager: DefenseDeploymentManager, population: int) ->
 
 	var cells: Array[Vector2i] = deploymentManager.GetDeploymentCells()
 	for cell: Vector2i in cells:
-		var deployment := deploymentManager.GetDeployment(cell)
+		var deployment: DefenseDeploymentManager.DefenseDeployment = deploymentManager.GetDeployment(
+			cell
+		)
 
 		var soldierCount: int = Math.ApplyRatio(population, deployment.recruitRatio)
+		if soldierCount <= 0:
+			continue
 
-		# unitType으로 hp 조회
-		# DefenseUnitGroupState 생성
+		var characterData: CharacterData = GameDataManager.GetCharacterData(deployment.characterKey)
+		if characterData == null:
+			push_error(
+				"DefenseUnitGroupManager: 존재하지 않는 characterKey입니다. key: "
+				+ str(deployment.characterKey)
+			)
+			continue
+
+		if characterData.characterType != CharacterData.CharacterType.UNIT:
+			push_error(
+				"DefenseUnitGroupManager: UNIT 타입이 아닌 캐릭터가 배치되었습니다. key: "
+				+ str(deployment.characterKey)
+			)
+			continue
+
+		var state: DefenseUnitGroupState = DefenseUnitGroupState.new(
+			deployment.characterKey,
+			soldierCount,
+			characterData.maxHp,
+		)
+
+		_unitGroupStates[cell] = state
+
+
+func GetUnitGroupCells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+
+	for cell: Vector2i in _unitGroupStates.keys():
+		cells.append(cell)
+
+	return cells
+
+
+func GetUnitGroupState(cell: Vector2i) -> DefenseUnitGroupState:
+	return _unitGroupStates.get(cell)
+
+
+func GetTotalDeadSoldierCount() -> int:
+	var total: int = 0
+
+	for state: DefenseUnitGroupState in _unitGroupStates.values():
+		total += state.GetDeadSoldierCount()
+
+	return total

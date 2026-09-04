@@ -5,12 +5,12 @@ const MAX_RECRUIT_RATIO: int = 300 # 30%를 의미
 
 
 class DefenseDeployment:
-	var unitType: int # 아직 유닛 타입 없음
+	var characterKey: int
 	var recruitRatio: int
 
 
-	func _init(pUnitType: int, pRecruitRatio: int):
-		unitType = pUnitType
+	func _init(pCharacterKey: int, pRecruitRatio: int):
+		characterKey = pCharacterKey
 		recruitRatio = pRecruitRatio
 
 
@@ -29,11 +29,11 @@ func GetDeployment(cell: Vector2i) -> DefenseDeployment:
 	return _deployments.get(cell)
 
 
-func AddDeployment(cell: Vector2i, unitType: int, recruitRatio: int) -> bool:
+func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
 	if _deployments.has(cell) or not _CanAddDeployment(recruitRatio):
 		return false
 
-	var deployment: DefenseDeployment = DefenseDeployment.new(unitType, recruitRatio)
+	var deployment: DefenseDeployment = DefenseDeployment.new(characterKey, recruitRatio)
 	_deployments[cell] = deployment
 
 	return true
@@ -48,7 +48,7 @@ func RemoveDeployment(cell: Vector2i) -> bool:
 	return true
 
 
-func UpdateDeployment(cell: Vector2i, unitType: int, recruitRatio: int) -> bool:
+func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
 	var deployment: DefenseDeployment = _deployments.get(cell)
 	if deployment == null or recruitRatio <= 0:
 		return false
@@ -57,7 +57,7 @@ func UpdateDeployment(cell: Vector2i, unitType: int, recruitRatio: int) -> bool:
 	if updatedTotalRatio > MAX_RECRUIT_RATIO:
 		return false
 
-	deployment.unitType = unitType
+	deployment.characterKey = characterKey
 	deployment.recruitRatio = recruitRatio
 
 	return true
