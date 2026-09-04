@@ -9,7 +9,7 @@ class DefenseDeployment:
 	var recruitRatio: int
 
 
-	func _init(pCharacterKey: int, pRecruitRatio: int):
+	func _init(pCharacterKey: int, pRecruitRatio: int) -> void:
 		characterKey = pCharacterKey
 		recruitRatio = pRecruitRatio
 
@@ -30,11 +30,13 @@ func GetDeployment(cell: Vector2i) -> DefenseDeployment:
 
 
 func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
-	if _deployments.has(cell) or not _CanAddDeployment(recruitRatio):
+	if _deployments.has(cell):
 		return false
 
-	var deployment: DefenseDeployment = DefenseDeployment.new(characterKey, recruitRatio)
-	_deployments[cell] = deployment
+	if not _CanChangeRecruitRatio(0, recruitRatio):
+		return false
+
+	_deployments[cell] = DefenseDeployment.new(characterKey, recruitRatio)
 
 	return true
 
@@ -50,11 +52,10 @@ func RemoveDeployment(cell: Vector2i) -> bool:
 
 func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
 	var deployment: DefenseDeployment = _deployments.get(cell)
-	if deployment == null or recruitRatio <= 0:
+	if deployment == null:
 		return false
 
-	var updatedTotalRatio: int = (GetTotalRecruitRatio() - deployment.recruitRatio + recruitRatio)
-	if updatedTotalRatio > MAX_RECRUIT_RATIO:
+	if not _CanChangeRecruitRatio(deployment.recruitRatio, recruitRatio):
 		return false
 
 	deployment.characterKey = characterKey
@@ -63,16 +64,18 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 	return true
 
 
-func GetTotalRecruitRatio() -> int:
-	var total: int = 0
-	for deployment: DefenseDeployment in _deployments.values():
-		total += deployment.recruitRatio
-
-	return total
-
-
-func _CanAddDeployment(recruitRatio: int) -> bool:
-	if recruitRatio <= 0:
+func _CanChangeRecruitRatio(previousRatio: int, newRatio: int) -> bool:
+	if newRatio <= 0:
 		return false
 
-	return GetTotalRecruitRatio() + recruitRatio <= MAX_RECRUIT_RATIO
+	var updatedTotalRatio: int = _GetTotalRecruitRatio() - previousRatio + newRatio
+	return updatedTotalRatio <= MAX_RECRUIT_RATIO
+
+
+func _GetTotalRecruitRatio() -> int:
+	var totalRecruitRatio: int = 0
+	for cell: Vector2i in _deployments:
+		var deployment: DefenseDeployment = _deployments[cell]
+		totalRecruitRatio += deployment.recruitRatio
+
+	return totalRecruitRatio

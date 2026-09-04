@@ -3,6 +3,12 @@ extends Node2D
 
 const GRID_COLOR: Color = Color(1.0, 0.0, 0.0, 0.4)
 
+const DEPLOYMENT_FILL_COLOR: Color = Color(0.0, 1.0, 0.0, 0.35)
+const DEPLOYMENT_BORDER_COLOR: Color = Color(0.0, 1.0, 0.0, 0.9)
+
+const HOVER_FILL_COLOR: Color = Color(0.0, 1.0, 0.0, 0.2)
+const HOVER_BORDER_COLOR: Color = Color(0.0, 1.0, 0.0, 0.9)
+
 signal CellClicked(cell: Vector2i)
 signal CellRightClicked(cell: Vector2i)
 
@@ -26,11 +32,19 @@ func _process(_delta: float) -> void:
 
 	var mousePosition: Vector2 = get_global_mouse_position()
 	var cell: Vector2i = _grid.WorldToCell(mousePosition)
-	var hasHoverCell: bool = _grid.IsValidCell(cell)
-	if hasHoverCell == _hasHoverCell and cell == _hoverCell:
+
+	if not _grid.IsValidCell(cell):
+		if not _hasHoverCell:
+			return
+
+		_hasHoverCell = false
+		queue_redraw()
 		return
 
-	_hasHoverCell = hasHoverCell
+	if _hasHoverCell and cell == _hoverCell:
+		return
+
+	_hasHoverCell = true
 	_hoverCell = cell
 
 	queue_redraw()
@@ -70,13 +84,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			CellRightClicked.emit(cell)
 
 
-func SetDeployment(cell: Vector2i, characterKey: int) -> void:
-	_deploymentCells[cell] = characterKey
+func SetDeployment(cell: Vector2i) -> void:
+	_deploymentCells[cell] = true
+
 	queue_redraw()
 
 
 func RemoveDeployment(cell: Vector2i) -> void:
 	_deploymentCells.erase(cell)
+
 	queue_redraw()
 
 
@@ -106,19 +122,22 @@ func _DrawGrid() -> void:
 
 
 func _DrawDeployments() -> void:
-	for cell: Vector2i in _deploymentCells.keys():
-		var worldPosition: Vector2 = (_grid.worldOrigin + Vector2(cell) * _grid.cellSize)
-		var localPosition: Vector2 = to_local(worldPosition)
-		var rect: Rect2 = Rect2(localPosition, Vector2.ONE * _grid.cellSize)
+	for cell: Vector2i in _deploymentCells:
+		var rect: Rect2 = _GetCellRect(cell)
 
-		draw_rect(rect, Color(0.0, 1.0, 0.0, 0.35), true)
-		draw_rect(rect, Color(0.0, 1.0, 0.0, 0.9), false, 4.0)
+		draw_rect(rect, DEPLOYMENT_FILL_COLOR, true)
+		draw_rect(rect, DEPLOYMENT_BORDER_COLOR, false, 4.0)
 
 
 func _DrawHoverCell() -> void:
-	var worldPosition: Vector2 = (_grid.worldOrigin + Vector2(_hoverCell) * _grid.cellSize)
-	var localPosition: Vector2 = to_local(worldPosition)
-	var rect: Rect2 = Rect2(localPosition, Vector2.ONE * _grid.cellSize)
+	var rect: Rect2 = _GetCellRect(_hoverCell)
 
-	draw_rect(rect, Color(0.0, 1.0, 0.0, 0.2), true)
-	draw_rect(rect, Color(0.0, 1.0, 0.0, 0.9), false, 3.0)
+	draw_rect(rect, HOVER_FILL_COLOR, true)
+	draw_rect(rect, HOVER_BORDER_COLOR, false, 3.0)
+
+
+func _GetCellRect(cell: Vector2i) -> Rect2:
+	var worldPosition: Vector2 = (_grid.worldOrigin + Vector2(cell) * _grid.cellSize)
+	var localPosition: Vector2 = to_local(worldPosition)
+
+	return Rect2(localPosition, Vector2.ONE * _grid.cellSize)

@@ -14,13 +14,7 @@ extends RefCounted
 #
 # 일반 게임 실행에서는 metrics가 null이므로 계측하지 않는다.
 
-#region Request
-var targetCorrectionCount: int = 0 # jhw, 작업 필요
-
-#endregion
-
 #region Phase Time
-var resolveTargetUsec: int = 0 # jhw, 작업 필요
 var startAnchorConnectionUsec: int = 0
 var targetAnchorConnectionUsec: int = 0
 var anchorGraphUsec: int = 0
@@ -100,10 +94,7 @@ var anchorBatchMaxSearchArea: int = 0
 
 func ToDictionary() -> Dictionary:
 	return {
-		# Request
-		"target_correction_count": targetCorrectionCount,
 		# Phase Time
-		"resolve_target_usec": resolveTargetUsec,
 		"start_anchor_connection_usec": startAnchorConnectionUsec,
 		"target_anchor_connection_usec": targetAnchorConnectionUsec,
 		"anchor_graph_usec": anchorGraphUsec,

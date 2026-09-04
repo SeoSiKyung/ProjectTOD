@@ -13,6 +13,8 @@ var _startData: DefenseStartData
 var _navigationService: NavigationService
 
 var _deploymentManager: DefenseDeploymentManager
+var _deploymentUnitsByCell: Dictionary = { }
+
 var _unitGroupManager: DefenseUnitGroupManager
 var _spawnManager: DefenseSpawnManager
 var _timeManager: DefenseTimeManager
@@ -22,7 +24,6 @@ var _unitPoolManager: DefensePoolManager.UnitPoolManager
 # var _trapPoolManager: DefenseTrapPoolManager
 
 var _phase: DefensePhase = DefensePhase.DEPLOYMENT
-var _result: DefenseResult
 
 
 func _init(startData: DefenseStartData, pools: Node, navigationService: NavigationService) -> void:
@@ -42,65 +43,52 @@ func _init(startData: DefenseStartData, pools: Node, navigationService: Navigati
 
 	# var trapPool: Node2D = pools.get_node("TrapPool")
 	# _trapPoolManager = DefensePoolManager.TrapPoolManager.new(trapPool)
-	_phase = DefensePhase.DEPLOYMENT
-	_result = null
 
 
 func GetPhase() -> DefensePhase:
 	return _phase
 
 
-func GetResult() -> DefenseResult:
-	return _result
-
-
-func GetUnitGroupCells() -> Array[Vector2i]:
-	return _unitGroupManager.GetUnitGroupCells()
-
-
-func GetUnitGroupState(cell: Vector2i) -> DefenseUnitGroupManager.DefenseUnitGroupState:
-	return _unitGroupManager.GetUnitGroupState(cell)
-
-
-func GetElapsedTimeMs() -> int:
-	return _timeManager.GetElapsedTimeMs()
-
-
-func ReturnMonster(monster: Node2D) -> bool:
-	return _monsterPoolManager.Return(monster)
-
-
-func ReturnUnit(unit: Unit) -> bool:
-	return _unitPoolManager.Return(unit)
-
-
-func SpawnDeploymentUnit(characterKey: int, position: Vector2) -> Unit:
-	if _phase != DefensePhase.DEPLOYMENT:
-		return null
-
-	var unit: Unit = _unitPoolManager.SpawnUnit(characterKey, position)
-	if unit == null:
-		return null
-
-	if not _navigationService.CanPlaceStatic(position, unit.GetHalfSize()):
-		_unitPoolManager.Return(unit)
-		return null
-
-	return unit
-
-
-func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
+func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int, position: Vector2) -> bool:
 	if _phase != DefensePhase.DEPLOYMENT:
 		return false
 
-	return _deploymentManager.AddDeployment(cell, characterKey, recruitRatio)
+	if not _deploymentManager.AddDeployment(cell, characterKey, recruitRatio):
+		return false
+
+	var unit: Unit = _SpawnDeploymentUnit(characterKey, position)
+	if unit == null:
+		_deploymentManager.RemoveDeployment(cell)
+		return false
+
+	_deploymentUnitsByCell[cell] = unit
+
+	return true
 
 
 func RemoveDeployment(cell: Vector2i) -> bool:
 	if _phase != DefensePhase.DEPLOYMENT:
 		return false
 
-	return _deploymentManager.RemoveDeployment(cell)
+	var deployment: DefenseDeploymentManager.DefenseDeployment = (
+		_deploymentManager.GetDeployment(cell)
+	)
+	if deployment == null:
+		return false
+
+	var unit: Unit = _deploymentUnitsByCell.get(cell)
+	if unit == null:
+		push_error("DefenseManager: 배치 데이터에 대응하는 Unit이 없습니다. cell: " + str(cell))
+		return false
+
+	if not _unitPoolManager.Return(unit):
+		push_error("DefenseManager: 배치 Unit 반환에 실패했습니다. cell: " + str(cell))
+		return false
+
+	_deploymentManager.RemoveDeployment(cell)
+	_deploymentUnitsByCell.erase(cell)
+
+	return true
 
 
 # 이미 배치된 격자의 배치 정보를 수정
@@ -108,7 +96,40 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 	if _phase != DefensePhase.DEPLOYMENT:
 		return false
 
-	return _deploymentManager.UpdateDeployment(cell, characterKey, recruitRatio)
+	var deployment := _deploymentManager.GetDeployment(cell)
+	if deployment == null:
+		return false
+
+	if deployment.characterKey == characterKey:
+		return _deploymentManager.UpdateDeployment(cell, characterKey, recruitRatio)
+
+	var unit: Unit = _deploymentUnitsByCell.get(cell)
+	if unit == null:
+		push_error("DefenseManager: 배치 데이터에 대응하는 Unit이 없습니다. cell: " + str(cell))
+		return false
+
+	var previousCharacterKey: int = deployment.characterKey
+	var previousRecruitRatio: int = deployment.recruitRatio
+
+	if not _deploymentManager.UpdateDeployment(cell, characterKey, recruitRatio):
+		return false
+
+	var newUnit: Unit = _SpawnDeploymentUnit(characterKey, unit.position)
+	if newUnit == null:
+		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
+		return false
+
+	if not _unitPoolManager.Return(unit):
+		_unitPoolManager.Return(newUnit)
+
+		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
+
+		push_error("DefenseManager: 기존 배치 Unit 반환에 실패했습니다. cell: " + str(cell))
+		return false
+
+	_deploymentUnitsByCell[cell] = newUnit
+
+	return true
 
 
 # 배치 확정
@@ -118,8 +139,21 @@ func ConfirmDeployment() -> bool:
 
 	_unitGroupManager.Initialize(_deploymentManager, _startData.population)
 
-	_spawnManager.Initialize(_startData.cycle, _monsterPoolManager)
+	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
+	for cell: Vector2i in cells:
+		var unit: Unit = _deploymentUnitsByCell.get(cell)
+		var unitGroupState := _unitGroupManager.GetUnitGroupState(cell)
+		if unit == null or unitGroupState == null:
+			push_error("DefenseManager: 배치 Unit과 UnitGroupState 연결에 실패했습니다. cell: " + str(cell))
+			return false
 
+		if not _unitPoolManager.SetUnitGroupState(unit, unitGroupState):
+			push_error("DefenseManager: UnitGroupState 등록에 실패했습니다. cell: " + str(cell))
+			return false
+
+	_deploymentUnitsByCell.clear()
+
+	_spawnManager.Initialize(_startData.cycle, _monsterPoolManager)
 	_timeManager.Initialize()
 
 	_phase = DefensePhase.BATTLE
@@ -139,42 +173,58 @@ func Update() -> void:
 	_CheckVictory()
 
 
+func ReturnMonster(monster: Node2D) -> bool:
+	if _phase != DefensePhase.BATTLE:
+		return false
+
+	return _monsterPoolManager.Return(monster)
+
+
+func ReturnUnit(unit: Unit) -> bool:
+	if _phase != DefensePhase.BATTLE:
+		return false
+
+	return _unitPoolManager.Return(unit)
+
+
 func PauseBattle() -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
-	_timeManager.PauseBattle()
+	_timeManager.Pause()
 
 
 func ResumeBattle() -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
-	_timeManager.ResumeBattle()
-
-
-func IsSpawnFinished() -> bool:
-	if _phase != DefensePhase.BATTLE:
-		return false
-
-	return _spawnManager.IsSpawnFinished()
+	_timeManager.Resume()
 
 
 func FinishDefense(isVictory: bool) -> DefenseResult:
 	if _phase != DefensePhase.BATTLE:
 		return null
 
-	_timeManager.PauseBattle()
+	_timeManager.Pause()
 
-	_result = DefenseResult.new()
-	_result.isVictory = isVictory
-	_result.deadPopulation = _unitGroupManager.GetTotalDeadSoldierCount()
-
+	var result: DefenseResult = _CreateResult(isVictory)
 	_phase = DefensePhase.FINISHED
 
-	DefenseFinished.emit(_result)
+	DefenseFinished.emit(result)
 
-	return _result
+	return result
+
+
+func _SpawnDeploymentUnit(characterKey: int, position: Vector2) -> Unit:
+	var unit: Unit = _unitPoolManager.SpawnUnit(characterKey, position)
+	if unit == null:
+		return null
+
+	if not _navigationService.CanPlaceStatic(position, unit.GetHalfSize()):
+		_unitPoolManager.Return(unit)
+		return null
+
+	return unit
 
 
 func _CheckVictory() -> void:
@@ -185,3 +235,11 @@ func _CheckVictory() -> void:
 		return
 
 	FinishDefense(true)
+
+
+func _CreateResult(isVictory: bool) -> DefenseResult:
+	var result: DefenseResult = DefenseResult.new()
+	result.isVictory = isVictory
+	result.deadPopulation = _unitGroupManager.GetTotalDeadSoldierCount()
+
+	return result
