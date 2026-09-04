@@ -1,7 +1,7 @@
 class_name OffenseResult
 extends RefCounted
 
-var victory: bool = false
+var isVictory: bool = false
 
 # =========================================================
 # 획득 자원

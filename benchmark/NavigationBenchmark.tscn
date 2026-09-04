@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cd3j3nq367tle"]
 
 [ext_resource type="Script" uid="uid://8s25cos6ongp" path="res://benchmark/NavigationBenchmark.gd" id="1_5u34k"]
-[ext_resource type="Resource" uid="uid://3owe0xgpa1kn" path="res://maps/2_navigation.res" id="2_xljt8"]
+[ext_resource type="Resource" path="res://maps/2_navigation.res" id="2_xljt8"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="3_d1o1b"]
 
 [node name="NavigationBenchmark" type="Node2D" unique_id=1971426958]

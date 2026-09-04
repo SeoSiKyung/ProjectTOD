@@ -17,10 +17,8 @@ func WorldToCell(worldPosition: Vector2) -> Vector2i:
 	return Vector2i(floori(localPosition.x / cellSize), floori(localPosition.y / cellSize))
 
 
-func CellToWorld(cell: Vector2i) -> Vector2:
-	return (
-		worldOrigin + Vector2((float(cell.x) + 0.5) * cellSize, (float(cell.y) + 0.5) * cellSize)
-	)
+func CellToWorldCenter(cell: Vector2i) -> Vector2:
+	return worldOrigin + (Vector2(cell) + Vector2(0.5, 0.5)) * cellSize
 
 
 func IsValidCell(cell: Vector2i) -> bool:

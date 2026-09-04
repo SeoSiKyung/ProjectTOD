@@ -8,4 +8,4 @@ characterKey,characterName,characterType,path,maxHp,maxMp,hpRegen,mpRegen,atk,ma
 ,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,
-1000,민병대,UNIT,res://unit/unit.tscn ,100,0,1,0,10,0,5,0,80,5,100,0
+1000,민병대,UNIT,res://unit/Unit.tscn ,100,0,1,0,10,0,5,0,80,5,100,0

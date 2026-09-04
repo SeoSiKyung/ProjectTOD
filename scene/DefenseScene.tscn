@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bjaevfcc2xfl8" path="res://scene/DefenseScene.gd" id="1_aixx4"]
 [ext_resource type="Texture2D" uid="uid://b0q3fa72fdubk" path="res://picture/defense/DefenseTemp.png" id="1_gg6bu"]
-[ext_resource type="Resource" uid="uid://3owe0xgpa1kn" path="res://maps/2_navigation.res" id="3_ffq3l"]
+[ext_resource type="Resource" uid="uid://lt8x2mdk8vwc" path="res://maps/2_navigation.res" id="3_ffq3l"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="3_m8apv"]
 [ext_resource type="Script" uid="uid://blgbhtt23abdo" path="res://scripts/defense/DefenseDeploymentGridView.gd" id="5_to5m3"]
 

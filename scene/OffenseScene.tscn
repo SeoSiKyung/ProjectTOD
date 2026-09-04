@@ -2,11 +2,11 @@
 
 [ext_resource type="Script" uid="uid://djxreqs452a78" path="res://scene/OffenseScene.gd" id="1_wohdj"]
 [ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/CommandController.gd" id="3_dlxae"]
-[ext_resource type="Resource" path="res://maps/2_navigation.res" id="4_8rkap"]
+[ext_resource type="Resource" uid="uid://3owe0xgpa1kn" path="res://maps/2_navigation.res" id="4_8rkap"]
 [ext_resource type="Script" uid="uid://b7ert7hoc8245" path="res://unit/MovementSimulator.gd" id="4_jaojb"]
 [ext_resource type="Script" uid="uid://bhe58qkgp1ycw" path="res://unit/MovementController.gd" id="5_dgir3"]
 [ext_resource type="Script" uid="uid://u3wgqxb8j2fh" path="res://unit/NavigationService.gd" id="5_j4bn1"]
-[ext_resource type="PackedScene" uid="uid://dd6c3nmhvvai0" path="res://unit/unit.tscn" id="5_wohdj"]
+[ext_resource type="PackedScene" uid="uid://dd6c3nmhvvai0" path="res://unit/Unit.tscn" id="5_wohdj"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="6_8rkap"]
 [ext_resource type="Script" uid="uid://dwb6dp01f41m8" path="res://unit/SelectController.gd" id="8_u7dgu"]
 [ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPanel.gd" id="11_o4skl"]
