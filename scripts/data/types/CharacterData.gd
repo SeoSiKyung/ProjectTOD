@@ -45,7 +45,7 @@ func _init(
 	pAttackSpeed: int,
 	pAtkRange: int,
 	pAcquisitionRange: int,
-):
+) -> void:
 	characterKey = pCharacterKey
 	characterName = pCharacterName
 	characterType = pCharacterType

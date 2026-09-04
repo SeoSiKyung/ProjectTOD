@@ -23,7 +23,7 @@ func Update() -> void:
 	_lastTimeMs = currentTimeMs
 
 
-func PauseBattle() -> void:
+func Pause() -> void:
 	if not _isRunning:
 		return
 
@@ -31,7 +31,7 @@ func PauseBattle() -> void:
 	_isRunning = false
 
 
-func ResumeBattle() -> void:
+func Resume() -> void:
 	if _isRunning:
 		return
 

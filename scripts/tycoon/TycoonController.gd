@@ -687,7 +687,7 @@ func _AdvanceOffenseTurns(turnCount: int) -> void:
 
 
 func _RequestDefense() -> void:
-	if _campaign == null:
+	if _campaign == null or _settlement == null:
 		return
 
 	# =====================================================
@@ -698,17 +698,30 @@ func _RequestDefense() -> void:
 	# =====================================================
 	# Defense 시작 데이터 생성
 	# =====================================================
-	var startData := _defenseBridge.CreateStartData(_campaign, _currentStats)
+	var startData := _defenseBridge.CreateStartData(_campaign, _settlement.population)
 
 	# =====================================================
 	# Defense Phase 전환
 	# =====================================================
-	_campaign.currentPhase = (CampaignState.Phase.DEFENSE)
+	_campaign.currentPhase = CampaignState.Phase.DEFENSE
 
 	# =====================================================
 	# 상위 GameFlow에 Defense 시작 요청
 	# =====================================================
 	DefenseRequested.emit(startData)
+
+
+func ApplyDefenseResult(result: DefenseResult) -> void:
+	if _settlement == null:
+		return
+
+	if _campaign.currentPhase != CampaignState.Phase.DEFENSE:
+		push_warning("TycoonController: 현재 Defense Phase가 아닙니다.")
+		return
+
+	_defenseBridge.ApplyResult(_settlement, result)
+
+	_RefreshStats()
 
 # =========================================================
 # Stat

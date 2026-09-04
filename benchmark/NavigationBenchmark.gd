@@ -58,7 +58,7 @@ func _draw() -> void:
 
 
 func _RunAllBenchmarks() -> void:
-	for benchmarkCase in _cases:
+	for benchmarkCase: NavigationBenchmarkCase in _cases:
 		_RunBenchmark(benchmarkCase)
 
 
@@ -66,6 +66,12 @@ func _RunBenchmark(benchmarkCase: NavigationBenchmarkCase) -> void:
 	if not _navigationService.CanPlaceStatic(benchmarkCase.start, benchmarkCase.halfSize):
 		push_error(
 			"Invalid benchmark start: %s / %s" % [benchmarkCase.caseName, benchmarkCase.start]
+		)
+		return
+
+	if not _navigationService.CanPlaceStatic(benchmarkCase.target, benchmarkCase.halfSize):
+		push_error(
+			"Invalid benchmark target: %s / %s" % [benchmarkCase.caseName, benchmarkCase.target]
 		)
 		return
 
@@ -131,7 +137,7 @@ func _PrintResult(
 	print("Runs : ", results.size())
 
 	_PrintExecutionTime(elapsedTimes)
-	_PrintPathResult(pathSizeTotal, emptyPathCount, metricTotals, results.size())
+	_PrintPathResult(pathSizeTotal, emptyPathCount, results.size())
 	_PrintPhaseTime(metricTotals, results.size())
 	_PrintGridSearch(metricTotals, results.size())
 	_PrintAnchorConnection(metricTotals, results.size())
@@ -151,24 +157,16 @@ func _PrintExecutionTime(elapsedTimes: Array[float]) -> void:
 	print("  Max : %.3f ms" % elapsedTimes.back())
 
 
-func _PrintPathResult(
-	pathSizeTotal: int,
-	emptyPathCount: int,
-	metrics: Dictionary,
-	runCount: int,
-) -> void:
+func _PrintPathResult(pathSizeTotal: int, emptyPathCount: int, runCount: int) -> void:
 	print("")
 	print("[Path Result]")
 	print("  %-26s : %.2f" % ["Path Size Avg", float(pathSizeTotal) / runCount])
 	print("  %-26s : %d" % ["Empty Paths", emptyPathCount])
 
-	_PrintMetricAverage(metrics, "target_correction_count", "Target Correction", runCount)
-
 
 func _PrintPhaseTime(metrics: Dictionary, count: int) -> void:
 	print("")
 	print("[FindPath Phase]")
-	_PrintMetricUsecAsMs(metrics, "resolve_target_usec", "Resolve Target", count)
 	_PrintMetricUsecAsMs(metrics, "start_anchor_connection_usec", "Start Anchor Connection", count)
 	_PrintMetricUsecAsMs(
 		metrics,
@@ -292,7 +290,7 @@ func _PrintMetricUsecAsMs(
 
 
 func _AccumulateMetrics(totals: Dictionary, metrics: Dictionary) -> void:
-	for key: Variant in metrics.keys():
+	for key: String in metrics:
 		totals[key] = int(totals.get(key, 0)) + int(metrics[key])
 
 
@@ -301,7 +299,7 @@ func _GetAverage(values: Array[float]) -> float:
 		return 0.0
 
 	var total: float = 0.0
-	for value in values:
+	for value: float in values:
 		total += value
 
 	return total / values.size()

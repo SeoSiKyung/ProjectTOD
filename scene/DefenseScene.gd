@@ -10,9 +10,12 @@ signal DefenseFinished(result: DefenseResult)
 
 @export var navigationData: NavigationData
 
+@onready var _pools: Node = $Pools
+@onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
+@onready var _confirmButton: Button = $CanvasLayer/ConfirmButton
+
 var _navigationService: NavigationService
 var _deploymentGrid: DefenseDeploymentGrid
-var _deploymentUnitsByCell: Dictionary = { }
 
 var _defenseManager: DefenseManager
 var _startData: DefenseStartData
@@ -23,23 +26,12 @@ func Initialize(startData: DefenseStartData) -> void:
 
 
 func _ready() -> void:
-	_navigationService = NavigationService.new()
-	_navigationService.navigationData = navigationData
-	_navigationService.Ready()
-	if not _navigationService.IsReady():
-		push_error("DefenseScene: NavigationService 초기화에 실패했습니다.")
+	if not _InitializeNavigation():
 		return
 
 	_InitializeDeploymentGrid()
-
-	if _startData == null:
-		_startData = DefenseStartData.new()
-		_startData.cycle = 1
-		_startData.population = 100
-
-	_defenseManager = DefenseManager.new(_startData, $Pools, _navigationService)
-
-	_defenseManager.DefenseFinished.connect(_OnDefenseFinished)
+	_InitializeStartData()
+	_InitializeDefenseManager()
 
 
 func _process(_delta: float) -> void:
@@ -47,6 +39,18 @@ func _process(_delta: float) -> void:
 		return
 
 	_defenseManager.Update()
+
+
+func _InitializeNavigation() -> bool:
+	_navigationService = NavigationService.new()
+	_navigationService.navigationData = navigationData
+	_navigationService.Ready()
+
+	if not _navigationService.IsReady():
+		push_error("DefenseScene: NavigationService 초기화에 실패했습니다.")
+		return false
+
+	return true
 
 
 func _InitializeDeploymentGrid() -> void:
@@ -62,59 +66,59 @@ func _InitializeDeploymentGrid() -> void:
 		deploymentGridSize,
 	)
 
-	$DeploymentGridView.Initialize(_deploymentGrid)
-	$DeploymentGridView.CellClicked.connect(_OnDeploymentCellClicked)
-	$DeploymentGridView.CellRightClicked.connect(_OnDeploymentCellRightClicked)
+	_deploymentGridView.Initialize(_deploymentGrid)
+	_deploymentGridView.CellClicked.connect(_OnDeploymentCellClicked)
+	_deploymentGridView.CellRightClicked.connect(_OnDeploymentCellRightClicked)
 
-	$CanvasLayer/ConfirmButton.pressed.connect(_OnConfirmDeploymentPressed)
+	_confirmButton.pressed.connect(_OnConfirmDeploymentPressed)
+
+
+func _InitializeStartData() -> void:
+	if _startData != null:
+		return
+
+	_startData = DefenseStartData.new()
+	_startData.cycle = 1
+	_startData.population = 100
+
+
+func _InitializeDefenseManager() -> void:
+	_defenseManager = DefenseManager.new(_startData, _pools, _navigationService)
+
+	_defenseManager.DefenseFinished.connect(_OnDefenseFinished)
 
 
 func _OnDeploymentCellClicked(cell: Vector2i) -> void:
 	var characterKey: int = TEMP_CHARACTER_KEY
 	var recruitRatio: int = TEMP_RECRUIT_RATIO
+	var spawnPosition: Vector2 = _deploymentGrid.CellToWorldCenter(cell)
 
-	var success: bool = _defenseManager.AddDeployment(cell, characterKey, recruitRatio)
-	if not success:
+	if not _defenseManager.AddDeployment(cell, characterKey, recruitRatio, spawnPosition):
 		return
 
-	var spawnPosition: Vector2 = _deploymentGrid.CellToWorld(cell)
-	var unit: Unit = _defenseManager.SpawnDeploymentUnit(characterKey, spawnPosition)
-	if unit == null:
-		_defenseManager.RemoveDeployment(cell)
-		return
-
-	_deploymentUnitsByCell[cell] = unit
-
-	$DeploymentGridView.SetDeployment(cell, characterKey)
+	_deploymentGridView.SetDeployment(cell)
 
 
 func _OnDeploymentCellRightClicked(cell: Vector2i) -> void:
-	var success: bool = _defenseManager.RemoveDeployment(cell)
-	if not success:
+	if not _defenseManager.RemoveDeployment(cell):
 		return
 
-	if _deploymentUnitsByCell.has(cell):
-		var unit: Unit = _deploymentUnitsByCell[cell]
-
-		_defenseManager.ReturnUnit(unit)
-		_deploymentUnitsByCell.erase(cell)
-
-	$DeploymentGridView.RemoveDeployment(cell)
+	_deploymentGridView.RemoveDeployment(cell)
 
 
 func _OnConfirmDeploymentPressed() -> void:
-	var success: bool = _defenseManager.ConfirmDeployment()
-	if not success:
+	if not _defenseManager.ConfirmDeployment():
 		return
 
-	$DeploymentGridView.visible = false
-	$DeploymentGridView.process_mode = Node.PROCESS_MODE_DISABLED
+	_deploymentGridView.visible = false
+	_deploymentGridView.process_mode = Node.PROCESS_MODE_DISABLED
 
-	$CanvasLayer/ConfirmButton.visible = false
+	_confirmButton.visible = false
 
 
 func _OnDefenseFinished(result: DefenseResult) -> void:
 	print("Defense Finished")
 	print("Victory: ", result.isVictory)
 	print("Dead Population: ", result.deadPopulation)
+
 	DefenseFinished.emit(result)
