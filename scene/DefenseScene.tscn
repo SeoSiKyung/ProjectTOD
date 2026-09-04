@@ -2,18 +2,31 @@
 
 [ext_resource type="Script" uid="uid://bjaevfcc2xfl8" path="res://scene/DefenseScene.gd" id="1_aixx4"]
 [ext_resource type="Texture2D" uid="uid://b0q3fa72fdubk" path="res://picture/defense/DefenseTemp.png" id="1_gg6bu"]
+[ext_resource type="Resource" uid="uid://3owe0xgpa1kn" path="res://maps/2_navigation.res" id="3_ffq3l"]
+[ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="3_m8apv"]
+[ext_resource type="Script" uid="uid://blgbhtt23abdo" path="res://scripts/defense/DefenseDeploymentGridView.gd" id="5_to5m3"]
 
 [node name="DefenseScene" type="Node2D" unique_id=745379328]
 script = ExtResource("1_aixx4")
+navigationData = ExtResource("3_ffq3l")
 
 [node name="TempMap" type="Sprite2D" parent="." unique_id=914540186]
+visible = false
 scale = Vector2(3, 3)
 texture = ExtResource("1_gg6bu")
 centered = false
 
-[node name="Camera2D" type="Camera2D" parent="." unique_id=1161908486]
+[node name="2" type="Sprite2D" parent="." unique_id=964453730]
+texture = ExtResource("3_m8apv")
+centered = false
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1683497128]
 anchor_mode = 0
-zoom = Vector2(0.65, 0.65)
+zoom = Vector2(0.5, 0.5)
+
+[node name="DeploymentGridView" type="Node2D" parent="." unique_id=1390217635]
+z_index = 1
+script = ExtResource("5_to5m3")
 
 [node name="Pools" type="Node" parent="." unique_id=804699937]
 
@@ -22,3 +35,14 @@ zoom = Vector2(0.65, 0.65)
 [node name="UnitPool" type="Node2D" parent="Pools" unique_id=839823060]
 
 [node name="TrapPool" type="Node2D" parent="Pools" unique_id=1188199146]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1224700570]
+
+[node name="ConfirmButton" type="Button" parent="CanvasLayer" unique_id=1173458760]
+offset_left = 1579.0
+offset_top = 42.0
+offset_right = 1715.0
+offset_bottom = 98.0
+scale = Vector2(2, 2)
+theme_override_colors/font_color = Color(0, 1, 0, 1)
+text = "배치 확정"

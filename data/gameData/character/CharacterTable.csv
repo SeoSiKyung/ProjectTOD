@@ -1,0 +1,11 @@
+characterKey,characterName,characterType,path,maxHp,maxMp,hpRegen,mpRegen,atk,magicAtk,def,magicDef,moveSpeed,attackSpeed,atkRange,acquisitionRange
+0,고블린,MONSTER,,100,0,2,0,3,0,0,0,10,5,0,100
+1,오크,MONSTER,,200,0,5,0,5,0,0,0,5,3,0,100
+2,해골병,MONSTER,,150,0,0,0,6,0,0,0,6,4,0,200
+,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,
+1000,민병대,UNIT,res://unit/unit.tscn ,100,0,1,0,10,0,5,0,80,5,100,0
