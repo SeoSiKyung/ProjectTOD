@@ -502,6 +502,21 @@ func BuildPaths(
 
 	return paths
 
+
+func WorldToCell(position: Vector2) -> Vector2i:
+	return _WorldToCellFloor(position)
+
+
+func CellToWorld(cell: Vector2i) -> Vector2:
+	return (
+		_worldRect.position
+		+ Vector2((float(cell.x) + 0.5) * _navCellSize, (float(cell.y) + 0.5) * _navCellSize)
+	)
+
+
+func IsCellInGrid(cell: Vector2i) -> bool:
+	return Grid.IsCellInGrid(cell, _gridWidth, _gridHeight)
+
 #endregion
 
 #region Unit Path

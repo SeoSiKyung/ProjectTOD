@@ -96,7 +96,7 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 
 	_navigationService.ClearProfileMetrics()
 
-	var result := BenchmarkRunResult.new()
+	var result: BenchmarkRunResult = BenchmarkRunResult.new()
 	result.elapsedMsec = elapsedUsec / 1000.0
 	result.pathSize = path.size()
 	result.metrics = metrics.ToDictionary()
