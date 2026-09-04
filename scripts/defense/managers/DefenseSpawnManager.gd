@@ -1,15 +1,18 @@
 class_name DefenseSpawnManager
 extends RefCounted
 
+# TODO: 실제 Spawn Point 시스템 연결 후 제거
+const TEMP_SPAWN_POSITION: Vector2 = Vector2(640, 640)
+const TEMP_SPAWN_SPACING: float = 64.0
+const TEMP_SPAWN_COLUMNS: int = 5
+
 var _spawnDataList: Array[DefenseSpawnData] = []
 var _nextSpawnIndex: int = 0
 
-var _monsterPoolManager: DefenseMonsterPoolManager
-# var _unitPoolManager: DefenseUnitPoolManager
-# var _trapPoolManager: DefenseTrapPoolManager
+var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
 
 
-func Initialize(cycle: int, monsterPoolManager: DefenseMonsterPoolManager) -> void:
+func Initialize(cycle: int, monsterPoolManager: DefensePoolManager.MonsterPoolManager) -> void:
 	_spawnDataList.assign(GameDataManager.GetDefenseSpawnData(cycle))
 	_nextSpawnIndex = 0
 
@@ -32,4 +35,12 @@ func IsSpawnFinished() -> bool:
 
 func _Spawn(spawnData: DefenseSpawnData) -> void:
 	for i: int in range(spawnData.count):
-		_monsterPoolManager.Spawn(spawnData.characterKey, Vector2.ZERO)
+		var spawnIndex: int = _monsterPoolManager.GetActiveCount()
+
+		var column: int = spawnIndex % TEMP_SPAWN_COLUMNS
+		var row: int = floori(float(spawnIndex) / TEMP_SPAWN_COLUMNS)
+
+		var spawnPosition: Vector2 = (
+			TEMP_SPAWN_POSITION + Vector2(column, row) * TEMP_SPAWN_SPACING
+		)
+		_monsterPoolManager.SpawnMonster(spawnData.characterKey, spawnPosition)
