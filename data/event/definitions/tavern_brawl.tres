@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="EventData" format=3]
+
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventChoiceData.gd" id="1_3jepq"]
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventResultData.gd" id="2_sqvvf"]
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventConditionData.gd" id="3_jiy12"]
+[ext_resource type="Script" path="res://scripts/storyevent/data/EventData.gd" id="4_n76jo"]
+
+[sub_resource type="Resource" id="Resource_1sswo"]
+script = ExtResource("2_sqvvf")
+goldChange = -10
+stabilityChange = 3
+
+[sub_resource type="Resource" id="Resource_2xhv1"]
+script = ExtResource("1_3jepq")
+id = &"intervene"
+displayText = "직접 중재한다."
+resultText = "약간의 비용이 들었지만 소동을 무사히 정리했다."
+result = SubResource("Resource_1sswo")
+
+[sub_resource type="Resource" id="Resource_hh4nd"]
+script = ExtResource("2_sqvvf")
+goldChange = 20
+stabilityChange = -3
+
+[sub_resource type="Resource" id="Resource_fvfmh"]
+script = ExtResource("1_3jepq")
+id = &"fine"
+displayText = "소란을 벌인 자들에게 벌금을 걷는다."
+resultText = "벌금을 거두었지만 영지민들의 불만이 조금 늘었다."
+result = SubResource("Resource_hh4nd")
+
+[sub_resource type="Resource" id="Resource_tlfif"]
+script = ExtResource("3_jiy12")
+requiredFacilityIds = Array[StringName]([&"tavern"])
+
+[resource]
+script = ExtResource("4_n76jo")
+id = &"tavern_brawl"
+displayName = "술집의 소동"
+description = "술에 취한 용병들이 시비가 붙어 싸움을 벌이기 시작했다."
+triggerChance = 1.0
+condition = SubResource("Resource_tlfif")
+choices = Array[ExtResource("1_3jepq")]([SubResource("Resource_2xhv1"), SubResource("Resource_fvfmh")])
