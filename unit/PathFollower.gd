@@ -11,16 +11,20 @@ static func ClearNavigationService(naviService: NavigationService) -> void:
 	if _navigationService == naviService:
 		_navigationService = null
 
+var _halfSize: int = 0
 var _path: PackedVector2Array = PackedVector2Array()
 var _originalPathIndex: int = 0
 var _shortcutIndex: int = 0
 var _goalIndex: int = 0
 var _needsShortcutRefresh: bool = false
 
+func _init(halfSize: int):
+	_halfSize = halfSize
 
-func SetPath(path: PackedVector2Array) -> void:
+func SetPath(path: PackedVector2Array, curPosition: Vector2) -> void:
 	_path = path
 	_initIndex()
+	_UpdateIndex(curPosition)
 
 func ClearPath() -> void:
 	_path.clear()
@@ -46,7 +50,7 @@ func IsEmpty() -> bool:
 	return _path.is_empty()
 
 
-func OnMovementCommitted(curPosition: Vector2, halfSize: int) -> void:
+func OnMovementCommitted(curPosition: Vector2) -> void:
 	if IsEmpty():
 		return
 
@@ -54,11 +58,11 @@ func OnMovementCommitted(curPosition: Vector2, halfSize: int) -> void:
 		ClearPath()
 		return
 	
-	_UpdateIndex(curPosition, halfSize)
+	_UpdateIndex(curPosition)
 	
-func _UpdateIndex(curPosition: Vector2, halfSize: int) -> void:
+func _UpdateIndex(curPosition: Vector2) -> void:
 	_UpdateOriginalPathIndex(curPosition)
-	_UpdateShortcutIndex(curPosition, halfSize)
+	_UpdateShortcutIndex(curPosition, _halfSize)
 	if _originalPathIndex > _goalIndex:
 		ClearPath()
 

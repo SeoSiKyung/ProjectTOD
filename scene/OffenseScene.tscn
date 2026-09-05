@@ -3,8 +3,8 @@
 [ext_resource type="Script" uid="uid://djxreqs452a78" path="res://scene/OffenseScene.gd" id="1_wohdj"]
 [ext_resource type="Script" uid="uid://m2o4pkycw032" path="res://scripts/OffenseStage/OffenseSceneManager.gd" id="2_2y21u"]
 [ext_resource type="Script" uid="uid://bh6f6y38jc58l" path="res://unit/CommandController.gd" id="3_dlxae"]
-[ext_resource type="Resource" uid="uid://3owe0xgpa1kn" path="res://maps/2_navigation.res" id="4_8rkap"]
-[ext_resource type="PackedScene" uid="uid://dd6c3nmhvvai0" path="res://unit/unit.tscn" id="5_wohdj"]
+[ext_resource type="Resource" uid="uid://lt8x2mdk8vwc" path="res://maps/2_navigation.res" id="4_8rkap"]
+[ext_resource type="PackedScene" uid="uid://k4um3n00uobv" path="res://unit/Unit.tscn" id="5_wohdj"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="6_8rkap"]
 [ext_resource type="Script" uid="uid://dwb6dp01f41m8" path="res://unit/SelectController.gd" id="8_u7dgu"]
 [ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPanel.gd" id="11_o4skl"]
@@ -16,7 +16,6 @@ script = ExtResource("1_wohdj")
 script = ExtResource("2_2y21u")
 unitRoot = NodePath("../UnitRoot")
 navigationData = ExtResource("4_8rkap")
-metadata/_custom_type_script = "uid://bpyeqqn1v2hxr"
 
 [node name="CommandController" type="Node" parent="." unique_id=496005023]
 script = ExtResource("3_dlxae")
@@ -30,7 +29,6 @@ script = ExtResource("8_u7dgu")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=573415892]
 anchor_mode = 0
-zoom = Vector2(0.5, 0.27)
 
 [node name="UnitRoot" type="Node2D" parent="." unique_id=915067606]
 
