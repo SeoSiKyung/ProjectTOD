@@ -475,7 +475,10 @@ func BuildPaths(
 			unitPath = PackedVector2Array()
 
 		paths.append(unitPath)
-
+	#del
+	for index in range(paths.size()):
+		print("PATH ", index, " = ", paths[index])
+		
 	return paths
 
 

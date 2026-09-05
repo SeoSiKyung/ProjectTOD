@@ -12,13 +12,14 @@ var arrivalRadius: float = 0.0
 var settleTickCount: int = 0
 var isSettled: bool = false
 var isPaused: bool = false
-var _pathFollower: PathFollower = PathFollower.new()
+var _pathFollower: PathFollower
 
 func _init(pUnitId: int, pPosition: Vector2, pMoveSpeed: float, pHalfSize: int) -> void:
 	unitId = pUnitId
 	position = pPosition
 	moveSpeed = pMoveSpeed
 	halfSize = pHalfSize
+	_pathFollower = PathFollower.new(halfSize)
 	
 func Move(newPosition: Vector2, fixedDt: float) -> void:
 	var prevPosition: Vector2 = position
@@ -85,8 +86,8 @@ func AdvanceSettleProgress() -> void:
 
 
 func _SetPath(path: PackedVector2Array) -> void:
-	_pathFollower.SetPath(path)
-	_pathFollower.OnMovementCommitted(position, halfSize)
+	_pathFollower.SetPath(path, position)
+	_pathFollower.OnMovementCommitted(position)
 
 
 func _ResetMoveCommand() -> void:
@@ -120,4 +121,4 @@ func CommitMovement(newPosition: Vector2, fixedDelta: float) -> void:
 	else:
 		lastVelocity = (position - prevPosition) / fixedDelta
 
-	_pathFollower.OnMovementCommitted(position, halfSize)
+	_pathFollower.OnMovementCommitted(position)

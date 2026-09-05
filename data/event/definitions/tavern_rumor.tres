@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="EventData" format=3]
+[gd_resource type="Resource" script_class="EventData" format=3 uid="uid://ctrv4egdmushn"]
 
-[ext_resource type="Script" path="res://scripts/storyevent/data/EventChoiceData.gd" id="1_tqxl7"]
-[ext_resource type="Script" path="res://scripts/storyevent/data/EventResultData.gd" id="2_r2dge"]
-[ext_resource type="Script" path="res://scripts/storyevent/data/EventConditionData.gd" id="3_e4rkd"]
-[ext_resource type="Script" path="res://scripts/storyevent/data/EventData.gd" id="4_jjvyw"]
+[ext_resource type="Script" uid="uid://b5pwe3ru1gwyc" path="res://scripts/storyevent/data/EventChoiceData.gd" id="1_tqxl7"]
+[ext_resource type="Script" uid="uid://b1qlb18m5l3fa" path="res://scripts/storyevent/data/EventResultData.gd" id="2_r2dge"]
+[ext_resource type="Script" uid="uid://w0oytnnn7rsq" path="res://scripts/storyevent/data/EventConditionData.gd" id="3_e4rkd"]
+[ext_resource type="Script" uid="uid://qq3krq6xlybu" path="res://scripts/storyevent/data/EventData.gd" id="4_jjvyw"]
 
 [sub_resource type="Resource" id="Resource_08h8h"]
 script = ExtResource("2_r2dge")
