@@ -49,7 +49,7 @@ func RegisterAgent(agent: MovementAgent) -> bool:
 	_agentIndexByUnitId[agent.unitId] = _agents.size()
 	_agents.append(agent)
 
-	var unit: Unit = _findUnit(agent.unitId)
+	var unit: Unit = _FindUnit(agent.unitId)
 
 	if unit != null:
 		_units[agent.unitId] = unit
@@ -83,67 +83,67 @@ func UnregisterAgent(unitId: int) -> MovementAgent:
 
 
 func SetPath(unitId: int, path: PackedVector2Array) -> bool:
-	var agent: MovementAgent = _getAgent(unitId)
+	var agent: MovementAgent = _GetAgent(unitId)
 
 	if agent == null:
 		return false
 
-	_clearAvoidance(unitId)
+	_ClearAvoidance(unitId)
 	agent.SetPath(path)
 
 	return true
 
 
 func SetMoveCommand(unitId: int, path: PackedVector2Array, commandId: int, target: Vector2, arrivalRadius: float) -> bool:
-	var agent: MovementAgent = _getAgent(unitId)
+	var agent: MovementAgent = _GetAgent(unitId)
 
 	if agent == null:
 		return false
 
-	_clearAvoidance(unitId)
+	_ClearAvoidance(unitId)
 	agent.BeginMove(path, commandId, target, arrivalRadius)
 
 	return true
 
 
 func StopUnit(unitId: int) -> bool:
-	var agent: MovementAgent = _getAgent(unitId)
+	var agent: MovementAgent = _GetAgent(unitId)
 
 	if agent == null:
 		return false
 
-	_clearAvoidance(unitId)
+	_ClearAvoidance(unitId)
 	agent.Stop()
 
 	return true
 
 
 func PauseUnit(unitId: int) -> bool:
-	var agent: MovementAgent = _getAgent(unitId)
+	var agent: MovementAgent = _GetAgent(unitId)
 
 	if agent == null:
 		return false
 
-	_clearAvoidance(unitId)
+	_ClearAvoidance(unitId)
 	agent.Pause()
 
 	return true
 
 
 func ResumeUnit(unitId: int) -> bool:
-	var agent: MovementAgent = _getAgent(unitId)
+	var agent: MovementAgent = _GetAgent(unitId)
 
 	if agent == null:
 		return false
 
-	_clearAvoidance(unitId)
+	_ClearAvoidance(unitId)
 	agent.Resume()
 
 	return true
 
 
 func IsUnitMoving(unitId: int) -> bool:
-	var agent: MovementAgent = _getAgent(unitId)
+	var agent: MovementAgent = _GetAgent(unitId)
 
 	if agent == null:
 		return false
@@ -155,7 +155,7 @@ func TeleportUnit(unitId: int, position: Vector2, snapshot: StageSnapshot) -> bo
 	if snapshot == null:
 		return false
 
-	var agent: MovementAgent = _getAgent(unitId)
+	var agent: MovementAgent = _GetAgent(unitId)
 
 	if agent == null or not snapshot.HasUnit(unitId):
 		return false
@@ -164,12 +164,12 @@ func TeleportUnit(unitId: int, position: Vector2, snapshot: StageSnapshot) -> bo
 		if not _navigationService.CanPlaceStatic(position, agent.halfSize):
 			return false
 
-	if _overlapsRegistered(position, agent.halfSize, unitId):
+	if _OverlapsRegistered(position, agent.halfSize, unitId):
 		return false
 
 	agent.Teleport(position)
 	snapshot.UpdatePosition(unitId, position)
-	_clearAvoidance(unitId)
+	_ClearAvoidance(unitId)
 
 	return true
 
@@ -181,26 +181,26 @@ func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 	if fixedDelta <= EPSILON:
 		return false
 
-	_captureDesiredPositions(fixedDelta)
-	_clearFinishedSlides()
+	_CaptureDesiredPositions(fixedDelta)
+	_ClearFinishedSlides()
 
 	_nextPositions.clear()
 
 	for agent: MovementAgent in _agents:
 		_nextPositions[agent.unitId] = _desiredPositions[agent.unitId]
 
-	var desiredCollisions: Array = _findDesiredCollisions()
+	var desiredCollisions: Array = _FindDesiredCollisions()
 
 	if desiredCollisions.is_empty():
-		return _commit(snapshot, fixedDelta)
+		return _Commit(snapshot, fixedDelta)
 
 	for _iteration: int in range(MAX_ITERATIONS):
-		var resultCollisions: Array = _findResultCollisions()
+		var resultCollisions: Array = _FindResultCollisions()
 
 		if resultCollisions.is_empty():
-			return _commit(snapshot, fixedDelta)
+			return _Commit(snapshot, fixedDelta)
 
-		var groups: Array = _buildGroups(resultCollisions)
+		var groups: Array = _BuildGroups(resultCollisions)
 
 		if groups.is_empty():
 			return false
@@ -213,7 +213,7 @@ func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 
 			for data: CollisionGroup.AgentData in group.agents:
 				_nextPositions[data.agent.unitId] = data.nextPosition
-				_updateSlideState(data)
+				_UpdateSlideState(data)
 
 			changed = true
 			break
@@ -221,10 +221,10 @@ func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 		if not changed:
 			return false
 
-	if not _findResultCollisions().is_empty():
+	if not _FindResultCollisions().is_empty():
 		return false
 
-	return _commit(snapshot, fixedDelta)
+	return _Commit(snapshot, fixedDelta)
 
 
 func Clear() -> void:
@@ -237,11 +237,11 @@ func Clear() -> void:
 	_slideIdleIds.clear()
 
 
-func _captureDesiredPositions(fixedDelta: float) -> void:
+func _CaptureDesiredPositions(fixedDelta: float) -> void:
 	_desiredPositions.clear()
 
 	for agent: MovementAgent in _agents:
-		var unit: Unit = _getUnit(agent.unitId)
+		var unit: Unit = _GetUnit(agent.unitId)
 
 		if unit != null and unit.fsm != null and unit.fsm.currentState == UnitFSM.State.IDLE:
 			_desiredPositions[agent.unitId] = agent.position
@@ -249,7 +249,7 @@ func _captureDesiredPositions(fixedDelta: float) -> void:
 			_desiredPositions[agent.unitId] = agent.GetDesiredPosition(fixedDelta)
 
 
-func _findDesiredCollisions() -> Array:
+func _FindDesiredCollisions() -> Array:
 	var result: Array = []
 
 	for firstIndex: int in range(_agents.size()):
@@ -258,7 +258,7 @@ func _findDesiredCollisions() -> Array:
 		for secondIndex: int in range(firstIndex + 1, _agents.size()):
 			var second: MovementAgent = _agents[secondIndex]
 
-			if not _overlap(
+			if not _Overlap(
 				_desiredPositions[first.unitId],
 				first.halfSize,
 				_desiredPositions[second.unitId],
@@ -271,7 +271,7 @@ func _findDesiredCollisions() -> Array:
 	return result
 
 
-func _findResultCollisions() -> Array:
+func _FindResultCollisions() -> Array:
 	var result: Array = []
 
 	for firstIndex: int in range(_agents.size()):
@@ -280,7 +280,7 @@ func _findResultCollisions() -> Array:
 		for secondIndex: int in range(firstIndex + 1, _agents.size()):
 			var second: MovementAgent = _agents[secondIndex]
 
-			if not _overlap(
+			if not _Overlap(
 				_nextPositions[first.unitId],
 				first.halfSize,
 				_nextPositions[second.unitId],
@@ -293,7 +293,7 @@ func _findResultCollisions() -> Array:
 	return result
 
 
-func _buildGroups(pairs: Array) -> Array:
+func _BuildGroups(pairs: Array) -> Array:
 	var adjacency: Dictionary = {}
 
 	for pair: Vector2i in pairs:
@@ -336,7 +336,7 @@ func _buildGroups(pairs: Array) -> Array:
 		var group: CollisionGroup = CollisionGroup.new()
 
 		for memberId in members:
-			var memberAgent: MovementAgent = _getAgent(memberId)
+			var memberAgent: MovementAgent = _GetAgent(memberId)
 
 			if memberAgent == null:
 				continue
@@ -346,7 +346,7 @@ func _buildGroups(pairs: Array) -> Array:
 
 			group.AddAgent(
 				memberAgent,
-				_getUnit(memberId),
+				_GetUnit(memberId),
 				memberAgent.position,
 				_desiredPositions[memberId],
 				_nextPositions[memberId],
@@ -355,10 +355,10 @@ func _buildGroups(pairs: Array) -> Array:
 			)
 
 		for pair: Vector2i in pairs:
-			if not _groupContains(group, pair.x):
+			if not _GroupContains(group, pair.x):
 				continue
 
-			if not _groupContains(group, pair.y):
+			if not _GroupContains(group, pair.y):
 				continue
 
 			group.AddCollision(pair.x, pair.y)
@@ -368,7 +368,7 @@ func _buildGroups(pairs: Array) -> Array:
 	return result
 
 
-func _updateSlideState(data: CollisionGroup.AgentData) -> void:
+func _UpdateSlideState(data: CollisionGroup.AgentData) -> void:
 	if data.slideDirection.length_squared() <= EPSILON:
 		return
 
@@ -382,7 +382,7 @@ func _updateSlideState(data: CollisionGroup.AgentData) -> void:
 		_slideIdleIds[data.agent.unitId] = data.currentIdleIds.duplicate()
 		return
 
-	if _sameIdleIds(oldIdleIds, data.currentIdleIds):
+	if _SameIdleIds(oldIdleIds, data.currentIdleIds):
 		_slideDirections[data.agent.unitId] = data.slideDirection
 		return
 
@@ -390,7 +390,7 @@ func _updateSlideState(data: CollisionGroup.AgentData) -> void:
 	_slideIdleIds[data.agent.unitId] = data.currentIdleIds.duplicate()
 
 
-func _sameIdleIds(first: Array, second: Array) -> bool:
+func _SameIdleIds(first: Array, second: Array) -> bool:
 	if first.size() != second.size():
 		return false
 
@@ -405,7 +405,7 @@ func _sameIdleIds(first: Array, second: Array) -> bool:
 	return true
 
 
-func _clearFinishedSlides() -> void:
+func _ClearFinishedSlides() -> void:
 	var removeIds: Array = []
 
 	for idValue in _slideDirections.keys():
@@ -424,13 +424,13 @@ func _clearFinishedSlides() -> void:
 			if not _desiredPositions.has(unitId) or not _desiredPositions.has(idleId):
 				continue
 
-			var movingAgent: MovementAgent = _getAgent(unitId)
-			var idleAgent: MovementAgent = _getAgent(idleId)
+			var movingAgent: MovementAgent = _GetAgent(unitId)
+			var idleAgent: MovementAgent = _GetAgent(idleId)
 
 			if movingAgent == null or idleAgent == null:
 				continue
 
-			if _overlap(
+			if _Overlap(
 				_desiredPositions[unitId],
 				movingAgent.halfSize,
 				_desiredPositions[idleId],
@@ -443,16 +443,16 @@ func _clearFinishedSlides() -> void:
 			removeIds.append(unitId)
 
 	for unitId in removeIds:
-		_clearAvoidance(unitId)
+		_ClearAvoidance(unitId)
 
 
-func _clearAvoidance(unitId: int) -> void:
+func _ClearAvoidance(unitId: int) -> void:
 	_slideDirections.erase(unitId)
 	_slideIdleIds.erase(unitId)
 
 
-func _commit(snapshot: StageSnapshot, fixedDelta: float) -> bool:
-	if not _findResultCollisions().is_empty():
+func _Commit(snapshot: StageSnapshot, fixedDelta: float) -> bool:
+	if not _FindResultCollisions().is_empty():
 		return false
 
 	for agent: MovementAgent in _agents:
@@ -464,7 +464,7 @@ func _commit(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 	return true
 
 
-func _groupContains(group: CollisionGroup, unitId: int) -> bool:
+func _GroupContains(group: CollisionGroup, unitId: int) -> bool:
 	for data: CollisionGroup.AgentData in group.agents:
 		if data.agent.unitId == unitId:
 			return true
@@ -472,7 +472,7 @@ func _groupContains(group: CollisionGroup, unitId: int) -> bool:
 	return false
 
 
-func _getAgent(unitId: int) -> MovementAgent:
+func _GetAgent(unitId: int) -> MovementAgent:
 	var index: int = _agentIndexByUnitId.get(unitId, INVALID_INDEX)
 
 	if index == INVALID_INDEX:
@@ -481,14 +481,14 @@ func _getAgent(unitId: int) -> MovementAgent:
 	return _agents[index]
 
 
-func _getUnit(unitId: int) -> Unit:
+func _GetUnit(unitId: int) -> Unit:
 	if _units.has(unitId):
 		var cachedUnit: Unit = _units[unitId]
 
 		if is_instance_valid(cachedUnit):
 			return cachedUnit
 
-	var unit: Unit = _findUnit(unitId)
+	var unit: Unit = _FindUnit(unitId)
 
 	if unit != null:
 		_units[unitId] = unit
@@ -496,7 +496,7 @@ func _getUnit(unitId: int) -> Unit:
 	return unit
 
 
-func _findUnit(unitId: int) -> Unit:
+func _FindUnit(unitId: int) -> Unit:
 	var loop: MainLoop = Engine.get_main_loop()
 
 	if not loop is SceneTree:
@@ -511,12 +511,12 @@ func _findUnit(unitId: int) -> Unit:
 	return null
 
 
-func _overlapsRegistered(position: Vector2, halfSize: int, ignoredUnitId: int) -> bool:
+func _OverlapsRegistered(position: Vector2, halfSize: int, ignoredUnitId: int) -> bool:
 	for other: MovementAgent in _agents:
 		if other.unitId == ignoredUnitId:
 			continue
 
-		if _overlap(
+		if _Overlap(
 			position,
 			halfSize,
 			other.position,
@@ -527,7 +527,7 @@ func _overlapsRegistered(position: Vector2, halfSize: int, ignoredUnitId: int) -
 	return false
 
 
-func _overlap(firstPosition: Vector2, firstHalfSize: int, secondPosition: Vector2, secondHalfSize: int) -> bool:
+func _Overlap(firstPosition: Vector2, firstHalfSize: int, secondPosition: Vector2, secondHalfSize: int) -> bool:
 	var size: float = float(firstHalfSize + secondHalfSize)
 
 	return (
