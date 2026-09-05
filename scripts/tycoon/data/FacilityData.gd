@@ -1,20 +1,18 @@
 class_name FacilityData
 extends Resource
 
-
 enum Category {
 	BASIC,
 	PRODUCTION,
 	DEVELOPMENT,
 	DEFENSE,
-	FUNCTIONAL
+	FUNCTIONAL,
 }
-
 
 @export_group("Identity")
 
 @export var id: StringName = &""
-@export var display_name: String = ""
+@export var displayName: String = ""
 @export_multiline var description: String = ""
 @export var category: Category = Category.PRODUCTION
 @export var icon: Texture2D
@@ -32,41 +30,40 @@ enum Category {
 
 # 기본 / 기능 시설에서 사용
 # 레벨이 없으므로 건설 비용, 시간, 기본 효과만 저장
-@export var base_data: FacilityLevelData
+@export var baseData: FacilityLevelData
 
 
 @export_group("Build Limit")
 
 @export_range(1, 100, 1)
-var max_count: int = 1
+var maxCount: int = 1
 
-@export var group_id: StringName = &""
+@export var groupId: StringName = &""
 
 @export_range(0, 100, 1)
-var group_max_count: int = 0
+var groupMaxCount: int = 0
 
 
-func is_level_based() -> bool:
+func IsLevelBased() -> bool:
 	return (
-		category == Category.PRODUCTION
-		or category == Category.DEVELOPMENT
+		category == Category.PRODUCTION or category == Category.DEVELOPMENT
 		or category == Category.DEFENSE
 	)
 
 
-func is_player_buildable() -> bool:
+func IsPlayerBuildable() -> bool:
 	return category != Category.BASIC
 
 
-func get_max_level() -> int:
-	if not is_level_based():
+func GetMaxLevel() -> int:
+	if not IsLevelBased():
 		return 0
 
 	return levels.size()
 
 
-func get_level_data(level: int) -> FacilityLevelData:
-	if not is_level_based():
+func GetLevelData(level: int) -> FacilityLevelData:
+	if not IsLevelBased():
 		return null
 
 	if level < 1 or level > levels.size():
@@ -75,15 +72,15 @@ func get_level_data(level: int) -> FacilityLevelData:
 	return levels[level - 1]
 
 
-func get_build_data() -> FacilityLevelData:
-	if is_level_based():
-		return get_level_data(1)
+func GetBuildData() -> FacilityLevelData:
+	if IsLevelBased():
+		return GetLevelData(1)
 
-	return base_data
+	return baseData
 
 
-func get_effect_data(level: int) -> FacilityLevelData:
-	if is_level_based():
-		return get_level_data(level)
+func GetEffectData(level: int) -> FacilityLevelData:
+	if IsLevelBased():
+		return GetLevelData(level)
 
-	return base_data
+	return baseData

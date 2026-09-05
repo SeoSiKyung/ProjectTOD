@@ -7,4 +7,4 @@
 
 [node name="TestNode" type="Node" parent="." unique_id=313274551]
 script = ExtResource("1_mox7q")
-facility_catalog = ExtResource("2_phmiq")
+facilityCatalog = ExtResource("2_phmiq")

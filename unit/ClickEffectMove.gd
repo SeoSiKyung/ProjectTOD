@@ -2,7 +2,7 @@ extends Node2D
 
 @export var radius: float = 18.0
 @export var duration: float = 0.25
-@export var line_width: float = 3.0
+@export var lineWidth: float = 3.0
 
 
 func _ready() -> void:
@@ -20,6 +20,6 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 32, Color(0.3, 1.0, 0.4), line_width)
+	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 32, Color(0.3, 1.0, 0.4), lineWidth)
 
 	draw_circle(Vector2.ZERO, 3.0, Color(0.3, 1.0, 0.4))
