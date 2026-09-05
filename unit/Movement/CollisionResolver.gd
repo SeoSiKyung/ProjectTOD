@@ -38,7 +38,7 @@ func Resolve(group: CollisionGroup, fixedDelta: float) -> bool:
 	_group = group
 	_fixedDelta = fixedDelta
 
-	_updateIdleRelations()
+	_UpdateIdleRelations()
 
 	for pair: Vector2i in _group.collisions:
 		var first: CollisionGroup.AgentData = _FindAgent(pair.x)
@@ -50,7 +50,7 @@ func Resolve(group: CollisionGroup, fixedDelta: float) -> bool:
 		if not _Overlap(first.nextPosition, first.halfSize, second.nextPosition, second.halfSize):
 			continue
 
-		var result: Array = _resolvePair(first, second)
+		var result: Array = _ResolvePair(first, second)
 
 		if result.is_empty():
 			continue
@@ -66,58 +66,57 @@ func Resolve(group: CollisionGroup, fixedDelta: float) -> bool:
 	return false
 
 
-func _resolvePair(first: CollisionGroup.AgentData, second: CollisionGroup.AgentData) -> Array:
+func _ResolvePair(first: CollisionGroup.AgentData, second: CollisionGroup.AgentData) -> Array:
 	if first.idle and second.idle:
 		return []
 
 	if first.idle:
-		return _ReverseResult(_resolveMovingIdle(second, first))
+		return _ReverseResult(_ResolveMovingIdle(second, first))
 
 	if second.idle:
-		return _resolveMovingIdle(first, second)
-
-	if _HasPersistentSlide(first) and not _HasNewIdle(first):
-		return _resolvePersistentSlide(first, second)
-
-	if _HasPersistentSlide(second) and not _HasNewIdle(second):
-		return _ReverseResult(_resolvePersistentSlide(second, first))
+		return _ResolveMovingIdle(first, second)
 
 	var rearFront: Array = _GetRearFront(first, second)
 
 	if not rearFront.is_empty():
-		return _resolveRearCollision(rearFront[0], rearFront[1], first, second)
+		return _ResolveRearCollision(
+			rearFront[0],
+			rearFront[1],
+			first,
+			second
+		)
 
-	return _resolveGeneralCollision(first, second)
+	return _ResolveGeneralCollision(first, second)
 
 
-func _resolveMovingIdle(moving: CollisionGroup.AgentData, idle: CollisionGroup.AgentData) -> Array:
-	var candidates: Array = _buildCandidates(moving, idle)
+func _ResolveMovingIdle(moving: CollisionGroup.AgentData, idle: CollisionGroup.AgentData) -> Array:
+	var candidates: Array = _BuildCandidates(moving, idle)
 
 	for candidate: Candidate in candidates:
 		if not _PairClear(moving, candidate.position, idle, idle.nextPosition):
 			continue
 
-		return [candidate, _idleCandidate(idle)]
+		return [candidate, _IdleCandidate(idle)]
 
 	return []
 
 
-func _resolvePersistentSlide(sliding: CollisionGroup.AgentData, other: CollisionGroup.AgentData) -> Array:
+func _ResolvePersistentSlide(sliding: CollisionGroup.AgentData, other: CollisionGroup.AgentData) -> Array:
 	var directions: Array = _GetPersistentSlideDirections(sliding.slideDirection)
 
 	for direction: Vector2 in directions:
-		var slideCandidate: Candidate = _slideCandidate(sliding, direction, true)
+		var slideCandidate: Candidate = _SlideCandidate(sliding, direction, true)
 
 		if not _StaticClear(sliding, slideCandidate.position):
 			continue
 
 		if _PairClear(sliding, slideCandidate.position, other, other.nextPosition):
-			return [slideCandidate, _keepCandidate(other)]
+			return [slideCandidate, _KeepCandidate(other)]
 
-	var otherCandidates: Array = _buildCandidatesWithoutPersistentSlide(other)
+	var otherCandidates: Array = _BuildCandidatesWithoutPersistentSlide(other)
 
 	for direction: Vector2 in directions:
-		var slideCandidate: Candidate = _slideCandidate(sliding, direction, true)
+		var slideCandidate: Candidate = _SlideCandidate(sliding, direction, true)
 
 		if not _StaticClear(sliding, slideCandidate.position):
 			continue
@@ -129,14 +128,14 @@ func _resolvePersistentSlide(sliding: CollisionGroup.AgentData, other: Collision
 	return []
 
 
-func _resolveRearCollision(rear: CollisionGroup.AgentData, front: CollisionGroup.AgentData, originalFirst: CollisionGroup.AgentData, originalSecond: CollisionGroup.AgentData) -> Array:
-	var candidates: Array = _buildCandidates(rear, front)
+func _ResolveRearCollision(rear: CollisionGroup.AgentData, front: CollisionGroup.AgentData, originalFirst: CollisionGroup.AgentData, originalSecond: CollisionGroup.AgentData) -> Array:
+	var candidates: Array = _BuildCandidates(rear, front)
 
 	for candidate: Candidate in candidates:
 		if not _PairClear(rear, candidate.position, front, front.nextPosition):
 			continue
 
-		var result: Array = [candidate, _keepCandidate(front)]
+		var result: Array = [candidate, _KeepCandidate(front)]
 
 		if originalFirst == rear:
 			return result
@@ -146,76 +145,77 @@ func _resolveRearCollision(rear: CollisionGroup.AgentData, front: CollisionGroup
 	return []
 
 
-func _resolveGeneralCollision(first: CollisionGroup.AgentData, second: CollisionGroup.AgentData) -> Array:
-	var firstCandidates: Array = _buildCandidates(first, second)
-	var secondCandidates: Array = _buildCandidates(second, first)
+func _ResolveGeneralCollision(first: CollisionGroup.AgentData, second: CollisionGroup.AgentData) -> Array:
+	var firstCandidates: Array = _BuildCandidates(first, second)
+	var secondCandidates: Array = _BuildCandidates(second, first)
 
-	return _findBestPair(first, firstCandidates, second, secondCandidates)
+	return _FindBestPair(first, firstCandidates, second, secondCandidates)
 
 
-func _buildCandidates(data: CollisionGroup.AgentData, blocker: CollisionGroup.AgentData) -> Array:
+func _BuildCandidates(data: CollisionGroup.AgentData, blocker: CollisionGroup.AgentData) -> Array:
 	var result: Array = []
 
 	if data.idle:
-		result.append(_idleCandidate(data))
+		result.append(_IdleCandidate(data))
 		return result
 
-	if _HasPersistentSlide(data) and not _HasNewIdle(data):
-		result.append(_slideCandidate(data, data.slideDirection, true))
-		return result
+	if not data.currentIdleIds.is_empty():
+		if _HasPersistentSlide(data) and not _HasNewIdle(data):
+			result.append(_SlideCandidate(data, data.slideDirection, true))
+			return result
 
-	result.append(_keepCandidate(data))
+	result.append(_KeepCandidate(data))
 
-	var slowCandidates: Array = _buildSlowCandidates(data)
+	var slowCandidates: Array = _BuildSlowCandidates(data)
 
 	for candidate: Candidate in slowCandidates:
 		result.append(candidate)
 
-	var axisCandidates: Array = _buildAxisCandidates(data, blocker)
+	var axisCandidates: Array = _BuildAxisCandidates(data, blocker)
 
 	for candidate: Candidate in axisCandidates:
 		result.append(candidate)
 
-	var alternateCandidates: Array = _buildAlternateCandidates(data)
+	var alternateCandidates: Array = _BuildAlternateCandidates(data)
 
 	for candidate: Candidate in alternateCandidates:
 		result.append(candidate)
 
-	result.append(_stopCandidate(data))
+	result.append(_StopCandidate(data))
 
 	return result
 
 
-func _buildCandidatesWithoutPersistentSlide(data: CollisionGroup.AgentData) -> Array:
+func _BuildCandidatesWithoutPersistentSlide(data: CollisionGroup.AgentData) -> Array:
 	var result: Array = []
 
 	if data.idle:
-		result.append(_idleCandidate(data))
+		result.append(_IdleCandidate(data))
 		return result
 
-	result.append(_keepCandidate(data))
+	result.append(_KeepCandidate(data))
 
-	var slowCandidates: Array = _buildSlowCandidates(data)
+	var slowCandidates: Array = _BuildSlowCandidates(data)
 
 	for candidate: Candidate in slowCandidates:
 		result.append(candidate)
 
-	var axisCandidates: Array = _buildAxisCandidatesWithoutBlocker(data)
+	var axisCandidates: Array = _BuildAxisCandidatesWithoutBlocker(data)
 
 	for candidate: Candidate in axisCandidates:
 		result.append(candidate)
 
-	var alternateCandidates: Array = _buildAlternateCandidates(data)
+	var alternateCandidates: Array = _BuildAlternateCandidates(data)
 
 	for candidate: Candidate in alternateCandidates:
 		result.append(candidate)
 
-	result.append(_stopCandidate(data))
+	result.append(_StopCandidate(data))
 
 	return result
 
 
-func _buildSlowCandidates(data: CollisionGroup.AgentData) -> Array:
+func _BuildSlowCandidates(data: CollisionGroup.AgentData) -> Array:
 	var result: Array = []
 
 	if data.desiredDelta.length_squared() <= EPSILON:
@@ -241,18 +241,18 @@ func _buildSlowCandidates(data: CollisionGroup.AgentData) -> Array:
 	return result
 
 
-func _buildAxisCandidates(data: CollisionGroup.AgentData, blocker: CollisionGroup.AgentData) -> Array:
+func _BuildAxisCandidates(data: CollisionGroup.AgentData, blocker: CollisionGroup.AgentData) -> Array:
 	var result: Array = []
 	var blockedAxis: int = _GetBlockedAxis(data, blocker)
 	var freeAxis: int = AXIS_Y if blockedAxis == AXIS_X else AXIS_X
 
-	var direction: Vector2 = _getFreeAxisDirection(data, freeAxis)
+	var direction: Vector2 = _GetFreeAxisDirection(data, freeAxis)
 
 	if direction.length_squared() <= EPSILON:
 		return result
 
-	var first: Candidate = _axisCandidate(data, direction)
-	var second: Candidate = _axisCandidate(data, -direction)
+	var first: Candidate = _AxisCandidate(data, direction)
+	var second: Candidate = _AxisCandidate(data, -direction)
 
 	if _StaticClear(data, first.position):
 		result.append(first)
@@ -263,7 +263,7 @@ func _buildAxisCandidates(data: CollisionGroup.AgentData, blocker: CollisionGrou
 	return result
 
 
-func _buildAxisCandidatesWithoutBlocker(data: CollisionGroup.AgentData) -> Array:
+func _BuildAxisCandidatesWithoutBlocker(data: CollisionGroup.AgentData) -> Array:
 	var result: Array = []
 
 	if data.desiredDelta.length_squared() <= EPSILON:
@@ -282,8 +282,8 @@ func _buildAxisCandidatesWithoutBlocker(data: CollisionGroup.AgentData) -> Array
 	if firstDirection.length_squared() <= EPSILON:
 		return result
 
-	var first: Candidate = _axisCandidate(data, firstDirection)
-	var second: Candidate = _axisCandidate(data, -firstDirection)
+	var first: Candidate = _AxisCandidate(data, firstDirection)
+	var second: Candidate = _AxisCandidate(data, -firstDirection)
 
 	result.append(first)
 	result.append(second)
@@ -291,7 +291,7 @@ func _buildAxisCandidatesWithoutBlocker(data: CollisionGroup.AgentData) -> Array
 	return result
 
 
-func _buildAlternateCandidates(data: CollisionGroup.AgentData) -> Array[Candidate]:
+func _BuildAlternateCandidates(data: CollisionGroup.AgentData) -> Array[Candidate]:
 	var result: Array[Candidate] = []
 	var directions: Array[Vector2] = [
 		Vector2.RIGHT,
@@ -307,12 +307,12 @@ func _buildAlternateCandidates(data: CollisionGroup.AgentData) -> Array[Candidat
 	var keepSlide: bool = not data.currentIdleIds.is_empty()
 
 	for direction: Vector2 in directions:
-		result.append(_slideCandidate(data, direction, keepSlide))
+		result.append(_SlideCandidate(data, direction, keepSlide))
 
 	return result
 
 
-func _axisCandidate(data: CollisionGroup.AgentData, direction: Vector2) -> Candidate:
+func _AxisCandidate(data: CollisionGroup.AgentData, direction: Vector2) -> Candidate:
 	var candidate: Candidate = Candidate.new()
 
 	candidate.position = data.startPosition + direction.normalized() * data.speed * _fixedDelta
@@ -324,7 +324,7 @@ func _axisCandidate(data: CollisionGroup.AgentData, direction: Vector2) -> Candi
 	return candidate
 
 
-func _slideCandidate(data: CollisionGroup.AgentData, direction: Vector2, keepSlide: bool) -> Candidate:
+func _SlideCandidate(data: CollisionGroup.AgentData, direction: Vector2, keepSlide: bool) -> Candidate:
 	var candidate: Candidate = Candidate.new()
 
 	candidate.position = data.startPosition + direction.normalized() * data.speed * _fixedDelta
@@ -336,7 +336,7 @@ func _slideCandidate(data: CollisionGroup.AgentData, direction: Vector2, keepSli
 	return candidate
 
 
-func _keepCandidate(data: CollisionGroup.AgentData) -> Candidate:
+func _KeepCandidate(data: CollisionGroup.AgentData) -> Candidate:
 	var candidate: Candidate = Candidate.new()
 
 	candidate.position = data.desiredPosition
@@ -348,7 +348,7 @@ func _keepCandidate(data: CollisionGroup.AgentData) -> Candidate:
 	return candidate
 
 
-func _idleCandidate(data: CollisionGroup.AgentData) -> Candidate:
+func _IdleCandidate(data: CollisionGroup.AgentData) -> Candidate:
 	var candidate: Candidate = Candidate.new()
 
 	candidate.position = data.nextPosition
@@ -360,7 +360,7 @@ func _idleCandidate(data: CollisionGroup.AgentData) -> Candidate:
 	return candidate
 
 
-func _stopCandidate(data: CollisionGroup.AgentData) -> Candidate:
+func _StopCandidate(data: CollisionGroup.AgentData) -> Candidate:
 	var candidate: Candidate = Candidate.new()
 
 	candidate.position = data.startPosition
@@ -372,29 +372,38 @@ func _stopCandidate(data: CollisionGroup.AgentData) -> Candidate:
 	return candidate
 
 
-func _findBestPair(first: CollisionGroup.AgentData, firstCandidates: Array, second: CollisionGroup.AgentData, secondCandidates: Array) -> Array:
+func _FindBestPair(first: CollisionGroup.AgentData, firstCandidates: Array, second: CollisionGroup.AgentData, secondCandidates: Array) -> Array:
 	var best: Array = []
-	var bestCost: int = 999
+	var bestStage: int = 999
 	var bestSpeed: float = -1.0
 	var bestLoss: float = INF
 
 	for firstCandidate: Candidate in firstCandidates:
 		for secondCandidate: Candidate in secondCandidates:
-			if not _PairClear(first, firstCandidate.position, second, secondCandidate.position):
+			if not _PairClear(
+				first,
+				firstCandidate.position,
+				second,
+				secondCandidate.position
+			):
 				continue
 
-			var cost: int = firstCandidate.mode + secondCandidate.mode
+			var stage: int = maxi(
+				firstCandidate.mode,
+				secondCandidate.mode
+			)
+
 			var speed: float = firstCandidate.speedRatio + secondCandidate.speedRatio
 			var loss: float = firstCandidate.directionLoss + secondCandidate.directionLoss
 
-			if cost < bestCost:
+			if stage < bestStage:
 				best = [firstCandidate, secondCandidate]
-				bestCost = cost
+				bestStage = stage
 				bestSpeed = speed
 				bestLoss = loss
 				continue
 
-			if cost > bestCost:
+			if stage > bestStage:
 				continue
 
 			if speed > bestSpeed:
@@ -459,7 +468,7 @@ func _GetBlockedAxis(data: CollisionGroup.AgentData, blocker: CollisionGroup.Age
 	return AXIS_Y
 
 
-func _getFreeAxisDirection(data: CollisionGroup.AgentData, axis: int) -> Vector2:
+func _GetFreeAxisDirection(data: CollisionGroup.AgentData, axis: int) -> Vector2:
 	if axis == AXIS_X:
 		if absf(data.desiredDelta.x) > EPSILON:
 			return Vector2(signf(data.desiredDelta.x), 0.0)
@@ -555,7 +564,7 @@ func _DirectionLoss(data: CollisionGroup.AgentData, direction: Vector2) -> float
 	return 1.0 - data.desiredDelta.normalized().dot(direction.normalized())
 
 
-func _updateIdleRelations() -> void:
+func _UpdateIdleRelations() -> void:
 	for data: CollisionGroup.AgentData in _group.agents:
 		data.currentIdleIds.clear()
 
