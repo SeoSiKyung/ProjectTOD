@@ -106,8 +106,13 @@ func HasPath() -> bool:
 	return not _pathFollower.IsEmpty()
 	
 func GetDesiredPosition(fixedDt: float) -> Vector2:
-	if isPaused or fixedDt <= Math.EPSILON or moveSpeed <= 0:
+	if isPaused or moveSpeed <= 0:
 		return position
+
+	return _pathFollower.GetDesiredPosition(
+		position,
+		moveSpeed
+	)
 
 	var maxStepDistance: float = moveSpeed * fixedDt
 	return _pathFollower.GetDesiredPosition(position, maxStepDistance)

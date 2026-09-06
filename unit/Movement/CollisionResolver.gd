@@ -3,446 +3,805 @@ extends RefCounted
 
 
 const EPSILON: float = 0.00001
-const MIN_SPEED_RATIO: float = 0.1
-const SLOW_STEP_COUNT: int = 10
-const SAME_DIRECTION_DOT: float = 0.7
-
-const AXIS_X: int = 0
-const AXIS_Y: int = 1
-
-const MODE_KEEP: int = 0
-const MODE_SLOW: int = 1
-const MODE_AXIS: int = 2
-const MODE_SLIDE: int = 3
-const MODE_STOP: int = 4
+const MIN_SPEED_RATIO: float = 0.01
 
 
 class Candidate:
 	var position: Vector2
-	var mode: int
-	var speedRatio: float
-	var directionLoss: float
 	var keepSlide: bool
 
 
 var _navigationService: NavigationService
 var _group: CollisionGroup
-var _fixedDelta: float
+var _priorityByUnitId: Dictionary = {}
+var _reservationOrder: Array[int] = []
+var _snapshots: Dictionary = {}
 
 
-func _init(navigationService: NavigationService) -> void:
+func _init(
+	navigationService: NavigationService
+) -> void:
 	_navigationService = navigationService
 
 
-func Resolve(group: CollisionGroup, fixedDelta: float) -> bool:
+func Resolve(
+	group: CollisionGroup,
+) -> bool:
 	_group = group
-	_fixedDelta = fixedDelta
+	_priorityByUnitId.clear()
+	_reservationOrder.clear()
+	_snapshots.clear()
 
-	_UpdateIdleRelations()
+	var orderedAgents: Array = group.agents.duplicate()
 
-	for pair: Vector2i in _group.collisions:
-		var first: CollisionGroup.AgentData = _FindAgent(pair.x)
-		var second: CollisionGroup.AgentData = _FindAgent(pair.y)
+	orderedAgents.sort_custom(
+		func(
+			first: CollisionGroup.AgentData,
+			second: CollisionGroup.AgentData
+		) -> bool:
+			return _ComparePriority(
+				first,
+				second
+			)
+	)
 
-		if first == null or second == null:
-			continue
+	for index: int in range(
+		orderedAgents.size()
+	):
+		var data: CollisionGroup.AgentData = (
+			orderedAgents[index]
+		)
 
-		if not _Overlap(first.nextPosition, first.halfSize, second.nextPosition, second.halfSize):
-			continue
+		_priorityByUnitId[
+			data.agent.unitId
+		] = index
 
-		var result: Array = _ResolvePair(first, second)
+	_InitializeIdleRelations()
 
-		if result.is_empty():
-			continue
+	var states: Dictionary = {}
+	var reservedPositions: Dictionary = {}
+	var pendingPositions: Dictionary = {}
 
-		first.nextPosition = result[0].position
-		second.nextPosition = result[1].position
+	for data: CollisionGroup.AgentData in orderedAgents:
+		states[data.agent.unitId] = 0
 
-		_ApplySlideState(first, result[0])
-		_ApplySlideState(second, result[1])
+	for data: CollisionGroup.AgentData in orderedAgents:
+		if not _ReserveAgent(
+			data,
+			states,
+			reservedPositions,
+			pendingPositions
+		):
+			_ReserveStopAgent(
+				data,
+				states,
+				reservedPositions
+			)
 
+	return true
+
+
+func _ReserveAgent(
+	data: CollisionGroup.AgentData,
+	states: Dictionary,
+	reservedPositions: Dictionary,
+	pendingPositions: Dictionary
+) -> bool:
+	var unitId: int = data.agent.unitId
+	var state: int = int(
+		states.get(
+			unitId,
+			0
+		)
+	)
+
+	if state == 2:
 		return true
+
+	if state == 1:
+		return false
+
+	states[unitId] = 1
+	_CaptureSnapshot(data)
+
+	if data.idle:
+		data.nextPosition = data.startPosition
+		reservedPositions[unitId] = data.nextPosition
+		_reservationOrder.append(unitId)
+		states[unitId] = 2
+		return true
+
+	var candidates: Array[Candidate] = _BuildCandidates(
+		data,
+		reservedPositions,
+		pendingPositions
+	)
+
+	for candidate: Candidate in candidates:
+		var reservationCount: int = (
+			_reservationOrder.size()
+		)
+
+		pendingPositions[unitId] = candidate.position
+
+		if not _ReserveBlockers(
+			data,
+			candidate.position,
+			states,
+			reservedPositions,
+			pendingPositions
+		):
+			pendingPositions.erase(unitId)
+
+			_RollbackReservations(
+				reservationCount,
+				states,
+				reservedPositions
+			)
+			continue
+
+		pendingPositions.erase(unitId)
+
+		if not _CandidateClear(
+			data,
+			candidate.position,
+			reservedPositions,
+			pendingPositions
+		):
+			_RollbackReservations(
+				reservationCount,
+				states,
+				reservedPositions
+			)
+			continue
+
+		data.nextPosition = candidate.position
+
+		_ApplyCandidateState(
+			data,
+			candidate
+		)
+
+		reservedPositions[unitId] = data.nextPosition
+		_reservationOrder.append(unitId)
+		states[unitId] = 2
+		return true
+
+	pendingPositions.erase(unitId)
+
+	_RestoreSnapshot(
+		data,
+		states
+	)
 
 	return false
 
 
-func _ResolvePair(first: CollisionGroup.AgentData, second: CollisionGroup.AgentData) -> Array:
-	if first.idle and second.idle:
-		return []
-
-	if first.idle:
-		return _ReverseResult(_ResolveMovingIdle(second, first))
-
-	if second.idle:
-		return _ResolveMovingIdle(first, second)
-
-	var rearFront: Array = _GetRearFront(first, second)
-
-	if not rearFront.is_empty():
-		return _ResolveRearCollision(
-			rearFront[0],
-			rearFront[1],
-			first,
-			second
-		)
-
-	return _ResolveGeneralCollision(first, second)
-
-
-func _ResolveMovingIdle(moving: CollisionGroup.AgentData, idle: CollisionGroup.AgentData) -> Array:
-	var candidates: Array = _BuildCandidates(moving, idle)
-
-	for candidate: Candidate in candidates:
-		if not _PairClear(moving, candidate.position, idle, idle.nextPosition):
-			continue
-
-		return [candidate, _IdleCandidate(idle)]
-
-	return []
-
-
-func _ResolvePersistentSlide(sliding: CollisionGroup.AgentData, other: CollisionGroup.AgentData) -> Array:
-	var directions: Array = _GetPersistentSlideDirections(sliding.slideDirection)
-
-	for direction: Vector2 in directions:
-		var slideCandidate: Candidate = _SlideCandidate(sliding, direction, true)
-
-		if not _StaticClear(sliding, slideCandidate.position):
-			continue
-
-		if _PairClear(sliding, slideCandidate.position, other, other.nextPosition):
-			return [slideCandidate, _KeepCandidate(other)]
-
-	var otherCandidates: Array = _BuildCandidatesWithoutPersistentSlide(other)
-
-	for direction: Vector2 in directions:
-		var slideCandidate: Candidate = _SlideCandidate(sliding, direction, true)
-
-		if not _StaticClear(sliding, slideCandidate.position):
-			continue
-
-		for candidate: Candidate in otherCandidates:
-			if _PairClear(sliding, slideCandidate.position, other, candidate.position):
-				return [slideCandidate, candidate]
-
-	return []
-
-
-func _ResolveRearCollision(rear: CollisionGroup.AgentData, front: CollisionGroup.AgentData, originalFirst: CollisionGroup.AgentData, originalSecond: CollisionGroup.AgentData) -> Array:
-	var candidates: Array = _BuildCandidates(rear, front)
-
-	for candidate: Candidate in candidates:
-		if not _PairClear(rear, candidate.position, front, front.nextPosition):
-			continue
-
-		var result: Array = [candidate, _KeepCandidate(front)]
-
-		if originalFirst == rear:
-			return result
-
-		return [result[1], result[0]]
-
-	return []
-
-
-func _ResolveGeneralCollision(first: CollisionGroup.AgentData, second: CollisionGroup.AgentData) -> Array:
-	var firstCandidates: Array = _BuildCandidates(first, second)
-	var secondCandidates: Array = _BuildCandidates(second, first)
-
-	return _FindBestPair(first, firstCandidates, second, secondCandidates)
-
-
-func _BuildCandidates(data: CollisionGroup.AgentData, blocker: CollisionGroup.AgentData) -> Array:
-	var result: Array = []
-
-	if data.idle:
-		result.append(_IdleCandidate(data))
-		return result
-
-	if not data.currentIdleIds.is_empty():
-		if _HasPersistentSlide(data) and not _HasNewIdle(data):
-			result.append(_SlideCandidate(data, data.slideDirection, true))
-			return result
-
-	result.append(_KeepCandidate(data))
-
-	var slowCandidates: Array = _BuildSlowCandidates(data)
-
-	for candidate: Candidate in slowCandidates:
-		result.append(candidate)
-
-	var axisCandidates: Array = _BuildAxisCandidates(data, blocker)
-
-	for candidate: Candidate in axisCandidates:
-		result.append(candidate)
-
-	var alternateCandidates: Array = _BuildAlternateCandidates(data)
-
-	for candidate: Candidate in alternateCandidates:
-		result.append(candidate)
-
-	result.append(_StopCandidate(data))
-
-	return result
-
-
-func _BuildCandidatesWithoutPersistentSlide(data: CollisionGroup.AgentData) -> Array:
-	var result: Array = []
-
-	if data.idle:
-		result.append(_IdleCandidate(data))
-		return result
-
-	result.append(_KeepCandidate(data))
-
-	var slowCandidates: Array = _BuildSlowCandidates(data)
-
-	for candidate: Candidate in slowCandidates:
-		result.append(candidate)
-
-	var axisCandidates: Array = _BuildAxisCandidatesWithoutBlocker(data)
-
-	for candidate: Candidate in axisCandidates:
-		result.append(candidate)
-
-	var alternateCandidates: Array = _BuildAlternateCandidates(data)
-
-	for candidate: Candidate in alternateCandidates:
-		result.append(candidate)
-
-	result.append(_StopCandidate(data))
-
-	return result
-
-
-func _BuildSlowCandidates(data: CollisionGroup.AgentData) -> Array:
-	var result: Array = []
-
-	if data.desiredDelta.length_squared() <= EPSILON:
-		return result
-
-	var direction: Vector2 = data.desiredDelta.normalized()
-	var distance: float = data.desiredDelta.length()
-
-	for step: int in range(SLOW_STEP_COUNT - 1, 0, -1):
-		var ratio: float = float(step) / float(SLOW_STEP_COUNT)
-		ratio = maxf(ratio, MIN_SPEED_RATIO)
-
-		var candidate: Candidate = Candidate.new()
-
-		candidate.position = data.startPosition + direction * distance * ratio
-		candidate.mode = MODE_SLOW
-		candidate.speedRatio = ratio
-		candidate.directionLoss = 0.0
-		candidate.keepSlide = false
-
-		result.append(candidate)
-
-	return result
-
-
-func _BuildAxisCandidates(data: CollisionGroup.AgentData, blocker: CollisionGroup.AgentData) -> Array:
-	var result: Array = []
-	var blockedAxis: int = _GetBlockedAxis(data, blocker)
-	var freeAxis: int = AXIS_Y if blockedAxis == AXIS_X else AXIS_X
-
-	var direction: Vector2 = _GetFreeAxisDirection(data, freeAxis)
-
-	if direction.length_squared() <= EPSILON:
-		return result
-
-	var first: Candidate = _AxisCandidate(data, direction)
-	var second: Candidate = _AxisCandidate(data, -direction)
-
-	if _StaticClear(data, first.position):
-		result.append(first)
-
-	if _StaticClear(data, second.position):
-		result.append(second)
-
-	return result
-
-
-func _BuildAxisCandidatesWithoutBlocker(data: CollisionGroup.AgentData) -> Array:
-	var result: Array = []
-
-	if data.desiredDelta.length_squared() <= EPSILON:
-		return result
-
-	var firstDirection: Vector2
-
-	if absf(data.desiredDelta.x) >= absf(data.desiredDelta.y):
-		firstDirection = Vector2(0.0, signf(data.desiredDelta.y))
-
-		if firstDirection.length_squared() <= EPSILON:
-			firstDirection = Vector2.UP
-	else:
-		firstDirection = Vector2(signf(data.desiredDelta.x), 0.0)
-
-	if firstDirection.length_squared() <= EPSILON:
-		return result
-
-	var first: Candidate = _AxisCandidate(data, firstDirection)
-	var second: Candidate = _AxisCandidate(data, -firstDirection)
-
-	result.append(first)
-	result.append(second)
-
-	return result
-
-
-func _BuildAlternateCandidates(data: CollisionGroup.AgentData) -> Array[Candidate]:
-	var result: Array[Candidate] = []
-	var directions: Array[Vector2] = [
-		Vector2.RIGHT,
-		Vector2.LEFT,
-		Vector2.UP,
-		Vector2.DOWN
-	]
-
-	directions.sort_custom(func(first: Vector2, second: Vector2) -> bool:
-		return _DirectionLoss(data, first) < _DirectionLoss(data, second)
+func _ReserveStopAgent(
+	data: CollisionGroup.AgentData,
+	states: Dictionary,
+	reservedPositions: Dictionary
+) -> void:
+	var unitId: int = data.agent.unitId
+
+	data.nextPosition = data.startPosition
+
+	_ApplyCandidateState(
+		data,
+		_StopCandidate(data)
 	)
 
-	var keepSlide: bool = not data.currentIdleIds.is_empty()
-
-	for direction: Vector2 in directions:
-		result.append(_SlideCandidate(data, direction, keepSlide))
-
-	return result
+	reservedPositions[unitId] = data.nextPosition
+	_reservationOrder.append(unitId)
+	states[unitId] = 2
 
 
-func _AxisCandidate(data: CollisionGroup.AgentData, direction: Vector2) -> Candidate:
-	var candidate: Candidate = Candidate.new()
+func _ReserveBlockers(
+	data: CollisionGroup.AgentData,
+	position: Vector2,
+	states: Dictionary,
+	reservedPositions: Dictionary,
+	pendingPositions: Dictionary
+) -> bool:
+	var blockers: Array = _FindBlockers(
+		data,
+		position,
+		states,
+		reservedPositions
+	)
 
-	candidate.position = data.startPosition + direction.normalized() * data.speed * _fixedDelta
-	candidate.mode = MODE_AXIS
-	candidate.speedRatio = 1.0
-	candidate.directionLoss = _DirectionLoss(data, direction)
-	candidate.keepSlide = not data.currentIdleIds.is_empty()
+	for blocker: CollisionGroup.AgentData in blockers:
+		var blockerId: int = blocker.agent.unitId
 
-	return candidate
-
-
-func _SlideCandidate(data: CollisionGroup.AgentData, direction: Vector2, keepSlide: bool) -> Candidate:
-	var candidate: Candidate = Candidate.new()
-
-	candidate.position = data.startPosition + direction.normalized() * data.speed * _fixedDelta
-	candidate.mode = MODE_SLIDE
-	candidate.speedRatio = 1.0
-	candidate.directionLoss = _DirectionLoss(data, direction)
-	candidate.keepSlide = keepSlide
-
-	return candidate
-
-
-func _KeepCandidate(data: CollisionGroup.AgentData) -> Candidate:
-	var candidate: Candidate = Candidate.new()
-
-	candidate.position = data.desiredPosition
-	candidate.mode = MODE_KEEP
-	candidate.speedRatio = _SpeedRatio(data, candidate.position)
-	candidate.directionLoss = 0.0
-	candidate.keepSlide = data.slideDirection.length_squared() > EPSILON
-
-	return candidate
-
-
-func _IdleCandidate(data: CollisionGroup.AgentData) -> Candidate:
-	var candidate: Candidate = Candidate.new()
-
-	candidate.position = data.nextPosition
-	candidate.mode = MODE_KEEP
-	candidate.speedRatio = 0.0
-	candidate.directionLoss = 0.0
-	candidate.keepSlide = false
-
-	return candidate
-
-
-func _StopCandidate(data: CollisionGroup.AgentData) -> Candidate:
-	var candidate: Candidate = Candidate.new()
-
-	candidate.position = data.startPosition
-	candidate.mode = MODE_STOP
-	candidate.speedRatio = 0.0
-	candidate.directionLoss = 1.0
-	candidate.keepSlide = false
-
-	return candidate
-
-
-func _FindBestPair(first: CollisionGroup.AgentData, firstCandidates: Array, second: CollisionGroup.AgentData, secondCandidates: Array) -> Array:
-	var best: Array = []
-	var bestStage: int = 999
-	var bestSpeed: float = -1.0
-	var bestLoss: float = INF
-
-	for firstCandidate: Candidate in firstCandidates:
-		for secondCandidate: Candidate in secondCandidates:
-			if not _PairClear(
-				first,
-				firstCandidate.position,
-				second,
-				secondCandidate.position
-			):
-				continue
-
-			var stage: int = maxi(
-				firstCandidate.mode,
-				secondCandidate.mode
-			)
-
-			var speed: float = firstCandidate.speedRatio + secondCandidate.speedRatio
-			var loss: float = firstCandidate.directionLoss + secondCandidate.directionLoss
-
-			if stage < bestStage:
-				best = [firstCandidate, secondCandidate]
-				bestStage = stage
-				bestSpeed = speed
-				bestLoss = loss
-				continue
-
-			if stage > bestStage:
-				continue
-
-			if speed > bestSpeed:
-				best = [firstCandidate, secondCandidate]
-				bestSpeed = speed
-				bestLoss = loss
-				continue
-
-			if is_equal_approx(speed, bestSpeed) and loss < bestLoss:
-				best = [firstCandidate, secondCandidate]
-				bestLoss = loss
-
-	return best
-
-
-func _PairClear(first: CollisionGroup.AgentData, firstPosition: Vector2, second: CollisionGroup.AgentData, secondPosition: Vector2) -> bool:
-	if not _StaticClear(first, firstPosition):
-		return false
-
-	if not _StaticClear(second, secondPosition):
-		return false
-
-	if _Overlap(firstPosition, first.halfSize, secondPosition, second.halfSize):
-		return false
-
-	for other: CollisionGroup.AgentData in _group.agents:
-		if other == first or other == second:
-			continue
-
-		if _Overlap(firstPosition, first.halfSize, other.nextPosition, other.halfSize):
+		if reservedPositions.has(blockerId):
 			return false
 
-		if _Overlap(secondPosition, second.halfSize, other.nextPosition, other.halfSize):
+		if int(
+			states.get(
+				blockerId,
+				0
+			)
+		) == 1:
+			continue
+
+		if not _ReserveAgent(
+			blocker,
+			states,
+			reservedPositions,
+			pendingPositions
+		):
 			return false
 
 	return true
 
 
-func _StaticClear(data: CollisionGroup.AgentData, position: Vector2) -> bool:
+func _FindBlockers(
+	data: CollisionGroup.AgentData,
+	position: Vector2,
+	states: Dictionary,
+	reservedPositions: Dictionary
+) -> Array:
+	var blockers: Array = []
+
+	for other: CollisionGroup.AgentData in _group.agents:
+		var otherId: int = other.agent.unitId
+		var otherState: int = int(
+			states.get(
+				otherId,
+				0
+			)
+		)
+
+		if otherId == data.agent.unitId:
+			continue
+
+		if otherState == 1:
+			continue
+
+		var referencePosition: Vector2
+
+		if reservedPositions.has(otherId):
+			referencePosition = reservedPositions[otherId]
+		else:
+			referencePosition = other.startPosition
+
+		if not _Overlap(
+			position,
+			data.halfSize,
+			referencePosition,
+			other.halfSize
+		):
+			continue
+
+		blockers.append(other)
+
+	blockers.sort_custom(
+		func(
+			first: CollisionGroup.AgentData,
+			second: CollisionGroup.AgentData
+		) -> bool:
+			return int(
+				_priorityByUnitId[
+					first.agent.unitId
+				]
+			) < int(
+				_priorityByUnitId[
+					second.agent.unitId
+				]
+			)
+	)
+
+	return blockers
+
+
+func _BuildCandidates(
+	data: CollisionGroup.AgentData,
+	reservedPositions: Dictionary,
+	pendingPositions: Dictionary
+) -> Array[Candidate]:
+	if data.currentIdleIds.is_empty():
+		return _BuildGeneralCandidates(
+			data,
+			reservedPositions,
+			pendingPositions
+		)
+
+	if (
+		_HasPersistentSlide(data)
+		and not _HasNewIdle(data)
+	):
+		var persistentCandidates: Array[Candidate] = (
+			_BuildPersistentCandidates(
+				data,
+				reservedPositions,
+				pendingPositions
+			)
+		)
+
+		if not persistentCandidates.is_empty():
+			return persistentCandidates
+
+	return _BuildGeneralCandidates(
+		data,
+		reservedPositions,
+		pendingPositions
+	)
+
+
+func _BuildGeneralCandidates(
+	data: CollisionGroup.AgentData,
+	reservedPositions: Dictionary,
+	pendingPositions: Dictionary
+) -> Array[Candidate]:
+	var result: Array[Candidate] = []
+
+	result.append(
+		_KeepCandidate(data)
+	)
+
+	var desiredDirection: Vector2 = (
+		data.desiredDelta.normalized()
+	)
+
+	if desiredDirection.length_squared() > EPSILON:
+		var slowCandidate: Candidate = (
+			_BuildSlowCandidate(
+				data,
+				desiredDirection,
+				data.desiredDelta.length(),
+				false,
+				reservedPositions,
+				pendingPositions
+			)
+		)
+
+		if slowCandidate != null:
+			result.append(slowCandidate)
+
+	var directions: Array[Vector2] = [
+		Vector2.UP,
+		Vector2.DOWN,
+		Vector2.LEFT,
+		Vector2.RIGHT
+	]
+
+	directions.sort_custom(
+		func(
+			first: Vector2,
+			second: Vector2
+		) -> bool:
+			return _DirectionLoss(
+				data,
+				first
+			) < _DirectionLoss(
+				data,
+				second
+			)
+	)
+
+	var keepSlide: bool = (
+		not data.currentIdleIds.is_empty()
+	)
+
+	for direction: Vector2 in directions:
+		result.append(
+			_BuildMoveCandidate(
+				data,
+				direction,
+				data.speed,
+				keepSlide
+			)
+		)
+
+	result.append(
+		_StopCandidate(data)
+	)
+
+	return result
+
+
+func _BuildPersistentCandidates(
+	data: CollisionGroup.AgentData,
+	reservedPositions: Dictionary,
+	pendingPositions: Dictionary
+) -> Array[Candidate]:
+	var result: Array[Candidate] = []
+
+	if data.slideDirection.length_squared() <= EPSILON:
+		return result
+
+	var persistentCandidate: Candidate = (
+		_BuildPersistentCandidate(data)
+	)
+
+	if persistentCandidate != null:
+		result.append(
+			persistentCandidate
+		)
+
+	var slowCandidate: Candidate = (
+		_BuildSlowCandidate(
+			data,
+			data.slideDirection,
+			data.speed,
+			true,
+			reservedPositions,
+			pendingPositions
+		)
+	)
+
+	if slowCandidate != null:
+		if (
+			result.is_empty()
+			or not is_equal_approx(
+				slowCandidate.position.x,
+				result[0].position.x
+			)
+			or not is_equal_approx(
+				slowCandidate.position.y,
+				result[0].position.y
+			)
+		):
+			result.append(slowCandidate)
+
+	return result
+
+
+func _BuildPersistentCandidate(
+	data: CollisionGroup.AgentData
+) -> Candidate:
+	if data.slideDirection.length_squared() <= EPSILON:
+		return null
+
+	return _BuildMoveCandidate(
+		data,
+		data.slideDirection,
+		data.speed,
+		true
+	)
+
+
+func _BuildSlowCandidate(
+	data: CollisionGroup.AgentData,
+	direction: Vector2,
+	distance: float,
+	keepSlide: bool,
+	reservedPositions: Dictionary,
+	pendingPositions: Dictionary
+) -> Candidate:
+	if direction.length_squared() <= EPSILON:
+		return null
+
+	if distance <= EPSILON:
+		return null
+
+	var moveDirection: Vector2 = (
+		direction.normalized()
+	)
+
+	var maxDistance: float = distance
+
+	for other: CollisionGroup.AgentData in _group.agents:
+		var otherId: int = other.agent.unitId
+
+		if otherId == data.agent.unitId:
+			continue
+
+		var referencePosition: Vector2
+
+		if reservedPositions.has(otherId):
+			referencePosition = reservedPositions[otherId]
+
+		elif pendingPositions.has(otherId):
+			referencePosition = pendingPositions[otherId]
+
+		else:
+			continue
+
+		var hitDistance: float = (
+			_RayHitDistance(
+				data.startPosition,
+				moveDirection,
+				referencePosition,
+				float(
+					data.halfSize
+					+ other.halfSize
+				)
+			)
+		)
+
+		if is_inf(hitDistance):
+			continue
+
+		if hitDistance <= EPSILON:
+			return null
+
+		maxDistance = minf(
+			maxDistance,
+			hitDistance
+		)
+
+	if maxDistance < (
+		distance * MIN_SPEED_RATIO
+	):
+		return null
+
+	return _BuildMoveCandidate(
+		data,
+		moveDirection,
+		maxDistance,
+		keepSlide
+	)
+
+
+func _BuildMoveCandidate(
+	data: CollisionGroup.AgentData,
+	direction: Vector2,
+	distance: float,
+	keepSlide: bool
+) -> Candidate:
+	if direction.length_squared() <= EPSILON:
+		return null
+
+	if distance <= EPSILON:
+		return null
+
+	var candidate: Candidate = Candidate.new()
+
+	candidate.position = (
+		data.startPosition
+		+ direction.normalized()
+		* distance
+	)
+
+	candidate.keepSlide = keepSlide
+
+	return candidate
+
+
+func _KeepCandidate(
+	data: CollisionGroup.AgentData
+) -> Candidate:
+	var candidate: Candidate = Candidate.new()
+
+	candidate.position = data.desiredPosition
+	candidate.keepSlide = (
+		data.slideDirection.length_squared()
+		> EPSILON
+	)
+
+	return candidate
+
+
+func _StopCandidate(
+	data: CollisionGroup.AgentData
+) -> Candidate:
+	var candidate: Candidate = Candidate.new()
+
+	candidate.position = data.startPosition
+	candidate.keepSlide = false
+
+	return candidate
+
+
+func _ApplyCandidateState(
+	data: CollisionGroup.AgentData,
+	candidate: Candidate
+) -> void:
+	if not candidate.keepSlide:
+		if data.currentIdleIds.is_empty():
+			data.slideDirection = Vector2.ZERO
+
+		return
+
+	var delta: Vector2 = (
+		candidate.position
+		- data.startPosition
+	)
+
+	if delta.length_squared() <= EPSILON:
+		return
+
+	data.slideDirection = delta.normalized()
+
+
+func _InitializeIdleRelations() -> void:
+	for data: CollisionGroup.AgentData in _group.agents:
+		data.currentIdleIds.clear()
+
+	for pair: Vector2i in _group.collisions:
+		var first: CollisionGroup.AgentData = (
+			_FindAgent(pair.x)
+		)
+
+		var second: CollisionGroup.AgentData = (
+			_FindAgent(pair.y)
+		)
+
+		if first == null or second == null:
+			continue
+
+		if first.idle and not second.idle:
+			second.currentIdleIds.append(
+				first.agent.unitId
+			)
+
+		elif second.idle and not first.idle:
+			first.currentIdleIds.append(
+				second.agent.unitId
+			)
+
+
+func _HasPersistentSlide(
+	data: CollisionGroup.AgentData
+) -> bool:
+	return (
+		data.slideDirection.length_squared()
+		> EPSILON
+	)
+
+
+func _HasNewIdle(
+	data: CollisionGroup.AgentData
+) -> bool:
+	for idleId in data.currentIdleIds:
+		if not data.slideIdleIds.has(idleId):
+			return true
+
+	return false
+
+
+func _CandidateClear(
+	data: CollisionGroup.AgentData,
+	position: Vector2,
+	reservedPositions: Dictionary,
+	pendingPositions: Dictionary
+) -> bool:
+	if not _StaticClear(
+		data,
+		position
+	):
+		return false
+
+	for other: CollisionGroup.AgentData in _group.agents:
+		var otherId: int = other.agent.unitId
+
+		if otherId == data.agent.unitId:
+			continue
+
+		var referencePosition: Vector2
+
+		if reservedPositions.has(otherId):
+			referencePosition = reservedPositions[otherId]
+
+		elif pendingPositions.has(otherId):
+			referencePosition = pendingPositions[otherId]
+
+		else:
+			continue
+
+		if _Overlap(
+			position,
+			data.halfSize,
+			referencePosition,
+			other.halfSize
+		):
+			return false
+
+	return true
+
+
+func _CaptureSnapshot(
+	data: CollisionGroup.AgentData
+) -> void:
+	var unitId: int = data.agent.unitId
+
+	if _snapshots.has(unitId):
+		return
+
+	_snapshots[unitId] = {
+		"nextPosition": data.nextPosition,
+		"slideDirection": data.slideDirection,
+		"currentIdleIds": data.currentIdleIds.duplicate()
+	}
+
+
+func _RestoreSnapshot(
+	data: CollisionGroup.AgentData,
+	states: Dictionary
+) -> void:
+	var unitId: int = data.agent.unitId
+
+	var snapshot: Dictionary = _snapshots.get(
+		unitId,
+		{}
+	)
+
+	if snapshot.has("nextPosition"):
+		data.nextPosition = snapshot["nextPosition"]
+
+	if snapshot.has("slideDirection"):
+		data.slideDirection = snapshot["slideDirection"]
+
+	if snapshot.has("currentIdleIds"):
+		data.currentIdleIds = (
+			snapshot["currentIdleIds"].duplicate()
+		)
+
+	states[unitId] = 0
+
+
+func _RollbackReservations(
+	reservationCount: int,
+	states: Dictionary,
+	reservedPositions: Dictionary
+) -> void:
+	while _reservationOrder.size() > reservationCount:
+		var unitId: int = _reservationOrder.pop_back()
+
+		reservedPositions.erase(unitId)
+
+		var data: CollisionGroup.AgentData = (
+			_FindAgent(unitId)
+		)
+
+		if data == null:
+			continue
+
+		var snapshot: Dictionary = _snapshots.get(
+			unitId,
+			{}
+		)
+
+		if snapshot.has("nextPosition"):
+			data.nextPosition = snapshot["nextPosition"]
+
+		if snapshot.has("slideDirection"):
+			data.slideDirection = snapshot["slideDirection"]
+
+		if snapshot.has("currentIdleIds"):
+			data.currentIdleIds = (
+				snapshot["currentIdleIds"].duplicate()
+			)
+
+		states[unitId] = 0
+
+
+func _ComparePriority(
+	first: CollisionGroup.AgentData,
+	second: CollisionGroup.AgentData
+) -> bool:
+	if first.idle != second.idle:
+		return first.idle
+
+	var firstDistance: float = (
+		first.startPosition.distance_squared_to(
+			first.agent.moveTarget
+		)
+	)
+
+	var secondDistance: float = (
+		second.startPosition.distance_squared_to(
+			second.agent.moveTarget
+		)
+	)
+
+	if not is_equal_approx(
+		firstDistance,
+		secondDistance
+	):
+		return firstDistance < secondDistance
+
+	return (
+		first.agent.unitId
+		< second.agent.unitId
+	)
+
+
+func _StaticClear(
+	data: CollisionGroup.AgentData,
+	position: Vector2
+) -> bool:
 	if _navigationService == null:
 		return true
 
@@ -453,143 +812,99 @@ func _StaticClear(data: CollisionGroup.AgentData, position: Vector2) -> bool:
 	)
 
 
-func _GetBlockedAxis(data: CollisionGroup.AgentData, blocker: CollisionGroup.AgentData) -> int:
-	var relative: Vector2 = blocker.nextPosition - data.nextPosition
+func _RayHitDistance(
+	origin: Vector2,
+	direction: Vector2,
+	center: Vector2,
+	halfSize: float
+) -> float:
+	var relative: Vector2 = center - origin
+	var enter: float = -INF
+	var exit: float = INF
 
-	if absf(relative.x) > absf(relative.y):
-		return AXIS_X
+	if absf(direction.x) <= EPSILON:
+		if absf(relative.x) > halfSize:
+			return INF
+	else:
+		var tx1: float = (
+			relative.x - halfSize
+		) / direction.x
+		var tx2: float = (
+			relative.x + halfSize
+		) / direction.x
 
-	if absf(relative.y) > absf(relative.x):
-		return AXIS_Y
+		var tempX: float
 
-	if absf(data.desiredDelta.x) >= absf(data.desiredDelta.y):
-		return AXIS_X
+		if tx1 > tx2:
+			tempX = tx1
+			tx1 = tx2
+			tx2 = tempX
 
-	return AXIS_Y
+		enter = maxf(
+			enter,
+			tx1
+		)
 
+		exit = minf(
+			exit,
+			tx2
+		)
 
-func _GetFreeAxisDirection(data: CollisionGroup.AgentData, axis: int) -> Vector2:
-	if axis == AXIS_X:
-		if absf(data.desiredDelta.x) > EPSILON:
-			return Vector2(signf(data.desiredDelta.x), 0.0)
+	if absf(direction.y) <= EPSILON:
+		if absf(relative.y) > halfSize:
+			return INF
+	else:
+		var ty1: float = (
+			relative.y - halfSize
+		) / direction.y
+		var ty2: float = (
+			relative.y + halfSize
+		) / direction.y
 
-		return Vector2.RIGHT
+		var tempY: float
 
-	if absf(data.desiredDelta.y) > EPSILON:
-		return Vector2(0.0, signf(data.desiredDelta.y))
+		if ty1 > ty2:
+			tempY = ty2
+			ty2 = ty1
+			ty1 = tempY
 
-	return Vector2.DOWN
+		enter = maxf(
+			enter,
+			ty1
+		)
 
+		exit = minf(
+			exit,
+			ty2
+		)
 
-func _GetRearFront(first: CollisionGroup.AgentData, second: CollisionGroup.AgentData) -> Array:
-	if first.desiredDelta.length_squared() <= EPSILON:
-		return []
+	if enter > exit:
+		return INF
 
-	if second.desiredDelta.length_squared() <= EPSILON:
-		return []
+	if exit < 0.0:
+		return INF
 
-	var firstDirection: Vector2 = first.desiredDelta.normalized()
-	var secondDirection: Vector2 = second.desiredDelta.normalized()
-
-	if firstDirection.dot(secondDirection) < SAME_DIRECTION_DOT:
-		return []
-
-	var direction: Vector2 = (
-		firstDirection + secondDirection
-	).normalized()
-
-	if direction.length_squared() <= EPSILON:
-		direction = firstDirection
-
-	var relative: Vector2 = second.nextPosition - first.nextPosition
-	var forward: float = relative.dot(direction)
-	var lateral: float = absf(relative.cross(direction))
-
-	if absf(forward) <= EPSILON:
-		return []
-
-	if lateral >= absf(forward):
-		return []
-
-	if forward > 0.0:
-		return [first, second]
-
-	return [second, first]
-
-
-func _HasPersistentSlide(data: CollisionGroup.AgentData) -> bool:
-	return data.slideDirection.length_squared() > EPSILON
-
-
-func _HasNewIdle(data: CollisionGroup.AgentData) -> bool:
-	for idleId in data.currentIdleIds:
-		if not data.slideIdleIds.has(idleId):
-			return true
-
-	return false
-
-
-func _ApplySlideState(data: CollisionGroup.AgentData, candidate: Candidate) -> void:
-	if not candidate.keepSlide:
-		if data.currentIdleIds.is_empty():
-			data.slideDirection = Vector2.ZERO
-
-		return
-
-	var delta: Vector2 = candidate.position - data.startPosition
-
-	if delta.length_squared() <= EPSILON:
-		return
-
-	data.slideDirection = delta.normalized()
-
-
-func _SpeedRatio(data: CollisionGroup.AgentData, position: Vector2) -> float:
-	var desiredDistance: float = data.desiredDelta.length()
-
-	if desiredDistance <= EPSILON:
-		return 0.0
-
-	return clampf(
-		position.distance_to(data.startPosition) / desiredDistance,
-		0.0,
-		1.0
+	return maxf(
+		enter,
+		0.0
 	)
 
 
-func _DirectionLoss(data: CollisionGroup.AgentData, direction: Vector2) -> float:
+func _DirectionLoss(
+	data: CollisionGroup.AgentData,
+	direction: Vector2
+) -> float:
 	if data.desiredDelta.length_squared() <= EPSILON:
 		return 1.0
 
-	return 1.0 - data.desiredDelta.normalized().dot(direction.normalized())
+	return 1.0 - data.desiredDelta.normalized().dot(
+		direction.normalized()
+	)
 
 
-func _UpdateIdleRelations() -> void:
-	for data: CollisionGroup.AgentData in _group.agents:
-		data.currentIdleIds.clear()
-
-	for pair: Vector2i in _group.collisions:
-		var first: CollisionGroup.AgentData = _FindAgent(pair.x)
-		var second: CollisionGroup.AgentData = _FindAgent(pair.y)
-
-		if first == null or second == null:
-			continue
-
-		if first.idle and not second.idle:
-			second.currentIdleIds.append(first.agent.unitId)
-
-		elif second.idle and not first.idle:
-			first.currentIdleIds.append(second.agent.unitId)
-
-
-func _ReverseResult(result: Array) -> Array:
-	if result.is_empty():
-		return []
-
-	return [result[1], result[0]]
-
-
-func _FindAgent(unitId: int) -> CollisionGroup.AgentData:
+func _FindAgent(
+	unitId: int
+) -> CollisionGroup.AgentData:
 	for data: CollisionGroup.AgentData in _group.agents:
 		if data.agent.unitId == unitId:
 			return data
@@ -597,23 +912,24 @@ func _FindAgent(unitId: int) -> CollisionGroup.AgentData:
 	return null
 
 
-func _Overlap(firstPosition: Vector2, firstHalfSize: int, secondPosition: Vector2, secondHalfSize: int) -> bool:
-	var size: float = float(firstHalfSize + secondHalfSize)
-
-	return (
-		absf(firstPosition.x - secondPosition.x) < size
-		and absf(firstPosition.y - secondPosition.y) < size
+func _Overlap(
+	firstPosition: Vector2,
+	firstHalfSize: int,
+	secondPosition: Vector2,
+	secondHalfSize: int
+) -> bool:
+	var size: float = float(
+		firstHalfSize
+		+ secondHalfSize
 	)
 
-func _GetPersistentSlideDirections(currentDirection: Vector2) -> Array:
-	if currentDirection.length_squared() <= EPSILON:
-		return []
-
-	var direction: Vector2 = currentDirection.normalized()
-
-	return [
-		direction,
-		-direction,
-		Vector2(-direction.y, direction.x),
-		Vector2(direction.y, -direction.x)
-	]
+	return (
+		absf(
+			firstPosition.x
+			- secondPosition.x
+		) < size
+		and absf(
+			firstPosition.y
+			- secondPosition.y
+		) < size
+	)
