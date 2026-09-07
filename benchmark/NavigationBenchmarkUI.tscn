@@ -1,0 +1,336 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://benchmark/NavigationBenchmarkUI.gd" id="1_ui"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxPanel"]
+bg_color = Color(0.035, 0.045, 0.06, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.25, 0.32, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxSection"]
+bg_color = Color(0.07, 0.085, 0.11, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+
+[node name="BenchmarkUI" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_ui")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+color = Color(0.12, 0.12, 0.12, 0.72)
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -538.0
+offset_top = 18.0
+offset_right = -18.0
+offset_bottom = 706.0
+grow_horizontal = 0
+mouse_filter = 1
+theme_override_styles/panel = SubResource("StyleBoxPanel")
+
+[node name="Margin" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.94, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "NAVIGATION BENCHMARK"
+
+[node name="ControlRow" type="HBoxContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RunAllButton" type="Button" parent="Panel/Margin/VBox/ControlRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(116, 38)
+layout_mode = 2
+text = "Run All"
+
+[node name="CaseSelect" type="OptionButton" parent="Panel/Margin/VBox/ControlRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StatusLabel" type="Label" parent="Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.65, 0.75, 1)
+theme_override_font_sizes/font_size = 13
+text = "Press Run All"
+
+[node name="ExecutionPanel" type="PanelContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxSection")
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/ExecutionPanel"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Heading" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Execution Time"
+
+[node name="Grid" type="GridContainer" parent="Panel/Margin/VBox/ExecutionPanel/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 18
+columns = 4
+
+[node name="AvgLabel" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox/Grid"]
+layout_mode = 2
+text = "Avg"
+[node name="P50Label" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox/Grid"]
+layout_mode = 2
+text = "P50"
+[node name="P95Label" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox/Grid"]
+layout_mode = 2
+text = "P95"
+[node name="MaxLabel" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox/Grid"]
+layout_mode = 2
+text = "Max"
+[node name="AvgValue" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="P50Value" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="P95Value" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="MaxValue" type="Label" parent="Panel/Margin/VBox/ExecutionPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+
+[node name="PathPanel" type="PanelContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxSection")
+
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/PathPanel"]
+layout_mode = 2
+theme_override_constants/separation = 28
+
+[node name="Heading" type="Label" parent="Panel/Margin/VBox/PathPanel/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+text = "Path Result"
+[node name="PathSizeLabel" type="Label" parent="Panel/Margin/VBox/PathPanel/HBox"]
+layout_mode = 2
+text = "Avg size"
+[node name="PathSizeValue" type="Label" parent="Panel/Margin/VBox/PathPanel/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="EmptyLabel" type="Label" parent="Panel/Margin/VBox/PathPanel/HBox"]
+layout_mode = 2
+text = "Empty"
+[node name="EmptyPathsValue" type="Label" parent="Panel/Margin/VBox/PathPanel/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+
+[node name="PhasePanel" type="PanelContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxSection")
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/PhasePanel"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Heading" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "FindPath Phase"
+
+[node name="Grid" type="GridContainer" parent="Panel/Margin/VBox/PhasePanel/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 4
+columns = 3
+
+[node name="StartAnchorLabel" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+custom_minimum_size = Vector2(158, 0)
+layout_mode = 2
+text = "Start Anchor"
+[node name="StartAnchorValue" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(84, 0)
+layout_mode = 2
+text = "-"
+[node name="StartAnchorBar" type="ProgressBar" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(190, 16)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="TargetAnchorLabel" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+layout_mode = 2
+text = "Target Anchor"
+[node name="TargetAnchorValue" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="TargetAnchorBar" type="ProgressBar" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="AnchorGraphLabel" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+layout_mode = 2
+text = "Anchor Graph"
+[node name="AnchorGraphValue" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="AnchorGraphBar" type="ProgressBar" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="FallbackGridLabel" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+layout_mode = 2
+text = "Fallback Grid"
+[node name="FallbackGridValue" type="Label" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="FallbackGridBar" type="ProgressBar" parent="Panel/Margin/VBox/PhasePanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="GridPanel" type="PanelContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxSection")
+
+[node name="HBox" type="HBoxContainer" parent="Panel/Margin/VBox/GridPanel"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Heading" type="Label" parent="Panel/Margin/VBox/GridPanel/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 16
+text = "Grid A* Search"
+[node name="CallsLabel" type="Label" parent="Panel/Margin/VBox/GridPanel/HBox"]
+layout_mode = 2
+text = "Calls"
+[node name="GridCallsValue" type="Label" parent="Panel/Margin/VBox/GridPanel/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="ExpandedLabel" type="Label" parent="Panel/Margin/VBox/GridPanel/HBox"]
+layout_mode = 2
+text = "Expanded"
+[node name="GridExpandedValue" type="Label" parent="Panel/Margin/VBox/GridPanel/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="RelaxedLabel" type="Label" parent="Panel/Margin/VBox/GridPanel/HBox"]
+layout_mode = 2
+text = "Relaxed"
+[node name="GridRelaxedValue" type="Label" parent="Panel/Margin/VBox/GridPanel/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+
+[node name="WorstPanel" type="PanelContainer" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxSection")
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/WorstPanel"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Heading" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Worst Anchor Batch"
+
+[node name="Grid" type="GridContainer" parent="Panel/Margin/VBox/WorstPanel/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 26
+columns = 4
+[node name="TimeLabel" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox/Grid"]
+layout_mode = 2
+text = "Time"
+[node name="WorstTimeValue" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="ExpandedLabel" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox/Grid"]
+layout_mode = 2
+text = "Expanded"
+[node name="WorstExpandedValue" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="RelaxedLabel" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox/Grid"]
+layout_mode = 2
+text = "Relaxed"
+[node name="WorstRelaxedValue" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+[node name="TargetsLabel" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox/Grid"]
+layout_mode = 2
+text = "Targets"
+[node name="WorstTargetsValue" type="Label" parent="Panel/Margin/VBox/WorstPanel/VBox/Grid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "-"
+
+[node name="Hint" type="Label" parent="Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46, 0.52, 0.61, 1)
+theme_override_font_sizes/font_size = 12
+text = "Run All: run all benchmarks again"
+horizontal_alignment = 2
