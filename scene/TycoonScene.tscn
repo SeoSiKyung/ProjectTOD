@@ -1,15 +1,88 @@
 [gd_scene format=3 uid="uid://ddf40id1566tu"]
 
-[ext_resource type="Script" uid="uid://0xye7a8ju62l" path="res://scene/TestNode.gd" id="1_mox7q"]
-[ext_resource type="Script" uid="uid://bd4hqd1pdyupk" path="res://scripts/tycoon/data/FacilityData.gd" id="2_gc0q3"]
-[ext_resource type="Script" uid="uid://dao7fcxbtruus" path="res://scripts/tycoon/data/FacilityCatalog.gd" id="3_wn7t6"]
-
-[sub_resource type="Resource" id="Resource_uwbpf"]
-script = ExtResource("3_wn7t6")
-metadata/_custom_type_script = "uid://dao7fcxbtruus"
+[ext_resource type="Script" uid="uid://gcin7r7bu4r3" path="res://scene/TycoonScene.gd" id="1_wn7t6"]
+[ext_resource type="PackedScene" uid="uid://nu7m1ynqpi4w" path="res://ui/event/EventPopup.tscn" id="2_l5sn1"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/BasicButton.tscn" id="3_gc0q3"]
+[ext_resource type="Script" uid="uid://faenp0ariqf" path="res://ui/event/EventPopup.gd" id="3_wn7t6"]
 
 [node name="TycoonScene" type="Node2D" unique_id=556162371]
+script = ExtResource("1_wn7t6")
 
-[node name="TestNode" type="Node" parent="." unique_id=313274551]
-script = ExtResource("1_mox7q")
-facilityCatalog = SubResource("Resource_uwbpf")
+[node name="UI" type="CanvasLayer" parent="." unique_id=935515982]
+
+[node name="UIRoot" type="Control" parent="UI" unique_id=1369636309]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="EventPopup" parent="UI/UIRoot" unique_id=1972433535 instance=ExtResource("2_l5sn1")]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 0.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_wn7t6")
+
+[node name="Dimmer" type="ColorRect" parent="UI/UIRoot/EventPopup" unique_id=1887575174]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.003921569)
+
+[node name="CenterContainer" type="CenterContainer" parent="UI/UIRoot/EventPopup" unique_id=1794797285]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="UI/UIRoot/EventPopup/CenterContainer" unique_id=1470732566]
+custom_minimum_size = Vector2(700, 450)
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="UI/UIRoot/EventPopup/CenterContainer/PanelContainer" unique_id=720418673]
+layout_mode = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/UIRoot/EventPopup/CenterContainer/PanelContainer/MarginContainer" unique_id=1181338896]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="UI/UIRoot/EventPopup/CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=918110176]
+layout_mode = 2
+text = "이벤트 제목"
+horizontal_alignment = 1
+
+[node name="DescriptionLabel" type="Label" parent="UI/UIRoot/EventPopup/CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=1449537536]
+layout_mode = 2
+text = "이곳에 이벤트 설명이 표시됩니다."
+autowrap_mode = 3
+
+[node name="ChoicesContainer" type="VBoxContainer" parent="UI/UIRoot/EventPopup/CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=1387212087]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ResultLabel" type="Label" parent="UI/UIRoot/EventPopup/CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=1977675433]
+visible = false
+layout_mode = 2
+text = "이벤트 결과"
+autowrap_mode = 3
+
+[node name="ContinueButton" parent="UI/UIRoot/EventPopup/CenterContainer/PanelContainer/MarginContainer/VBoxContainer" unique_id=592075297 instance=ExtResource("3_gc0q3")]
+visible = false
+layout_mode = 2
+textKey = "계속"
+actionKey = &"continue"

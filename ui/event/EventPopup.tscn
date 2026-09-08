@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://nu7m1ynqpi4w"]
+
+[node name="EventPopup" type="Control" unique_id=1972433535]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
