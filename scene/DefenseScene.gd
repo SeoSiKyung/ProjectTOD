@@ -10,8 +10,9 @@ signal DefenseFinished(result: DefenseResult)
 
 @export var navigationData: NavigationData
 
-@onready var _pools: Node = $Pools
+@onready var _movementSimulator: MovementSimulator = $MovementSimulator
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
+@onready var _pools: Node = $Pools
 @onready var _confirmButton: Button = $CanvasLayer/ConfirmButton
 
 var _navigationService: NavigationService
@@ -19,10 +20,6 @@ var _deploymentGrid: DefenseDeploymentGrid
 
 var _defenseManager: DefenseManager
 var _startData: DefenseStartData
-
-
-func Initialize(startData: DefenseStartData) -> void:
-	_startData = startData
 
 
 func _ready() -> void:
@@ -41,51 +38,8 @@ func _process(_delta: float) -> void:
 	_defenseManager.Update()
 
 
-func _InitializeNavigation() -> bool:
-	_navigationService = NavigationService.new()
-	_navigationService.navigationData = navigationData
-	_navigationService.Ready()
-
-	if not _navigationService.IsReady():
-		push_error("DefenseScene: NavigationService 초기화에 실패했습니다.")
-		return false
-
-	return true
-
-
-func _InitializeDeploymentGrid() -> void:
-	var worldRect: Rect2 = navigationData.GetWorldRect()
-	var deploymentGridSize: Vector2i = Vector2i(
-		floori(worldRect.size.x / DEPLOYMENT_CELL_SIZE),
-		floori(worldRect.size.y / DEPLOYMENT_CELL_SIZE),
-	)
-
-	_deploymentGrid = DefenseDeploymentGrid.new(
-		DEPLOYMENT_CELL_SIZE,
-		worldRect.position,
-		deploymentGridSize,
-	)
-
-	_deploymentGridView.Initialize(_deploymentGrid)
-	_deploymentGridView.CellClicked.connect(_OnDeploymentCellClicked)
-	_deploymentGridView.CellRightClicked.connect(_OnDeploymentCellRightClicked)
-
-	_confirmButton.pressed.connect(_OnConfirmDeploymentPressed)
-
-
-func _InitializeStartData() -> void:
-	if _startData != null:
-		return
-
-	_startData = DefenseStartData.new()
-	_startData.cycle = 1
-	_startData.population = 100
-
-
-func _InitializeDefenseManager() -> void:
-	_defenseManager = DefenseManager.new(_startData, _pools, _navigationService)
-
-	_defenseManager.DefenseFinished.connect(_OnDefenseFinished)
+func Initialize(startData: DefenseStartData) -> void:
+	_startData = startData
 
 
 func _OnDeploymentCellClicked(cell: Vector2i) -> void:
@@ -119,6 +73,59 @@ func _OnConfirmDeploymentPressed() -> void:
 func _OnDefenseFinished(result: DefenseResult) -> void:
 	print("Defense Finished")
 	print("Victory: ", result.isVictory)
+	print("Recruited Population: ", result.recruitedPopulation)
+	print("Surviving Population: ", result.survivingPopulation)
 	print("Dead Population: ", result.deadPopulation)
 
 	DefenseFinished.emit(result)
+
+
+func _InitializeNavigation() -> bool:
+	_navigationService = NavigationService.new()
+	_navigationService.navigationData = navigationData
+	_navigationService.Ready()
+
+	if not _navigationService.IsReady():
+		push_error("DefenseScene: NavigationService 초기화에 실패했습니다.")
+		return false
+
+	_movementSimulator.navigationService = _navigationService
+
+	return true
+
+
+func _InitializeDeploymentGrid() -> void:
+	var worldRect: Rect2 = navigationData.GetWorldRect()
+	var deploymentGridSize: Vector2i = Vector2i(
+		floori(worldRect.size.x / DEPLOYMENT_CELL_SIZE),
+		floori(worldRect.size.y / DEPLOYMENT_CELL_SIZE),
+	)
+
+	_deploymentGrid = DefenseDeploymentGrid.new(
+		DEPLOYMENT_CELL_SIZE,
+		worldRect.position,
+		deploymentGridSize,
+	)
+
+	_deploymentGridView.Initialize(_deploymentGrid)
+	_deploymentGridView.CellClicked.connect(_OnDeploymentCellClicked)
+	_deploymentGridView.CellRightClicked.connect(_OnDeploymentCellRightClicked)
+
+	_confirmButton.pressed.connect(_OnConfirmDeploymentPressed)
+
+
+func _InitializeStartData() -> void:
+	if _startData != null:
+		return
+
+	_startData = DefenseStartData.new()
+	_startData.cycle = 1
+	_startData.population = 100
+
+	_startData.commandPostMaxHp = 1000
+
+
+func _InitializeDefenseManager() -> void:
+	_defenseManager = DefenseManager.new(_startData, _pools, _navigationService, _movementSimulator)
+
+	_defenseManager.DefenseFinished.connect(_OnDefenseFinished)

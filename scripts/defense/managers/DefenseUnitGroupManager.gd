@@ -1,87 +1,79 @@
 class_name DefenseUnitGroupManager
-extends RefCounted
+extends DefenseCharacterManager
 
 
-class DefenseUnitGroupState:
-	var characterKey: int
-
-	var initialSoldierCount: int
-	var aliveSoldierCount: int
-
-	var hpPerSoldier: int
-	var maxHp: int
-	var currentHp: int
+class DefensePopulationSummary:
+	var recruitedPopulation: int = 0
+	var survivingPopulation: int = 0
+	var deadPopulation: int = 0
 
 
-	func _init(pCharacterKey: int, pSoldierCount: int, pHpPerSoldier: int) -> void:
-		characterKey = pCharacterKey
-
-		initialSoldierCount = pSoldierCount
-		aliveSoldierCount = pSoldierCount
-
-		hpPerSoldier = pHpPerSoldier
-		maxHp = hpPerSoldier * initialSoldierCount
-		currentHp = maxHp
+var _unitGroupStatusByCell: Dictionary = { }
 
 
-	func GetDeadSoldierCount() -> int:
-		return initialSoldierCount - aliveSoldierCount
-
-
-	func TakeDamage(damage: int) -> void:
-		if damage <= 0:
-			return
-
-		currentHp = maxi(currentHp - damage, 0)
-		_UpdateAliveSoldierCount()
-
-
-	func _UpdateAliveSoldierCount() -> void:
-		if currentHp <= 0:
-			aliveSoldierCount = 0
-			return
-
-		aliveSoldierCount = Math.CeilDivide(currentHp, hpPerSoldier)
-
-
-var _unitGroupStates: Dictionary = { }
-
-
-func Initialize(deploymentManager: DefenseDeploymentManager, population: int) -> void:
-	_unitGroupStates.clear()
+func Initialize(deploymentManager: DefenseDeploymentManager, totalPopulation: int) -> bool:
+	Clear()
 
 	var cells: Array[Vector2i] = deploymentManager.GetDeploymentCells()
 	for cell: Vector2i in cells:
-		var deployment: DefenseDeploymentManager.DefenseDeployment = deploymentManager.GetDeployment(
-			cell
-		)
+		var deployment := deploymentManager.GetDeploymentByCell(cell)
+		if deployment == null:
+			Clear()
+			return false
 
-		var state: DefenseUnitGroupState = _CreateUnitGroupState(deployment, population)
-		if state == null:
-			continue
+		var status: DefenseUnitGroupStatus = _CreateUnitGroupStatus(deployment, totalPopulation)
+		if status == null:
+			Clear()
+			return false
 
-		_unitGroupStates[cell] = state
+		_unitGroupStatusByCell[cell] = status
 
-
-func GetUnitGroupState(cell: Vector2i) -> DefenseUnitGroupState:
-	return _unitGroupStates.get(cell)
-
-
-func GetTotalDeadSoldierCount() -> int:
-	var totalDeadSoldierCount: int = 0
-	for cell: Vector2i in _unitGroupStates:
-		var unitGroupState: DefenseUnitGroupState = _unitGroupStates[cell]
-		totalDeadSoldierCount += unitGroupState.initialSoldierCount - unitGroupState.aliveSoldierCount
-
-	return totalDeadSoldierCount
+	return true
 
 
-func _CreateUnitGroupState(
+func Clear() -> void:
+	super.Clear()
+	_unitGroupStatusByCell.clear()
+
+
+func BindUnit(cell: Vector2i, unit: Unit) -> bool:
+	var status: DefenseUnitGroupStatus = _unitGroupStatusByCell.get(cell)
+	if status == null:
+		return false
+
+	return _BindStatus(unit, status)
+
+
+func HasAliveUnitGroup() -> bool:
+	for cell: Vector2i in _unitGroupStatusByCell:
+		var status: DefenseUnitGroupStatus = _unitGroupStatusByCell[cell]
+		if not status.IsDead():
+			return true
+
+	return false
+
+
+func GetUnitGroupStatusByCell(cell: Vector2i) -> DefenseUnitGroupStatus:
+	return _unitGroupStatusByCell.get(cell)
+
+
+func GetPopulationSummary() -> DefensePopulationSummary:
+	var summary: DefensePopulationSummary = DefensePopulationSummary.new()
+	for cell: Vector2i in _unitGroupStatusByCell:
+		var status: DefenseUnitGroupStatus = _unitGroupStatusByCell[cell]
+		summary.recruitedPopulation += status.recruitedPopulation
+		summary.survivingPopulation += status.survivingPopulation
+		summary.deadPopulation += status.GetDeadPopulation()
+
+	return summary
+
+
+func _CreateUnitGroupStatus(
 	deployment: DefenseDeploymentManager.DefenseDeployment,
-	population: int,
-) -> DefenseUnitGroupState:
-	var soldierCount: int = Math.ApplyRatio(population, deployment.recruitRatio)
-	if soldierCount <= 0:
+	totalPopulation: int,
+) -> DefenseUnitGroupStatus:
+	var recruitedPopulation: int = Math.ApplyRatio(totalPopulation, deployment.recruitRatio)
+	if recruitedPopulation <= 0:
 		return null
 
 	var characterData: CharacterData = GameDataManager.GetCharacterData(deployment.characterKey)
@@ -98,4 +90,4 @@ func _CreateUnitGroupState(
 		)
 		return null
 
-	return DefenseUnitGroupState.new(deployment.characterKey, soldierCount, characterData.maxHp)
+	return DefenseUnitGroupStatus.new(recruitedPopulation, characterData)

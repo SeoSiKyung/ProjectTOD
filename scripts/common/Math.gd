@@ -93,3 +93,13 @@ static func SegmentAabbEntryFraction(start: Vector2, delta: Vector2, half: Vecto
 
 static func SegmentIntersectsCenteredAabb(start: Vector2, end: Vector2, half: Vector2) -> bool:
 	return SegmentAabbEntryFraction(start, end - start, half) >= 0.0
+
+#region Battle
+static func CalculateDamage(atk: int, def: int, magicAtk: int, magicDef: int) -> int:
+	return _CalculateStatDamage(atk, def) + _CalculateStatDamage(magicAtk, magicDef)
+
+
+static func _CalculateStatDamage(atk: int, def: int) -> int:
+	return maxi(atk - def, 0)
+
+#endregion
