@@ -11,11 +11,12 @@ enum DefensePhase {
 
 var _startData: DefenseStartData
 var _navigationService: NavigationService
+var _movementSimulator: MovementSimulator
 
 var _deploymentManager: DefenseDeploymentManager
-var _deploymentUnitsByCell: Dictionary = { }
-
 var _unitGroupManager: DefenseUnitGroupManager
+var _monsterManager: DefenseMonsterManager
+var _commandPostManager: DefenseCommandPostManager
 var _spawnManager: DefenseSpawnManager
 var _timeManager: DefenseTimeManager
 
@@ -23,16 +24,32 @@ var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
 var _unitPoolManager: DefensePoolManager.UnitPoolManager
 # var _trapPoolManager: DefenseTrapPoolManager
 
+var _deploymentUnitsByCell: Dictionary = { }
+
 var _phase: DefensePhase = DefensePhase.DEPLOYMENT
 
+var _nextUnitId: int = 1
 
-func _init(startData: DefenseStartData, pools: Node, navigationService: NavigationService) -> void:
+
+func _init(
+	startData: DefenseStartData,
+	pools: Node,
+	navigationService: NavigationService,
+	movementSimulator: MovementSimulator,
+) -> void:
 	_startData = startData
 	_navigationService = navigationService
+	_movementSimulator = movementSimulator
 
 	_deploymentManager = DefenseDeploymentManager.new()
 	_unitGroupManager = DefenseUnitGroupManager.new()
+	_unitGroupManager.CharacterDied.connect(_OnCharacterDied)
+	_monsterManager = DefenseMonsterManager.new()
+	_monsterManager.CharacterDied.connect(_OnCharacterDied)
+	_commandPostManager = DefenseCommandPostManager.new()
+	_commandPostManager.CommandPostDestroyed.connect(_OnCommandPostDestroyed)
 	_spawnManager = DefenseSpawnManager.new()
+	_spawnManager.MonsterSpawnRequested.connect(_OnMonsterSpawnRequested)
 	_timeManager = DefenseTimeManager.new()
 
 	var monsterPool: Node2D = pools.get_node("MonsterPool")
@@ -71,7 +88,7 @@ func RemoveDeployment(cell: Vector2i) -> bool:
 		return false
 
 	var deployment: DefenseDeploymentManager.DefenseDeployment = (
-		_deploymentManager.GetDeployment(cell)
+		_deploymentManager.GetDeploymentByCell(cell)
 	)
 	if deployment == null:
 		return false
@@ -81,7 +98,7 @@ func RemoveDeployment(cell: Vector2i) -> bool:
 		push_error("DefenseManager: 배치 데이터에 대응하는 Unit이 없습니다. cell: " + str(cell))
 		return false
 
-	if not _unitPoolManager.Return(unit):
+	if not _ReturnToPool(unit, _unitPoolManager):
 		push_error("DefenseManager: 배치 Unit 반환에 실패했습니다. cell: " + str(cell))
 		return false
 
@@ -96,7 +113,7 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 	if _phase != DefensePhase.DEPLOYMENT:
 		return false
 
-	var deployment := _deploymentManager.GetDeployment(cell)
+	var deployment := _deploymentManager.GetDeploymentByCell(cell)
 	if deployment == null:
 		return false
 
@@ -119,8 +136,9 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
 		return false
 
-	if not _unitPoolManager.Return(unit):
-		_unitPoolManager.Return(newUnit)
+	if not _ReturnToPool(unit, _unitPoolManager):
+		if not _ReturnToPool(newUnit, _unitPoolManager):
+			push_error("DefenseManager: 새 배치 Unit 롤백 반환에 실패했습니다. cell: " + str(cell))
 
 		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
 
@@ -137,23 +155,39 @@ func ConfirmDeployment() -> bool:
 	if _phase != DefensePhase.DEPLOYMENT:
 		return false
 
-	_unitGroupManager.Initialize(_deploymentManager, _startData.population)
+	if not _unitGroupManager.Initialize(_deploymentManager, _startData.population):
+		push_error("DefenseManager: UnitGroupStatus 초기화에 실패했습니다.")
+		return false
+
+	if not _unitGroupManager.HasAliveUnitGroup():
+		push_error("DefenseManager: 배치된 병력이 없습니다.")
+		_unitGroupManager.Clear()
+		return false
 
 	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
 	for cell: Vector2i in cells:
 		var unit: Unit = _deploymentUnitsByCell.get(cell)
-		var unitGroupState := _unitGroupManager.GetUnitGroupState(cell)
-		if unit == null or unitGroupState == null:
-			push_error("DefenseManager: 배치 Unit과 UnitGroupState 연결에 실패했습니다. cell: " + str(cell))
+		if unit == null or _unitGroupManager.GetUnitGroupStatusByCell(cell) == null:
+			push_error("DefenseManager: 배치 데이터와 UnitGroupStatus가 일치하지 않습니다. cell: " + str(cell))
+			_unitGroupManager.Clear()
 			return false
 
-		if not _unitPoolManager.SetUnitGroupState(unit, unitGroupState):
-			push_error("DefenseManager: UnitGroupState 등록에 실패했습니다. cell: " + str(cell))
+	if not _commandPostManager.Initialize(_startData.commandPostMaxHp):
+		push_error("DefenseManager: 지휘소 초기화에 실패했습니다.")
+		_unitGroupManager.Clear()
+		return false
+
+	for cell: Vector2i in cells:
+		var unit: Unit = _deploymentUnitsByCell[cell]
+		if not _unitGroupManager.BindUnit(cell, unit):
+			push_error("DefenseManager: UnitGroupStatus 연결에 실패했습니다. cell: " + str(cell))
+			_unitGroupManager.Clear()
+			_commandPostManager.Clear()
 			return false
 
 	_deploymentUnitsByCell.clear()
 
-	_spawnManager.Initialize(_startData.cycle, _monsterPoolManager)
+	_spawnManager.Initialize(_startData.cycle)
 	_timeManager.Initialize()
 
 	_phase = DefensePhase.BATTLE
@@ -173,18 +207,27 @@ func Update() -> void:
 	_CheckVictory()
 
 
-func ReturnMonster(monster: Node2D) -> bool:
+func Attack(attacker: Unit, target: Unit) -> bool:
 	if _phase != DefensePhase.BATTLE:
 		return false
 
-	return _monsterPoolManager.Return(monster)
-
-
-func ReturnUnit(unit: Unit) -> bool:
-	if _phase != DefensePhase.BATTLE:
+	var attackerStatus: DefenseCharacterStatus = _GetCharacterStatus(attacker)
+	var targetStatus: DefenseCharacterStatus = _GetCharacterStatus(target)
+	if attackerStatus == null or targetStatus == null:
 		return false
 
-	return _unitPoolManager.Return(unit)
+	if attackerStatus.IsDead() or targetStatus.IsDead():
+		return false
+
+	if attackerStatus.characterType == targetStatus.characterType:
+		return false
+
+	var targetManager: DefenseCharacterManager = _GetCharacterManager(targetStatus.characterType)
+	if targetManager == null:
+		return false
+
+	var damage: int = attackerStatus.CalculateDamage(targetStatus)
+	return targetManager.TakeDamage(target, damage)
 
 
 func PauseBattle() -> void:
@@ -201,18 +244,74 @@ func ResumeBattle() -> void:
 	_timeManager.Resume()
 
 
-func FinishDefense(isVictory: bool) -> DefenseResult:
+func FinishDefense(isVictory: bool, commandPostDestroyed: bool = false) -> DefenseResult:
 	if _phase != DefensePhase.BATTLE:
 		return null
 
 	_timeManager.Pause()
 
-	var result: DefenseResult = _CreateResult(isVictory)
+	var result: DefenseResult = _CreateResult(isVictory, commandPostDestroyed)
+
 	_phase = DefensePhase.FINISHED
+
+	_CleanupBattle()
 
 	DefenseFinished.emit(result)
 
 	return result
+
+
+func _OnCharacterDied(character: Unit, status: DefenseCharacterStatus) -> void:
+	if _phase != DefensePhase.BATTLE:
+		return
+
+	var characterManager: DefenseCharacterManager = _GetCharacterManager(status.characterType)
+	if characterManager == null:
+		return
+
+	var poolManager: DefensePoolManager = _GetPoolManager(status.characterType)
+	if poolManager == null:
+		return
+
+	if not _ReturnToPool(character, poolManager):
+		push_error("DefenseManager: Character 반환에 실패했습니다. unitId: " + str(character.unitId))
+		return
+
+	if not characterManager.UnbindCharacter(character):
+		push_error(
+			"DefenseManager: Character Status 연결 해제에 실패했습니다. unitId: " + str(character.unitId)
+		)
+		return
+
+	if (
+		status.characterType == CharacterData.CharacterType.UNIT
+		and not _unitGroupManager.HasAliveUnitGroup()
+	):
+		FinishDefense(false)
+
+
+func _OnCommandPostDestroyed() -> void:
+	if _phase != DefensePhase.BATTLE:
+		return
+
+	FinishDefense(false, true)
+
+
+func _OnMonsterSpawnRequested(characterKey: int, spawnPosition: Vector2) -> void:
+	if _phase != DefensePhase.BATTLE:
+		return
+
+	var monster: Unit = _monsterPoolManager.SpawnMonster(characterKey, spawnPosition)
+	if monster == null:
+		return
+
+	if not _RegisterUnit(monster):
+		_monsterPoolManager.Return(monster)
+		return
+
+	if not _monsterManager.AddMonster(monster, characterKey):
+		if not _ReturnToPool(monster, _monsterPoolManager):
+			push_error("DefenseManager: Monster 등록 실패 후 반환에 실패했습니다. unitId: " + str(monster.unitId))
 
 
 func _SpawnDeploymentUnit(characterKey: int, position: Vector2) -> Unit:
@@ -224,22 +323,133 @@ func _SpawnDeploymentUnit(characterKey: int, position: Vector2) -> Unit:
 		_unitPoolManager.Return(unit)
 		return null
 
+	if not _RegisterUnit(unit):
+		_unitPoolManager.Return(unit)
+		return null
+
 	return unit
+
+
+func _ReturnToPool(character: Unit, poolManager: DefensePoolManager) -> bool:
+	if not poolManager.Return(character):
+		return false
+
+	_UnregisterUnit(character)
+	return true
+
+
+func _RegisterUnit(unit: Unit) -> bool:
+	if unit == null:
+		return false
+
+	var unitId: int = _GetNextUnitId()
+	unit.unitId = unitId
+
+	_movementSimulator.RegisterUnit(unit)
+
+	if _movementSimulator.GetUnit(unitId) != unit:
+		push_error("DefenseManager: MovementSimulator Unit 등록에 실패했습니다. unitId: " + str(unitId))
+		return false
+
+	return true
+
+
+func _UnregisterUnit(unit: Unit) -> void:
+	if unit == null:
+		return
+
+	if unit.movement != null:
+		unit.movement.Stop()
+
+	_movementSimulator.UnregisterUnit(unit)
+
+
+func _GetNextUnitId() -> int:
+	while _movementSimulator.GetUnit(_nextUnitId) != null:
+		_nextUnitId += 1
+
+	var unitId: int = _nextUnitId
+	_nextUnitId += 1
+
+	return unitId
+
+
+func _GetCharacterStatus(character: Unit) -> DefenseCharacterStatus:
+	var status: DefenseCharacterStatus = _unitGroupManager.GetStatusByCharacter(character)
+	if status != null:
+		return status
+
+	return _monsterManager.GetStatusByCharacter(character)
+
+
+func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
+	match characterType:
+		CharacterData.CharacterType.UNIT:
+			return _unitGroupManager
+
+		CharacterData.CharacterType.MONSTER:
+			return _monsterManager
+
+	return null
+
+
+func _GetPoolManager(characterType: CharacterData.CharacterType) -> DefensePoolManager:
+	match characterType:
+		CharacterData.CharacterType.UNIT:
+			return _unitPoolManager
+
+		CharacterData.CharacterType.MONSTER:
+			return _monsterPoolManager
+
+	return null
 
 
 func _CheckVictory() -> void:
 	if not _spawnManager.IsSpawnFinished():
 		return
 
-	if _monsterPoolManager.GetActiveCount() > 0:
+	if _monsterManager.GetActiveCount() > 0:
 		return
 
 	FinishDefense(true)
 
 
-func _CreateResult(isVictory: bool) -> DefenseResult:
+func _CreateResult(isVictory: bool, commandPostDestroyed: bool) -> DefenseResult:
 	var result: DefenseResult = DefenseResult.new()
 	result.isVictory = isVictory
-	result.deadPopulation = _unitGroupManager.GetTotalDeadSoldierCount()
+	result.commandPostDestroyed = commandPostDestroyed
+
+	var populationSummary: DefenseUnitGroupManager.DefensePopulationSummary = _unitGroupManager.GetPopulationSummary()
+	result.recruitedPopulation = populationSummary.recruitedPopulation
+	result.survivingPopulation = populationSummary.survivingPopulation
+	result.deadPopulation = populationSummary.deadPopulation
 
 	return result
+
+
+func _CleanupBattle() -> void:
+	_CleanupCharacters(_unitGroupManager, _unitPoolManager)
+	_CleanupCharacters(_monsterManager, _monsterPoolManager)
+
+	_unitGroupManager.Clear()
+	_monsterManager.Clear()
+	_commandPostManager.Clear()
+
+
+func _CleanupCharacters(
+	characterManager: DefenseCharacterManager,
+	poolManager: DefensePoolManager,
+) -> void:
+	var characters: Array[Unit] = characterManager.GetCharacters()
+	for character: Unit in characters:
+		if not _ReturnToPool(character, poolManager):
+			push_error(
+				"DefenseManager: 전투 종료 중 Character 반환에 실패했습니다. unitId: " + str(character.unitId)
+			)
+			continue
+
+		if not characterManager.UnbindCharacter(character):
+			push_error(
+				"DefenseManager: 전투 종료 중 Character Status 연결 해제에 실패했습니다. unitId: "
+				+ str(character.unitId)
+			)

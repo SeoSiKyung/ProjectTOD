@@ -12,6 +12,19 @@ func _init(pool: Node2D) -> void:
 	_pool = pool
 
 
+func Return(object: Node2D) -> bool:
+	if not _characterKeyByActiveObject.has(object):
+		return false
+
+	var characterKey: int = _characterKeyByActiveObject[object]
+	_characterKeyByActiveObject.erase(object)
+
+	_DeactivateObject(object)
+	_AddInactiveObject(characterKey, object)
+
+	return true
+
+
 func _Spawn(characterKey: int, spawnPosition: Vector2) -> Node2D:
 	var object: Node2D = _TakeInactiveObject(characterKey)
 	if object == null:
@@ -25,24 +38,6 @@ func _Spawn(characterKey: int, spawnPosition: Vector2) -> Node2D:
 	_characterKeyByActiveObject[object] = characterKey
 
 	return object
-
-
-func Return(object: Node2D) -> bool:
-	if not _characterKeyByActiveObject.has(object):
-		return false
-
-	var characterKey: int = _characterKeyByActiveObject[object]
-	_characterKeyByActiveObject.erase(object)
-
-	_DeactivateObject(object)
-	_OnObjectReturned(object)
-	_AddInactiveObject(characterKey, object)
-
-	return true
-
-
-func GetActiveCount() -> int:
-	return _characterKeyByActiveObject.size()
 
 
 func _TakeInactiveObject(characterKey: int) -> Node2D:
@@ -76,18 +71,14 @@ func _DeactivateObject(object: Node2D) -> void:
 	object.process_mode = Node.PROCESS_MODE_DISABLED
 
 
-func _OnObjectReturned(_object: Node2D) -> void:
-	pass
-
-
 class MonsterPoolManager extends DefensePoolManager:
 	# TODO: 실제 Monster Scene 구현 후 CharacterData.path 기반 생성으로 교체
 	const TEMP_MONSTER_SCENE: PackedScene = preload("res://unit/Unit.tscn")
 	const TEMP_MONSTER_COLOR: Color = Color(1.0, 0.25, 0.25, 1.0)
 
 
-	func SpawnMonster(characterKey: int, spawnPosition: Vector2) -> Node2D:
-		return _Spawn(characterKey, spawnPosition)
+	func SpawnMonster(characterKey: int, spawnPosition: Vector2) -> Unit:
+		return _Spawn(characterKey, spawnPosition) as Unit
 
 
 	func _CreateObject(characterKey: int) -> Node2D:
@@ -112,30 +103,8 @@ class MonsterPoolManager extends DefensePoolManager:
 
 
 class UnitPoolManager extends DefensePoolManager:
-	var _unitGroupStateByUnit: Dictionary = { }
-
-
 	func SpawnUnit(characterKey: int, spawnPosition: Vector2) -> Unit:
 		return _Spawn(characterKey, spawnPosition) as Unit
-
-
-	func SetUnitGroupState(
-		unit: Unit,
-		unitGroupState: DefenseUnitGroupManager.DefenseUnitGroupState,
-	) -> bool:
-		if not _characterKeyByActiveObject.has(unit):
-			return false
-
-		if unitGroupState == null:
-			return false
-
-		_unitGroupStateByUnit[unit] = unitGroupState
-
-		return true
-
-
-	func GetUnitGroupState(unit: Unit) -> DefenseUnitGroupManager.DefenseUnitGroupState:
-		return _unitGroupStateByUnit.get(unit)
 
 
 	func _CreateObject(characterKey: int) -> Node2D:
@@ -163,7 +132,3 @@ class UnitPoolManager extends DefensePoolManager:
 			return null
 
 		return unit
-
-
-	func _OnObjectReturned(object: Node2D) -> void:
-		_unitGroupStateByUnit.erase(object)
