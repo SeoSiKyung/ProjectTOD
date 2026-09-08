@@ -25,7 +25,7 @@ func GetDeploymentCells() -> Array[Vector2i]:
 	return cells
 
 
-func GetDeployment(cell: Vector2i) -> DefenseDeployment:
+func GetDeploymentByCell(cell: Vector2i) -> DefenseDeployment:
 	return _deployments.get(cell)
 
 

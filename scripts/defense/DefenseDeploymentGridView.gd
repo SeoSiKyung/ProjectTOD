@@ -20,12 +20,6 @@ var _hoverCell: Vector2i = Vector2i.ZERO
 var _hasHoverCell: bool = false
 
 
-func Initialize(grid: DefenseDeploymentGrid) -> void:
-	_grid = grid
-
-	queue_redraw()
-
-
 func _process(_delta: float) -> void:
 	if _grid == null:
 		return
@@ -82,6 +76,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 		MOUSE_BUTTON_RIGHT:
 			CellRightClicked.emit(cell)
+
+
+func Initialize(grid: DefenseDeploymentGrid) -> void:
+	_grid = grid
+
+	queue_redraw()
 
 
 func SetDeployment(cell: Vector2i) -> void:
