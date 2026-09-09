@@ -19,9 +19,5 @@ var development: float = 0.0
 var maxPopulation: int = 0
 
 
-# 디펜스 관련
-var defensePhysicalAttackBonus: float = 0.0
-
-
 # 안정도 관련
 var stabilityMinimum: float = 0.0

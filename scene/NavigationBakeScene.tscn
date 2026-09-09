@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://bk6lutqjkimhh"]
+
+[ext_resource type="Script" uid="uid://cooykx73a50w8" path="res://maps/navigation/NavigationBaker.gd" id="1_dowva"]
+[ext_resource type="Script" uid="uid://de8kt63qomfcw" path="res://scene/NavigationBakeScene.gd" id="1_uw0y6"]
+[ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="2_uw0y6"]
+
+[node name="NavigationBakeScene" type="Node2D" unique_id=488504905]
+script = ExtResource("1_uw0y6")
+
+[node name="NavigationBaker" type="Node" parent="." unique_id=297312195]
+script = ExtResource("1_dowva")
+navigationMask = ExtResource("2_uw0y6")
+cellSize = 4
+bakeHalfSizes = PackedInt32Array(16, 32)
+metadata/_custom_type_script = "uid://cooykx73a50w8"
+
+[node name="BakeButton" type="Button" parent="." unique_id=1518791738]
+offset_left = 308.00003
+offset_top = 408.00003
+offset_right = 577.0
+offset_bottom = 464.00003
+scale = Vector2(5, 5)
+text = "Bake Navigation"
