@@ -66,6 +66,18 @@ func GetPhase() -> DefensePhase:
 	return _phase
 
 
+func GetDeploymentByCell(cell: Vector2i) -> DefenseDeploymentManager.DefenseDeployment:
+	return _deploymentManager.GetDeploymentByCell(cell)
+
+
+func GetTotalRecruitRatio() -> int:
+	return _deploymentManager.GetTotalRecruitRatio()
+
+
+func GetMaxRecruitRatio() -> int:
+	return DefenseDeploymentManager.MAX_RECRUIT_RATIO
+
+
 func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int, position: Vector2) -> bool:
 	if _phase != DefensePhase.DEPLOYMENT:
 		return false
@@ -153,6 +165,10 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 # 배치 확정
 func ConfirmDeployment() -> bool:
 	if _phase != DefensePhase.DEPLOYMENT:
+		return false
+
+	if _deploymentManager.GetTotalRecruitRatio() <= 0:
+		push_error("DefenseManager: 배치된 병력이 없습니다.")
 		return false
 
 	if not _unitGroupManager.Initialize(_deploymentManager, _startData.population):

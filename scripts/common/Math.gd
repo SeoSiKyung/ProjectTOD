@@ -5,6 +5,7 @@ const BIG_NUMBER: float = 1.0e30
 const SQRT_2: float = 1.41421356237
 
 const RATIO_SCALE: int = 1000
+const PERCENT_SCALE: int = 100
 
 const DIRECTIONS_4: Array[Vector2i] = [
 	Vector2i(0, -1),
@@ -26,10 +27,22 @@ const DIRECTIONS_8: Array[Vector2i] = [
 
 
 static func ApplyRatio(value: int, ratio: int) -> int:
+	@warning_ignore("integer_division")
 	return (value * ratio) / RATIO_SCALE
 
 
+static func PercentToRatio(percent: int) -> int:
+	@warning_ignore("integer_division")
+	return (percent * RATIO_SCALE) / PERCENT_SCALE
+
+
+static func RatioToPercent(ratio: int) -> int:
+	@warning_ignore("integer_division")
+	return (ratio * PERCENT_SCALE) / RATIO_SCALE
+
+
 static func CeilDivide(value: int, divisor: int) -> int:
+	@warning_ignore("integer_division")
 	return (value + divisor - 1) / divisor
 
 

@@ -6,6 +6,6 @@ characterKey,characterName,characterType,path,maxHp,maxMp,hpRegen,mpRegen,atk,ma
 ,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,
 ,,,,,,,,,,,,,,,
-,,,,,,,,,,,,,,,
-,,,,,,,,,,,,,,,
-1000,민병대,UNIT,res://unit/Unit.tscn ,100,0,1,0,10,0,5,0,80,5,100,0
+1000, 방패병 , UNIT ,res://unit/Unit.tscn ,150,0,1,0,7,0,10,0,70,4,100,300
+1001, 창병   , UNIT ,res://unit/Unit.tscn ,110,0,1,0,12,0,5,0,80,5,150,350
+1002, 궁병   , UNIT ,res://unit/Unit.tscn ,80,0,1,0,10,0,2,0,80,4,400,500

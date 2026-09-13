@@ -116,6 +116,7 @@ static func LoadCharacterData() -> Dictionary:
 
 		characterDataByKey[characterKey] = characterData
 
+	characterDataByKey.make_read_only()
 	return characterDataByKey
 
 
@@ -153,9 +154,18 @@ static func LoadDefenseSpawnData() -> Dictionary:
 		var spawnData: DefenseSpawnData = DefenseSpawnData.new(spawnTimeMs, characterKey, count)
 
 		if not spawnDataByCycle.has(cycle):
-			spawnDataByCycle[cycle] = []
+			var spawnDataList: Array[DefenseSpawnData] = []
+			spawnDataByCycle[cycle] = spawnDataList
 
-		spawnDataByCycle[cycle].append(spawnData)
+		var spawnDataList: Array[DefenseSpawnData] = spawnDataByCycle[cycle]
+		spawnDataList.append(spawnData)
+
+	for cycle: int in spawnDataByCycle:
+		var spawnDataList: Array[DefenseSpawnData] = spawnDataByCycle[cycle]
+		spawnDataList.sort_custom(_CompareDefenseSpawnTime)
+		spawnDataList.make_read_only()
+
+	spawnDataByCycle.make_read_only()
 
 	return spawnDataByCycle
 
@@ -169,7 +179,7 @@ static func ValidateDefenseSpawnDataReferences(
 	var isValid: bool = true
 
 	for cycle: int in spawnDataByCycle:
-		var spawnDataList: Array = spawnDataByCycle[cycle]
+		var spawnDataList: Array[DefenseSpawnData] = spawnDataByCycle[cycle]
 
 		for spawnData: DefenseSpawnData in spawnDataList:
 			var characterData: CharacterData = characterDataByKey.get(spawnData.characterKey)
@@ -220,6 +230,10 @@ static func _ReadInt(
 		return INVALID_INT
 
 	return value
+
+
+static func _CompareDefenseSpawnTime(a: DefenseSpawnData, b: DefenseSpawnData) -> bool:
+	return a.spawnTimeMs < b.spawnTimeMs
 
 
 static func _GetTablePath(category: String, tableName: String) -> String:

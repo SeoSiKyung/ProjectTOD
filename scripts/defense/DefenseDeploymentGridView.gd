@@ -13,21 +13,36 @@ signal CellClicked(cell: Vector2i)
 signal CellRightClicked(cell: Vector2i)
 
 var _grid: DefenseDeploymentGrid
+var _canInteractCell: Callable
 
 var _deploymentCells: Dictionary = { }
 
 var _hoverCell: Vector2i = Vector2i.ZERO
 var _hasHoverCell: bool = false
 
+var _mouseCell: Vector2i = Vector2i.ZERO
+var _hasMouseCell: bool = false
+
+var _isHoverLocked: bool = false
+
 
 func _process(_delta: float) -> void:
 	if _grid == null:
 		return
 
+	if _isHoverLocked:
+		return
+
 	var mousePosition: Vector2 = get_global_mouse_position()
 	var cell: Vector2i = _grid.WorldToCell(mousePosition)
 
-	if not _grid.IsValidCell(cell):
+	if _hasMouseCell and cell == _mouseCell:
+		return
+
+	_hasMouseCell = true
+	_mouseCell = cell
+
+	if not _CanInteractCell(cell):
 		if not _hasHoverCell:
 			return
 
@@ -59,6 +74,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _grid == null:
 		return
 
+	if _isHoverLocked:
+		return
+
 	if event is not InputEventMouseButton:
 		return
 
@@ -67,7 +85,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var cell: Vector2i = _grid.WorldToCell(get_global_mouse_position())
-	if not _grid.IsValidCell(cell):
+	if not _CanInteractCell(cell):
 		return
 
 	match mouseEvent.button_index:
@@ -78,8 +96,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			CellRightClicked.emit(cell)
 
 
-func Initialize(grid: DefenseDeploymentGrid) -> void:
+func Initialize(grid: DefenseDeploymentGrid, canInteractCell: Callable) -> void:
 	_grid = grid
+	_canInteractCell = canInteractCell
+
+	_hasHoverCell = false
+	_hasMouseCell = false
+	_isHoverLocked = false
 
 	queue_redraw()
 
@@ -93,6 +116,23 @@ func SetDeployment(cell: Vector2i) -> void:
 func RemoveDeployment(cell: Vector2i) -> void:
 	_deploymentCells.erase(cell)
 
+	queue_redraw()
+
+
+func LockHoverCell(cell: Vector2i) -> void:
+	if not _CanInteractCell(cell):
+		return
+
+	_isHoverLocked = true
+	_hasHoverCell = true
+	_hoverCell = cell
+
+	queue_redraw()
+
+
+func UnlockHoverCell() -> void:
+	_isHoverLocked = false
+	_hasMouseCell = false
 	queue_redraw()
 
 
@@ -141,3 +181,13 @@ func _GetCellRect(cell: Vector2i) -> Rect2:
 	var localPosition: Vector2 = to_local(worldPosition)
 
 	return Rect2(localPosition, Vector2.ONE * _grid.cellSize)
+
+
+func _CanInteractCell(cell: Vector2i) -> bool:
+	if not _grid.IsValidCell(cell):
+		return false
+
+	if not _canInteractCell.is_valid():
+		return true
+
+	return _canInteractCell.call(cell)

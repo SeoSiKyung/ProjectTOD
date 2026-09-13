@@ -41,7 +41,10 @@ func _Spawn(characterKey: int, spawnPosition: Vector2) -> Node2D:
 
 
 func _TakeInactiveObject(characterKey: int) -> Node2D:
-	var inactiveObjects: Array = _inactiveObjectsByCharacterKey.get(characterKey, [])
+	if not _inactiveObjectsByCharacterKey.has(characterKey):
+		return null
+
+	var inactiveObjects: Array = _inactiveObjectsByCharacterKey[characterKey]
 	if inactiveObjects.is_empty():
 		return null
 

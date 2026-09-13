@@ -15,6 +15,7 @@ class DefenseDeployment:
 
 
 var _deployments: Dictionary = { }
+var _totalRecruitRatio: int = 0
 
 
 func GetDeploymentCells() -> Array[Vector2i]:
@@ -29,6 +30,10 @@ func GetDeploymentByCell(cell: Vector2i) -> DefenseDeployment:
 	return _deployments.get(cell)
 
 
+func GetTotalRecruitRatio() -> int:
+	return _totalRecruitRatio
+
+
 func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
 	if _deployments.has(cell):
 		return false
@@ -37,14 +42,17 @@ func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool
 		return false
 
 	_deployments[cell] = DefenseDeployment.new(characterKey, recruitRatio)
+	_totalRecruitRatio += recruitRatio
 
 	return true
 
 
 func RemoveDeployment(cell: Vector2i) -> bool:
-	if not _deployments.has(cell):
+	var deployment: DefenseDeployment = _deployments.get(cell)
+	if deployment == null:
 		return false
 
+	_totalRecruitRatio -= deployment.recruitRatio
 	_deployments.erase(cell)
 
 	return true
@@ -55,9 +63,11 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 	if deployment == null:
 		return false
 
-	if not _CanChangeRecruitRatio(deployment.recruitRatio, recruitRatio):
+	var previousRecruitRatio: int = deployment.recruitRatio
+	if not _CanChangeRecruitRatio(previousRecruitRatio, recruitRatio):
 		return false
 
+	_totalRecruitRatio += recruitRatio - previousRecruitRatio
 	deployment.characterKey = characterKey
 	deployment.recruitRatio = recruitRatio
 
@@ -68,14 +78,5 @@ func _CanChangeRecruitRatio(previousRatio: int, newRatio: int) -> bool:
 	if newRatio <= 0:
 		return false
 
-	var updatedTotalRatio: int = _GetTotalRecruitRatio() - previousRatio + newRatio
+	var updatedTotalRatio: int = _totalRecruitRatio - previousRatio + newRatio
 	return updatedTotalRatio <= MAX_RECRUIT_RATIO
-
-
-func _GetTotalRecruitRatio() -> int:
-	var totalRecruitRatio: int = 0
-	for cell: Vector2i in _deployments:
-		var deployment: DefenseDeployment = _deployments[cell]
-		totalRecruitRatio += deployment.recruitRatio
-
-	return totalRecruitRatio

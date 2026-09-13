@@ -15,7 +15,6 @@ var _nextSpawnPositionIndex: int = 0
 
 func Initialize(cycle: int) -> void:
 	_spawnDataList = GameDataManager.GetDefenseSpawnData(cycle)
-	_spawnDataList.sort_custom(_CompareSpawnTime)
 
 	_nextSpawnIndex = 0
 	_nextSpawnPositionIndex = 0
@@ -51,7 +50,3 @@ func _GetNextSpawnPosition() -> Vector2:
 	return TEMP_SPAWN_POSITION + Vector2(column, row) * TEMP_SPAWN_SPACING
 	# TODO: 실제 Spawn Point 시스템 연결
 	# return _spawnPointManager.GetSpawnPosition()
-
-
-func _CompareSpawnTime(a: DefenseSpawnData, b: DefenseSpawnData) -> bool:
-	return a.spawnTimeMs < b.spawnTimeMs

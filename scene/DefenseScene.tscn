@@ -13,6 +13,12 @@ navigationData = ExtResource("3_ffq3l")
 
 [node name="MovementSimulator" type="Node" parent="." unique_id=645186438]
 script = ExtResource("5_ffq3l")
+fixedTickRate = null
+simulationQuantum = null
+candidateSpatialCellSize = null
+minAvoidSpeedRatio = null
+avoidPreviousVelocityWeight = null
+avoidSideChangePenalty = null
 
 [node name="TempMap" type="Sprite2D" parent="." unique_id=914540186]
 visible = false
@@ -41,6 +47,36 @@ script = ExtResource("5_to5m3")
 [node name="TrapPool" type="Node2D" parent="Pools" unique_id=1188199146]
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1224700570]
+
+[node name="DeploymentPanel" type="PanelContainer" parent="CanvasLayer" unique_id=1087225553]
+visible = false
+offset_right = 187.0
+offset_bottom = 60.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/DeploymentPanel" unique_id=626978669]
+layout_mode = 2
+
+[node name="CharacterButtonContainer" type="HBoxContainer" parent="CanvasLayer/DeploymentPanel/VBoxContainer" unique_id=119731575]
+layout_mode = 2
+
+[node name="RecruitRatioContainer" type="HBoxContainer" parent="CanvasLayer/DeploymentPanel/VBoxContainer" unique_id=1387139256]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="CanvasLayer/DeploymentPanel/VBoxContainer/RecruitRatioContainer" unique_id=468015328]
+layout_mode = 2
+
+[node name="RecruitRatioSpinBox" type="SpinBox" parent="CanvasLayer/DeploymentPanel/VBoxContainer/RecruitRatioContainer" unique_id=603133742]
+layout_mode = 2
+max_value = 30.0
+suffix = "%"
+
+[node name="ApplyButton" type="Button" parent="CanvasLayer/DeploymentPanel/VBoxContainer" unique_id=95337210]
+layout_mode = 2
+text = "확정"
+
+[node name="RecruitRatioLabel" type="Label" parent="CanvasLayer" unique_id=525627175]
+offset_right = 40.0
+offset_bottom = 48.0
 
 [node name="ConfirmButton" type="Button" parent="CanvasLayer" unique_id=1173458760]
 offset_left = 1579.0
