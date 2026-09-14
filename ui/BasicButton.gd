@@ -60,6 +60,11 @@ func _UpdateText():
 	button.add_theme_font_size_override("font_size", fontSize)
 
 
+func SetDisabled(disabled: bool) -> void:
+	_button.disabled = disabled
+	_SetNormal()
+
+
 func _OnButtonPressed():
 	action_pressed.emit(actionKey)
 
