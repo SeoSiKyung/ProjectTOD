@@ -4,4 +4,4 @@ extends RefCounted
 var cycle: int = 0
 var population: int = 0
 
-var commandPostMaxHp: int = 0
+var cpMaxHp: int = 0

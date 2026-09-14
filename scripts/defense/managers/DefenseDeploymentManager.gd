@@ -34,6 +34,25 @@ func GetTotalRecruitRatio() -> int:
 	return _totalRecruitRatio
 
 
+func GetMaxRecruitRatioForCell(cell: Vector2i) -> int:
+	var deployment: DefenseDeployment = _deployments.get(cell)
+
+	var previousRecruitRatio: int = 0
+	if deployment != null:
+		previousRecruitRatio = deployment.recruitRatio
+
+	return MAX_RECRUIT_RATIO - (_totalRecruitRatio - previousRecruitRatio)
+
+
+func CalculateTotalRecruitedPopulation(totalPopulation: int) -> int:
+	var totalRecruitedPopulation: int = 0
+	for cell: Vector2i in _deployments:
+		var deployment: DefenseDeployment = _deployments[cell]
+		totalRecruitedPopulation += Math.ApplyRatio(totalPopulation, deployment.recruitRatio)
+
+	return totalRecruitedPopulation
+
+
 func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
 	if _deployments.has(cell):
 		return false

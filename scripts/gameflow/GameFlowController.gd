@@ -131,7 +131,7 @@ func SubmitDefenseResult(result: DefenseResult) -> bool:
 	# =====================================================
 	# Defense 패배
 	# =====================================================
-	if (not result.isVictory or result.commandPostDestroyed):
+	if (not result.isVictory or result.cpDestroyed):
 		GameOverRequested.emit(result)
 
 		return true

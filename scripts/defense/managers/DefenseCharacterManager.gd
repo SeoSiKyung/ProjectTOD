@@ -53,5 +53,7 @@ func _BindStatus(character: Unit, status: DefenseCharacterStatus) -> bool:
 	if _statusByCharacter.has(character):
 		return false
 
+	character.moveSpeed = status.moveSpeed
+
 	_statusByCharacter[character] = status
 	return true

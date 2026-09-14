@@ -76,8 +76,8 @@ func _ready() -> void:
 		if parent != null:
 			var node: Node = parent.get_node_or_null("NavigationService")
 
-			if node is NavigationService:
-				navigationService = node as NavigationService
+			#if node is NavigationService:
+				#navigationService = node as NavigationService
 
 	call_deferred("_RegisterSceneUnits")
 

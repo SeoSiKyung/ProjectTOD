@@ -68,6 +68,33 @@ func GetPopulationSummary() -> DefensePopulationSummary:
 	return summary
 
 
+func GetRecruitedPopulation() -> int:
+	var population: int = 0
+	for cell: Vector2i in _unitGroupStatusByCell:
+		var status: DefenseUnitGroupStatus = _unitGroupStatusByCell[cell]
+		population += status.recruitedPopulation
+
+	return population
+
+
+func GetSurvivingPopulation() -> int:
+	var population: int = 0
+	for cell: Vector2i in _unitGroupStatusByCell:
+		var status: DefenseUnitGroupStatus = _unitGroupStatusByCell[cell]
+		population += status.survivingPopulation
+
+	return population
+
+
+func GetDeadPopulation() -> int:
+	var population: int = 0
+	for cell: Vector2i in _unitGroupStatusByCell:
+		var status: DefenseUnitGroupStatus = _unitGroupStatusByCell[cell]
+		population += status.GetDeadPopulation()
+
+	return population
+
+
 func _CreateUnitGroupStatus(
 	deployment: DefenseDeploymentManager.DefenseDeployment,
 	totalPopulation: int,
