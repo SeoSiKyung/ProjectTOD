@@ -529,7 +529,7 @@ func _CheckVictory() -> void:
 func _CreateResult(isVictory: bool, cpDestroyed: bool) -> DefenseResult:
 	var result: DefenseResult = DefenseResult.new()
 	result.isVictory = isVictory
-	result.commandPostDestroyed = cpDestroyed
+	result.cpDestroyed = cpDestroyed
 
 	var populationSummary: DefenseUnitGroupManager.DefensePopulationSummary = _unitGroupManager.GetPopulationSummary()
 	result.recruitedPopulation = populationSummary.recruitedPopulation
