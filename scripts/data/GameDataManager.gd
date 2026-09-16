@@ -50,24 +50,9 @@ func GetDefenseSpawnData(cycle: int) -> Array[DefenseSpawnData]:
 # 여기서 Load 함수 호출
 func _LoadGameData() -> void:
 	_characterDataByKey = GameDataLoader.LoadCharacterData()
+	_characterDataByType = _BuildCharacterDataByType()
 	_defenseSpawnDataByCycle = GameDataLoader.LoadDefenseSpawnData()
 
-	var characterTypes: Array = CharacterData.CharacterType.values()
-	for characterType: CharacterData.CharacterType in characterTypes:
-		var characterDataList: Array[CharacterData] = []
-		_characterDataByType[characterType] = characterDataList
-
-	for characterKey: int in _characterDataByKey:
-		var characterData: CharacterData = _characterDataByKey[characterKey]
-		var characterDataList: Array[CharacterData] = _characterDataByType[
-			characterData.characterType
-		]
-		characterDataList.append(characterData)
-
-	for characterType: CharacterData.CharacterType in characterTypes:
-		_characterDataByType[characterType].make_read_only()
-
-	_characterDataByType.make_read_only()
 	_emptyDefenseSpawnDataList.make_read_only()
 
 
@@ -82,3 +67,25 @@ func _ValidateGameData() -> bool:
 		isValid = false
 
 	return isValid
+
+
+func _BuildCharacterDataByType() -> Dictionary:
+	var characterDataByType: Dictionary = { }
+	var characterTypes: Array = CharacterData.CharacterType.values()
+
+	for characterType: CharacterData.CharacterType in characterTypes:
+		var characterDataList: Array[CharacterData] = []
+		characterDataByType[characterType] = characterDataList
+
+	for characterKey: int in _characterDataByKey:
+		var characterData: CharacterData = _characterDataByKey[characterKey]
+		var characterDataList: Array[CharacterData] = characterDataByType[
+			characterData.characterType
+		]
+		characterDataList.append(characterData)
+
+	for characterType: CharacterData.CharacterType in characterTypes:
+		characterDataByType[characterType].make_read_only()
+
+	characterDataByType.make_read_only()
+	return characterDataByType

@@ -1,16 +1,16 @@
-class_name DefenseCommandPostManager
+class_name DefenseCPManager
 extends RefCounted
 
-signal CommandPostDestroyed
+signal CPDestroyed
 
-var _status: DefenseCommandPostStatus
+var _status: DefenseCPStatus
 
 
 func Initialize(maxHp: int) -> bool:
 	if maxHp <= 0:
 		return false
 
-	_status = DefenseCommandPostStatus.new(maxHp)
+	_status = DefenseCPStatus.new(maxHp)
 	return true
 
 
@@ -21,12 +21,12 @@ func TakeDamage(damage: int) -> bool:
 	_status.TakeDamage(damage)
 
 	if _status.IsDestroyed():
-		CommandPostDestroyed.emit()
+		CPDestroyed.emit()
 
 	return true
 
 
-func GetStatus() -> DefenseCommandPostStatus:
+func GetStatus() -> DefenseCPStatus:
 	return _status
 
 

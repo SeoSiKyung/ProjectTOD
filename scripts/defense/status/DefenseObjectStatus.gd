@@ -3,11 +3,21 @@ extends RefCounted
 
 var maxHp: int
 var currentHp: int
+var hpRegen: int
+
+var maxMp: int
+var currentMp: int
+var mpRegen: int
 
 
-func _init(pMaxHp: int) -> void:
+func _init(pMaxHp: int, pMaxMp: int, pHpRegen: int, pMpRegen: int) -> void:
 	maxHp = pMaxHp
 	currentHp = maxHp
+	hpRegen = pHpRegen
+
+	maxMp = pMaxMp
+	currentMp = maxMp
+	mpRegen = pMpRegen
 
 
 func TakeDamage(damage: int) -> void:

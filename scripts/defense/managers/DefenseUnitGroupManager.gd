@@ -1,13 +1,6 @@
 class_name DefenseUnitGroupManager
 extends DefenseCharacterManager
 
-
-class DefensePopulationSummary:
-	var recruitedPopulation: int = 0
-	var survivingPopulation: int = 0
-	var deadPopulation: int = 0
-
-
 var _unitGroupStatusByCell: Dictionary = { }
 
 
@@ -57,15 +50,31 @@ func GetUnitGroupStatusByCell(cell: Vector2i) -> DefenseUnitGroupStatus:
 	return _unitGroupStatusByCell.get(cell)
 
 
-func GetPopulationSummary() -> DefensePopulationSummary:
-	var summary: DefensePopulationSummary = DefensePopulationSummary.new()
+func GetRecruitedPopulation() -> int:
+	var population: int = 0
 	for cell: Vector2i in _unitGroupStatusByCell:
 		var status: DefenseUnitGroupStatus = _unitGroupStatusByCell[cell]
-		summary.recruitedPopulation += status.recruitedPopulation
-		summary.survivingPopulation += status.survivingPopulation
-		summary.deadPopulation += status.GetDeadPopulation()
+		population += status.recruitedPopulation
 
-	return summary
+	return population
+
+
+func GetSurvivingPopulation() -> int:
+	var population: int = 0
+	for cell: Vector2i in _unitGroupStatusByCell:
+		var status: DefenseUnitGroupStatus = _unitGroupStatusByCell[cell]
+		population += status.survivingPopulation
+
+	return population
+
+
+func GetDeadPopulation() -> int:
+	var population: int = 0
+	for cell: Vector2i in _unitGroupStatusByCell:
+		var status: DefenseUnitGroupStatus = _unitGroupStatusByCell[cell]
+		population += status.GetDeadPopulation()
+
+	return population
 
 
 func _CreateUnitGroupStatus(

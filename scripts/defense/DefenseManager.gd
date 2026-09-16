@@ -16,7 +16,7 @@ var _movementSimulator: MovementSimulator
 var _deploymentManager: DefenseDeploymentManager
 var _unitGroupManager: DefenseUnitGroupManager
 var _monsterManager: DefenseMonsterManager
-var _commandPostManager: DefenseCommandPostManager
+var _cpManager: DefenseCPManager
 var _spawnManager: DefenseSpawnManager
 var _timeManager: DefenseTimeManager
 
@@ -46,8 +46,8 @@ func _init(
 	_unitGroupManager.CharacterDied.connect(_OnCharacterDied)
 	_monsterManager = DefenseMonsterManager.new()
 	_monsterManager.CharacterDied.connect(_OnCharacterDied)
-	_commandPostManager = DefenseCommandPostManager.new()
-	_commandPostManager.CommandPostDestroyed.connect(_OnCommandPostDestroyed)
+	_cpManager = DefenseCPManager.new()
+	_cpManager.CPDestroyed.connect(_OnCPDestroyed)
 	_spawnManager = DefenseSpawnManager.new()
 	_spawnManager.MonsterSpawnRequested.connect(_OnMonsterSpawnRequested)
 	_timeManager = DefenseTimeManager.new()
@@ -78,8 +78,67 @@ func GetMaxRecruitRatio() -> int:
 	return DefenseDeploymentManager.MAX_RECRUIT_RATIO
 
 
+func GetMaxRecruitRatioForCell(cell: Vector2i) -> int:
+	return _deploymentManager.GetMaxRecruitRatioForCell(cell)
+
+
+func GetTotalRecruitedPopulation() -> int:
+	return _deploymentManager.CalculateTotalRecruitedPopulation(_startData.population)
+
+
+func GetElapsedTimeMs() -> int:
+	return _timeManager.GetElapsedTimeMs()
+
+
+func GetCPMaxHp() -> int:
+	var status: DefenseCPStatus = _cpManager.GetStatus()
+	if status == null:
+		return 0
+
+	return status.maxHp
+
+
+func GetCPCurrentHp() -> int:
+	var status: DefenseCPStatus = _cpManager.GetStatus()
+	if status == null:
+		return 0
+
+	return status.currentHp
+
+
+func GetCPMaxMp() -> int:
+	var status: DefenseCPStatus = _cpManager.GetStatus()
+	if status == null:
+		return 0
+
+	return status.maxMp
+
+
+func GetCPCurrentMp() -> int:
+	var status: DefenseCPStatus = _cpManager.GetStatus()
+	if status == null:
+		return 0
+
+	return status.currentMp
+
+
+func GetRecruitedPopulation() -> int:
+	return _unitGroupManager.GetRecruitedPopulation()
+
+
+func GetSurvivingPopulation() -> int:
+	return _unitGroupManager.GetSurvivingPopulation()
+
+
+func GetDeadPopulation() -> int:
+	return _unitGroupManager.GetDeadPopulation()
+
+
 func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int, position: Vector2) -> bool:
 	if _phase != DefensePhase.DEPLOYMENT:
+		return false
+
+	if not _CanRecruitPopulation(recruitRatio):
 		return false
 
 	if not _deploymentManager.AddDeployment(cell, characterKey, recruitRatio):
@@ -125,6 +184,9 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 	if _phase != DefensePhase.DEPLOYMENT:
 		return false
 
+	if not _CanRecruitPopulation(recruitRatio):
+		return false
+
 	var deployment := _deploymentManager.GetDeploymentByCell(cell)
 	if deployment == null:
 		return false
@@ -132,34 +194,7 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 	if deployment.characterKey == characterKey:
 		return _deploymentManager.UpdateDeployment(cell, characterKey, recruitRatio)
 
-	var unit: Unit = _deploymentUnitsByCell.get(cell)
-	if unit == null:
-		push_error("DefenseManager: 배치 데이터에 대응하는 Unit이 없습니다. cell: " + str(cell))
-		return false
-
-	var previousCharacterKey: int = deployment.characterKey
-	var previousRecruitRatio: int = deployment.recruitRatio
-
-	if not _deploymentManager.UpdateDeployment(cell, characterKey, recruitRatio):
-		return false
-
-	var newUnit: Unit = _SpawnDeploymentUnit(characterKey, unit.position)
-	if newUnit == null:
-		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
-		return false
-
-	if not _ReturnToPool(unit, _unitPoolManager):
-		if not _ReturnToPool(newUnit, _unitPoolManager):
-			push_error("DefenseManager: 새 배치 Unit 롤백 반환에 실패했습니다. cell: " + str(cell))
-
-		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
-
-		push_error("DefenseManager: 기존 배치 Unit 반환에 실패했습니다. cell: " + str(cell))
-		return false
-
-	_deploymentUnitsByCell[cell] = newUnit
-
-	return true
+	return _ReplaceDeploymentUnit(cell, deployment, characterKey, recruitRatio)
 
 
 # 배치 확정
@@ -171,43 +206,24 @@ func ConfirmDeployment() -> bool:
 		push_error("DefenseManager: 배치된 병력이 없습니다.")
 		return false
 
-	if not _unitGroupManager.Initialize(_deploymentManager, _startData.population):
-		push_error("DefenseManager: UnitGroupStatus 초기화에 실패했습니다.")
-		return false
-
-	if not _unitGroupManager.HasAliveUnitGroup():
-		push_error("DefenseManager: 배치된 병력이 없습니다.")
-		_unitGroupManager.Clear()
+	if not _InitializeUnitGroups():
 		return false
 
 	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
-	for cell: Vector2i in cells:
-		var unit: Unit = _deploymentUnitsByCell.get(cell)
-		if unit == null or _unitGroupManager.GetUnitGroupStatusByCell(cell) == null:
-			push_error("DefenseManager: 배치 데이터와 UnitGroupStatus가 일치하지 않습니다. cell: " + str(cell))
-			_unitGroupManager.Clear()
-			return false
-
-	if not _commandPostManager.Initialize(_startData.commandPostMaxHp):
-		push_error("DefenseManager: 지휘소 초기화에 실패했습니다.")
-		_unitGroupManager.Clear()
+	if not _ValidateDeploymentUnits(cells):
+		_RollbackDeploymentConfirmation()
 		return false
 
-	for cell: Vector2i in cells:
-		var unit: Unit = _deploymentUnitsByCell[cell]
-		if not _unitGroupManager.BindUnit(cell, unit):
-			push_error("DefenseManager: UnitGroupStatus 연결에 실패했습니다. cell: " + str(cell))
-			_unitGroupManager.Clear()
-			_commandPostManager.Clear()
-			return false
+	if not _cpManager.Initialize(_startData.cpMaxHp):
+		push_error("DefenseManager: 지휘소 초기화에 실패했습니다.")
+		_RollbackDeploymentConfirmation()
+		return false
 
-	_deploymentUnitsByCell.clear()
+	if not _BindDeploymentUnits(cells):
+		_RollbackDeploymentConfirmation()
+		return false
 
-	_spawnManager.Initialize(_startData.cycle)
-	_timeManager.Initialize()
-
-	_phase = DefensePhase.BATTLE
-
+	_StartBattle()
 	return true
 
 
@@ -246,6 +262,10 @@ func Attack(attacker: Unit, target: Unit) -> bool:
 	return targetManager.TakeDamage(target, damage)
 
 
+func CalculateRecruitedPopulation(recruitRatio: int) -> int:
+	return Math.ApplyRatio(_startData.population, recruitRatio)
+
+
 func PauseBattle() -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
@@ -260,13 +280,13 @@ func ResumeBattle() -> void:
 	_timeManager.Resume()
 
 
-func FinishDefense(isVictory: bool, commandPostDestroyed: bool = false) -> DefenseResult:
+func FinishDefense(isVictory: bool, cpDestroyed: bool = false) -> DefenseResult:
 	if _phase != DefensePhase.BATTLE:
 		return null
 
 	_timeManager.Pause()
 
-	var result: DefenseResult = _CreateResult(isVictory, commandPostDestroyed)
+	var result: DefenseResult = _CreateResult(isVictory, cpDestroyed)
 
 	_phase = DefensePhase.FINISHED
 
@@ -306,7 +326,7 @@ func _OnCharacterDied(character: Unit, status: DefenseCharacterStatus) -> void:
 		FinishDefense(false)
 
 
-func _OnCommandPostDestroyed() -> void:
+func _OnCPDestroyed() -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
@@ -328,6 +348,92 @@ func _OnMonsterSpawnRequested(characterKey: int, spawnPosition: Vector2) -> void
 	if not _monsterManager.AddMonster(monster, characterKey):
 		if not _ReturnToPool(monster, _monsterPoolManager):
 			push_error("DefenseManager: Monster 등록 실패 후 반환에 실패했습니다. unitId: " + str(monster.unitId))
+
+
+func _ReplaceDeploymentUnit(
+	cell: Vector2i,
+	deployment: DefenseDeploymentManager.DefenseDeployment,
+	characterKey: int,
+	recruitRatio: int,
+) -> bool:
+	var unit: Unit = _deploymentUnitsByCell.get(cell)
+	if unit == null:
+		push_error("DefenseManager: 배치 데이터에 대응하는 Unit이 없습니다. cell: " + str(cell))
+		return false
+
+	var previousCharacterKey: int = deployment.characterKey
+	var previousRecruitRatio: int = deployment.recruitRatio
+
+	if not _deploymentManager.UpdateDeployment(cell, characterKey, recruitRatio):
+		return false
+
+	var newUnit: Unit = _SpawnDeploymentUnit(characterKey, unit.position)
+	if newUnit == null:
+		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
+		return false
+
+	if not _ReturnToPool(unit, _unitPoolManager):
+		if not _ReturnToPool(newUnit, _unitPoolManager):
+			push_error("DefenseManager: 새 배치 Unit 롤백 반환에 실패했습니다. cell: " + str(cell))
+
+		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
+
+		push_error("DefenseManager: 기존 배치 Unit 반환에 실패했습니다. cell: " + str(cell))
+		return false
+
+	_deploymentUnitsByCell[cell] = newUnit
+	return true
+
+
+func _InitializeUnitGroups() -> bool:
+	if not _unitGroupManager.Initialize(_deploymentManager, _startData.population):
+		push_error("DefenseManager: UnitGroupStatus 초기화에 실패했습니다.")
+		return false
+
+	if not _unitGroupManager.HasAliveUnitGroup():
+		push_error("DefenseManager: 배치된 병력이 없습니다.")
+		_unitGroupManager.Clear()
+		return false
+
+	return true
+
+
+func _ValidateDeploymentUnits(cells: Array[Vector2i]) -> bool:
+	for cell: Vector2i in cells:
+		var unit: Unit = _deploymentUnitsByCell.get(cell)
+		if unit == null or _unitGroupManager.GetUnitGroupStatusByCell(cell) == null:
+			push_error("DefenseManager: 배치 데이터와 UnitGroupStatus가 일치하지 않습니다. cell: " + str(cell))
+			return false
+
+	return true
+
+
+func _BindDeploymentUnits(cells: Array[Vector2i]) -> bool:
+	for cell: Vector2i in cells:
+		var unit: Unit = _deploymentUnitsByCell[cell]
+		if not _unitGroupManager.BindUnit(cell, unit):
+			push_error("DefenseManager: UnitGroupStatus 연결에 실패했습니다. cell: " + str(cell))
+			return false
+
+	return true
+
+
+func _RollbackDeploymentConfirmation() -> void:
+	_unitGroupManager.Clear()
+	_cpManager.Clear()
+
+
+func _StartBattle() -> void:
+	_deploymentUnitsByCell.clear()
+
+	_spawnManager.Initialize(_startData.cycle)
+	_timeManager.Initialize()
+
+	_phase = DefensePhase.BATTLE
+
+
+func _CanRecruitPopulation(recruitRatio: int) -> bool:
+	return CalculateRecruitedPopulation(recruitRatio) > 0
 
 
 func _SpawnDeploymentUnit(characterKey: int, position: Vector2) -> Unit:
@@ -430,15 +536,15 @@ func _CheckVictory() -> void:
 	FinishDefense(true)
 
 
-func _CreateResult(isVictory: bool, commandPostDestroyed: bool) -> DefenseResult:
+func _CreateResult(isVictory: bool, cpDestroyed: bool) -> DefenseResult:
 	var result: DefenseResult = DefenseResult.new()
 	result.isVictory = isVictory
-	result.commandPostDestroyed = commandPostDestroyed
+	result.cpDestroyed = cpDestroyed
+	result.elapsedTimeMs = _timeManager.GetElapsedTimeMs()
 
-	var populationSummary: DefenseUnitGroupManager.DefensePopulationSummary = _unitGroupManager.GetPopulationSummary()
-	result.recruitedPopulation = populationSummary.recruitedPopulation
-	result.survivingPopulation = populationSummary.survivingPopulation
-	result.deadPopulation = populationSummary.deadPopulation
+	result.recruitedPopulation = _unitGroupManager.GetRecruitedPopulation()
+	result.survivingPopulation = _unitGroupManager.GetSurvivingPopulation()
+	result.deadPopulation = _unitGroupManager.GetDeadPopulation()
 
 	return result
 
@@ -449,7 +555,7 @@ func _CleanupBattle() -> void:
 
 	_unitGroupManager.Clear()
 	_monsterManager.Clear()
-	_commandPostManager.Clear()
+	_cpManager.Clear()
 
 
 func _CleanupCharacters(

@@ -9,7 +9,7 @@ func CreateStartData(campaign: CampaignState, population: int) -> DefenseStartDa
 	startData.cycle = campaign.cycle
 	startData.population = population
 
-	startData.commandPostMaxHp = TEMP_COMMAND_POST_MAX_HP
+	startData.cpMaxHp = TEMP_COMMAND_POST_MAX_HP
 
 	return startData
 
