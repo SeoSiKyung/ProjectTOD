@@ -10,6 +10,7 @@ var moveCommandId: int = UnitCommand.INVALID_COMMAND_ID
 var moveTarget: Vector2 = Vector2.ZERO
 var arrivalRadius: float = 0.0
 var settleTickCount: int = 0
+var settleProgressDistance: float = INF
 var isSettled: bool = false
 var isPaused: bool = false
 var _pathFollower: PathFollower
@@ -43,10 +44,12 @@ func Stop() -> void:
 func Pause() -> void:
 	isPaused = true
 	lastMoveDelta = Vector2.ZERO
+	ResetSettleProgress()
 
 
 func Resume() -> void:
 	isPaused = false
+	ResetSettleProgress()
 		
 func SetPath(path: PackedVector2Array) -> void:
 	_ResetMoveCommand()
@@ -62,7 +65,7 @@ func BeginMove(
 	moveCommandId = commandId
 	moveTarget = target
 	arrivalRadius = maxf(pArrivalRadius, 0.0)
-	settleTickCount = 0
+	ResetSettleProgress()
 	isSettled = false
 	isPaused = false
 	_SetPath(path)
@@ -79,10 +82,19 @@ func Settle() -> void:
 
 func ResetSettleProgress() -> void:
 	settleTickCount = 0
+	settleProgressDistance = position.distance_to(moveTarget)
 
 
 func AdvanceSettleProgress() -> void:
 	settleTickCount += 1
+
+
+func TrackGoalProgress(minimumProgress: float) -> void:
+	var distance: float = position.distance_to(moveTarget)
+	if distance <= settleProgressDistance - minimumProgress:
+		ResetSettleProgress()
+	else:
+		AdvanceSettleProgress()
 
 
 func _SetPath(path: PackedVector2Array) -> void:
@@ -95,6 +107,7 @@ func _ResetMoveCommand() -> void:
 	moveTarget = Vector2.ZERO
 	arrivalRadius = 0.0
 	settleTickCount = 0
+	settleProgressDistance = INF
 	isSettled = false
 	isPaused = false
 	
