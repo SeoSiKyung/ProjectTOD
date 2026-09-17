@@ -6,10 +6,16 @@ const DEFAULT_SLOT_CAPACITY: int = 512
 
 var _slots: UnitSlotStorage
 var _slotsByCell: Dictionary[Vector2i, Array] = {}
+var _spatialCellSize: float = SPATIAL_CELL_SIZE
 
 
-func _init(initialCapacity: int = DEFAULT_SLOT_CAPACITY) -> void:
+func _init(
+	initialCapacity: int = DEFAULT_SLOT_CAPACITY,
+	spatialCellSize: float = SPATIAL_CELL_SIZE,
+) -> void:
 	_slots = UnitSlotStorage.new(initialCapacity)
+	if is_finite(spatialCellSize) and spatialCellSize > 0.0:
+		_spatialCellSize = spatialCellSize
 
 
 func GetUnitCount() -> int:
@@ -245,6 +251,6 @@ func _removeSlotFromCells(slot: int, minCell: Vector2i, maxCell: Vector2i) -> vo
 
 func _getCell(position: Vector2) -> Vector2i:
 	return Vector2i(
-		floori(position.x / SPATIAL_CELL_SIZE),
-		floori(position.y / SPATIAL_CELL_SIZE),
+		floori(position.x / _spatialCellSize),
+		floori(position.y / _spatialCellSize),
 	)

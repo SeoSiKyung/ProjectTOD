@@ -34,27 +34,67 @@ anchor_mode = 0
 
 [node name="Unit0" parent="UnitRoot" unique_id=1678754068 instance=ExtResource("5_wohdj")]
 position = Vector2(500, 461)
-moveSpeed = 2.0
+moveSpeed = 3.0
 
 [node name="Unit1" parent="UnitRoot" unique_id=1504537226 instance=ExtResource("5_wohdj")]
 position = Vector2(506, 521)
 unitId = 1
-moveSpeed = 2.0
+moveSpeed = 3.0
 
 [node name="Unit2" parent="UnitRoot" unique_id=902946586 instance=ExtResource("5_wohdj")]
 position = Vector2(543, 476)
 unitId = 2
-moveSpeed = 2.0
+moveSpeed = 3.0
 
 [node name="Unit3" parent="UnitRoot" unique_id=1187485307 instance=ExtResource("5_wohdj")]
 position = Vector2(516, 395)
 unitId = 3
-moveSpeed = 2.0
+moveSpeed = 3.0
 
 [node name="Unit4" parent="UnitRoot" unique_id=22581196 instance=ExtResource("5_wohdj")]
 position = Vector2(571, 427)
 unitId = 4
-moveSpeed = 2.0
+moveSpeed = 3.0
+
+[node name="Unit5" parent="UnitRoot" unique_id=470747039 instance=ExtResource("5_wohdj")]
+position = Vector2(730, 467)
+unitId = 4
+moveSpeed = 3.0
+
+[node name="Unit6" parent="UnitRoot" unique_id=1971016170 instance=ExtResource("5_wohdj")]
+position = Vector2(662, 316)
+unitId = 4
+moveSpeed = 3.0
+
+[node name="Unit7" parent="UnitRoot" unique_id=450610716 instance=ExtResource("5_wohdj")]
+position = Vector2(559, 342)
+unitId = 4
+moveSpeed = 3.0
+
+[node name="Unit8" parent="UnitRoot" unique_id=2058513480 instance=ExtResource("5_wohdj")]
+position = Vector2(698, 365)
+unitId = 4
+moveSpeed = 3.0
+
+[node name="Unit9" parent="UnitRoot" unique_id=160896245 instance=ExtResource("5_wohdj")]
+position = Vector2(674, 495)
+unitId = 4
+moveSpeed = 3.0
+
+[node name="Unit10" parent="UnitRoot" unique_id=1024177566 instance=ExtResource("5_wohdj")]
+position = Vector2(603, 489)
+unitId = 4
+moveSpeed = 3.0
+
+[node name="Unit11" parent="UnitRoot" unique_id=1877947160 instance=ExtResource("5_wohdj")]
+position = Vector2(597, 372)
+unitId = 4
+moveSpeed = 3.0
+
+[node name="Unit12" parent="UnitRoot" unique_id=1320856179 instance=ExtResource("5_wohdj")]
+position = Vector2(659, 426)
+unitId = 4
+moveSpeed = 3.0
 
 [node name="CommandPannel" type="CanvasLayer" parent="." unique_id=1036861275]
 script = ExtResource("11_o4skl")

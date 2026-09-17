@@ -313,7 +313,7 @@ func _initializeSystems() -> void:
 
 	_unitManager = UnitManager.new()
 	_stageSnapshot = StageSnapshot.new(initialUnitCapacity)
-	_movementSimulator = MovementSimulator.new(_navigationService)
+	_movementSimulator = MovementSimulator.new(_navigationService, _unitManager)
 	_moveCommandProcessor = MoveCommandProcessor.new(_navigationService, _movementSimulator)
 	_isInitialized = true
 	_registerExistingUnits()

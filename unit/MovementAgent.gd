@@ -5,7 +5,7 @@ var unitId: int = -1
 var position: Vector2 = Vector2.ZERO
 var moveSpeed: float = 0.0
 var halfSize: int = 0
-var lastVelocity: Vector2 = Vector2.ZERO
+var lastMoveDelta: Vector2 = Vector2.ZERO
 var moveCommandId: int = UnitCommand.INVALID_COMMAND_ID
 var moveTarget: Vector2 = Vector2.ZERO
 var arrivalRadius: float = 0.0
@@ -26,9 +26,9 @@ func Move(newPosition: Vector2, fixedDt: float) -> void:
 	position = newPosition
 	
 	if fixedDt <= Math.EPSILON:
-		lastVelocity = Vector2.ZERO
+		lastMoveDelta = Vector2.ZERO
 	else:
-		lastVelocity = (position - prevPosition) / fixedDt
+		lastMoveDelta = position - prevPosition
 	
 func Teleport(newPosition: Vector2) -> void:
 	position = newPosition
@@ -42,7 +42,7 @@ func Stop() -> void:
 
 func Pause() -> void:
 	isPaused = true
-	lastVelocity = Vector2.ZERO
+	lastMoveDelta = Vector2.ZERO
 
 
 func Resume() -> void:
@@ -100,30 +100,18 @@ func _ResetMoveCommand() -> void:
 	
 func _ClearPath() -> void:
 	_pathFollower.ClearPath()
-	lastVelocity = Vector2.ZERO
+	lastMoveDelta = Vector2.ZERO
 	
 func HasPath() -> bool:
 	return not _pathFollower.IsEmpty()
 	
-func GetDesiredPosition(fixedDt: float) -> Vector2:
-	if isPaused or moveSpeed <= 0:
+func GetDesiredPosition() -> Vector2:
+	if isPaused or moveSpeed <= 0.0:
 		return position
 
-	return _pathFollower.GetDesiredPosition(
-		position,
-		moveSpeed
-	)
-
-	var maxStepDistance: float = moveSpeed * fixedDt
+	var maxStepDistance: float = moveSpeed
 	return _pathFollower.GetDesiredPosition(position, maxStepDistance)
 
 func CommitMovement(newPosition: Vector2, fixedDelta: float) -> void:
-	var prevPosition: Vector2 = position
-	position = newPosition
-
-	if fixedDelta <= Math.EPSILON:
-		lastVelocity = Vector2.ZERO
-	else:
-		lastVelocity = (position - prevPosition) / fixedDelta
-
+	Move(newPosition, fixedDelta)
 	_pathFollower.OnMovementCommitted(position)
