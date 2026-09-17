@@ -9,7 +9,8 @@ enum CharacterType {
 var characterKey: int
 var characterName: String
 var characterType: CharacterType
-var path: String
+var iconPath: String
+var prefabPath: String
 
 var maxHp: int
 var maxMp: int
@@ -32,7 +33,8 @@ func _init(
 	pCharacterKey: int,
 	pCharacterName: String,
 	pCharacterType: CharacterType,
-	pPath: String,
+	pIconPath: String,
+	pPrefabPath: String,
 	pMaxHp: int,
 	pMaxMp: int,
 	pHpRegen: int,
@@ -49,7 +51,8 @@ func _init(
 	characterKey = pCharacterKey
 	characterName = pCharacterName
 	characterType = pCharacterType
-	path = pPath
+	iconPath = pIconPath
+	prefabPath = pPrefabPath
 
 	maxHp = pMaxHp
 	maxMp = pMaxMp

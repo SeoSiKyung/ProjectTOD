@@ -3,13 +3,15 @@ extends RefCounted
 
 signal CPDestroyed
 
+var _cp: DefenseCP
 var _status: DefenseCPStatus
 
 
-func Initialize(maxHp: int) -> bool:
+func Initialize(cp: DefenseCP, maxHp: int) -> bool:
 	if maxHp <= 0:
 		return false
 
+	_cp = cp
 	_status = DefenseCPStatus.new(maxHp)
 	return true
 
@@ -26,8 +28,16 @@ func TakeDamage(damage: int) -> bool:
 	return true
 
 
+func GetCP() -> DefenseCP:
+	return _cp
+
+
 func GetStatus() -> DefenseCPStatus:
 	return _status
+
+
+func GetPosition() -> Vector2:
+	return _cp.global_position
 
 
 func Clear() -> void:

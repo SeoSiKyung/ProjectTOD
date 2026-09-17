@@ -1,0 +1,26 @@
+[gd_scene format=3 uid="uid://dmtwwqwhhf1qk"]
+
+[ext_resource type="Script" uid="uid://dcpgsdw2a43o3" path="res://unit/Unit.gd" id="1_7j605"]
+[ext_resource type="Texture2D" uid="uid://b18e5tm3eps62" path="res://picture/unit/select.png" id="2_kfn30"]
+[ext_resource type="Texture2D" uid="uid://by8f24ofm07iq" path="res://icon.svg" id="3_ftjm2"]
+[ext_resource type="Script" uid="uid://ccopnk7wvkco" path="res://unit/MovementComponent.gd" id="4_cg486"]
+[ext_resource type="Script" uid="uid://n2eesa5plefo" path="res://unit/UnitFSM.gd" id="5_7qt7g"]
+
+[node name="Unit" type="Node2D" unique_id=470747039]
+script = ExtResource("1_7j605")
+
+[node name="select" type="Sprite2D" parent="." unique_id=2070701182]
+visible = false
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("2_kfn30")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=617625335]
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("3_ftjm2")
+
+[node name="MovementComponent" type="Node" parent="." unique_id=262552955]
+script = ExtResource("4_cg486")
+metadata/_custom_type_script = "uid://ccopnk7wvkco"
+
+[node name="UnitFSM" type="Node" parent="." unique_id=404963815]
+script = ExtResource("5_7qt7g")

@@ -75,8 +75,6 @@ func _DeactivateObject(object: Node2D) -> void:
 
 
 class MonsterPoolManager extends DefensePoolManager:
-	# TODO: 실제 Monster Scene 구현 후 CharacterData.path 기반 생성으로 교체
-	const TEMP_MONSTER_SCENE: PackedScene = preload("res://unit/Unit.tscn")
 	const TEMP_MONSTER_COLOR: Color = Color(1.0, 0.25, 0.25, 1.0)
 
 
@@ -94,9 +92,22 @@ class MonsterPoolManager extends DefensePoolManager:
 			push_error("MonsterPoolManager: MONSTER 타입이 아닌 캐릭터입니다. key: " + str(characterKey))
 			return null
 
-		var monster: Unit = TEMP_MONSTER_SCENE.instantiate() as Unit
+		if characterData.prefabPath.is_empty():
+			push_error("MonsterPoolManager: MONSTER path가 비어있습니다. key: " + str(characterKey))
+			return null
+
+		var scene: PackedScene = load(characterData.prefabPath) as PackedScene
+		if scene == null:
+			push_error(
+				"MonsterPoolManager: MONSTER scene을 불러올 수 없습니다. path: " + characterData.prefabPath
+			)
+			return null
+
+		var monster: Unit = scene.instantiate() as Unit
 		if monster == null:
-			push_error("MonsterPoolManager: 임시 몬스터 Unit 생성에 실패했습니다.")
+			push_error(
+				"MonsterPoolManager: MONSTER scene의 루트가 Unit이 아닙니다. key: " + str(characterKey)
+			)
 			return null
 
 		monster.playerControllable = false
@@ -120,13 +131,13 @@ class UnitPoolManager extends DefensePoolManager:
 			push_error("UnitPoolManager: UNIT 타입이 아닌 캐릭터입니다. key: " + str(characterKey))
 			return null
 
-		if characterData.path.is_empty():
+		if characterData.prefabPath.is_empty():
 			push_error("UnitPoolManager: 캐릭터 path가 비어있습니다. key: " + str(characterKey))
 			return null
 
-		var scene: PackedScene = load(characterData.path) as PackedScene
+		var scene: PackedScene = load(characterData.prefabPath) as PackedScene
 		if scene == null:
-			push_error("UnitPoolManager: 캐릭터 scene을 불러올 수 없습니다. path: " + characterData.path)
+			push_error("UnitPoolManager: 캐릭터 scene을 불러올 수 없습니다. path: " + characterData.prefabPath)
 			return null
 
 		var unit: Unit = scene.instantiate() as Unit

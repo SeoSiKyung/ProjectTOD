@@ -2,9 +2,13 @@ class_name GameDataLoader
 extends RefCounted
 
 const GAME_DATA_PATH: String = "res://data/gameData"
+const ICON_PATH: String = "res://picture"
+const PREFAB_PATH: String = "res://prefabs"
 const INVALID_INT: int = -100
 
+
 #region Load
+
 static func LoadCharacterData() -> Dictionary:
 	var tablePath: String = _GetTablePath("character", "CharacterTable")
 	var rows: Array[Dictionary] = CSVLoader.Load(tablePath)
@@ -43,10 +47,13 @@ static func LoadCharacterData() -> Dictionary:
 				push_error("CharacterTable characterType이 올바르지 않습니다. " + context)
 				continue
 
-		var path: String = row["path"]
-		# if path.is_empty():
-		# 	push_error("CharacterTable path가 비어있습니다. key: " + str(characterKey))
-		# 	continue
+		var relativePath: String = row["path"].strip_edges()
+		if relativePath.is_empty():
+			push_error("CharacterTable path가 비어있습니다. " + context)
+			continue
+		var iconPath: String = ICON_PATH.path_join(relativePath + ".png")
+		var prefabPath: String = PREFAB_PATH.path_join(relativePath + ".tscn")
+
 		var maxHp: int = _ReadInt(row, "maxHp", 1, "CharacterTable", context)
 		if maxHp == INVALID_INT:
 			continue
@@ -99,7 +106,8 @@ static func LoadCharacterData() -> Dictionary:
 			characterKey,
 			characterName,
 			characterType,
-			path,
+			iconPath,
+			prefabPath,
 			maxHp,
 			maxMp,
 			hpRegen,
@@ -171,7 +179,9 @@ static func LoadDefenseSpawnData() -> Dictionary:
 
 #endregion
 
+
 #region Validate
+
 static func ValidateDefenseSpawnDataReferences(
 	spawnDataByCycle: Dictionary,
 	characterDataByKey: Dictionary,
@@ -202,7 +212,9 @@ static func ValidateDefenseSpawnDataReferences(
 
 #endregion
 
+
 #region Utility
+
 static func _ReadInt(
 	row: Dictionary,
 	fieldName: String,

@@ -3,9 +3,6 @@ extends Node2D
 
 const GRID_COLOR: Color = Color(1.0, 0.0, 0.0, 0.4)
 
-const DEPLOYMENT_FILL_COLOR: Color = Color(0.0, 1.0, 0.0, 0.35)
-const DEPLOYMENT_BORDER_COLOR: Color = Color(0.0, 1.0, 0.0, 0.9)
-
 const HOVER_FILL_COLOR: Color = Color(0.0, 1.0, 0.0, 0.2)
 const HOVER_BORDER_COLOR: Color = Color(0.0, 1.0, 0.0, 0.9)
 
@@ -14,8 +11,6 @@ signal CellRightClicked(cell: Vector2i)
 
 var _grid: DefenseDeploymentGrid
 var _canInteractCell: Callable
-
-var _deploymentCells: Dictionary = { }
 
 var _hoverCell: Vector2i = Vector2i.ZERO
 var _hasHoverCell: bool = false
@@ -64,7 +59,6 @@ func _draw() -> void:
 		return
 
 	_DrawGrid()
-	_DrawDeployments()
 
 	if _hasHoverCell:
 		_DrawHoverCell()
@@ -107,18 +101,6 @@ func Initialize(grid: DefenseDeploymentGrid, canInteractCell: Callable) -> void:
 	queue_redraw()
 
 
-func SetDeployment(cell: Vector2i) -> void:
-	_deploymentCells[cell] = true
-
-	queue_redraw()
-
-
-func RemoveDeployment(cell: Vector2i) -> void:
-	_deploymentCells.erase(cell)
-
-	queue_redraw()
-
-
 func LockHoverCell(cell: Vector2i) -> void:
 	if not _CanInteractCell(cell):
 		return
@@ -137,36 +119,14 @@ func UnlockHoverCell() -> void:
 
 
 func _DrawGrid() -> void:
-	var origin: Vector2 = to_local(_grid.worldOrigin)
+	for y: int in range(_grid.gridSize.y):
+		for x: int in range(_grid.gridSize.x):
+			var cell: Vector2i = Vector2i(x, y)
+			if not _CanInteractCell(cell):
+				continue
 
-	var width: float = _grid.gridSize.x * _grid.cellSize
-	var height: float = _grid.gridSize.y * _grid.cellSize
-
-	for x: int in range(_grid.gridSize.x + 1):
-		var xPosition: float = origin.x + x * _grid.cellSize
-		draw_line(
-			Vector2(xPosition, origin.y),
-			Vector2(xPosition, origin.y + height),
-			GRID_COLOR,
-			2.0,
-		)
-
-	for y: int in range(_grid.gridSize.y + 1):
-		var yPosition: float = origin.y + y * _grid.cellSize
-		draw_line(
-			Vector2(origin.x, yPosition),
-			Vector2(origin.x + width, yPosition),
-			GRID_COLOR,
-			2.0,
-		)
-
-
-func _DrawDeployments() -> void:
-	for cell: Vector2i in _deploymentCells:
-		var rect: Rect2 = _GetCellRect(cell)
-
-		draw_rect(rect, DEPLOYMENT_FILL_COLOR, true)
-		draw_rect(rect, DEPLOYMENT_BORDER_COLOR, false, 4.0)
+			var rect: Rect2 = _GetCellRect(cell)
+			draw_rect(rect, GRID_COLOR, false, 2.0)
 
 
 func _DrawHoverCell() -> void:

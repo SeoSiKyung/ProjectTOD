@@ -3,6 +3,10 @@ extends Node2D
 const DEPLOYMENT_CELL_SIZE: int = 128
 const DEPLOYMENT_UNIT_HALF_SIZE: int = 16
 const INVALID_DEPLOYMENT_CELL: Vector2i = Vector2i(-1, -1)
+const COMMAND_POST_CELL: Vector2i = Vector2i(4, 1)
+const DEFENSE_CHARACTER_BUTTON_SCENE: PackedScene = preload(
+	"res://prefabs/buttons/DefenseCharacterButton.tscn"
+)
 
 signal DefenseFinished(result: DefenseResult)
 
@@ -14,25 +18,32 @@ signal DefenseFinished(result: DefenseResult)
 @export var _resultUI: PanelContainer
 
 @onready var _movementSimulator: MovementSimulator = $MovementSimulator
+@onready var _cp: DefenseCP = $CP
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
+@onready var _deploymentInfoView: DefenseDeploymentInfoView = $DeploymentInfoView
 @onready var _pools: Node = $Pools
 
 #region Deployment
 
 @onready var _deploymentPanel: PanelContainer = _deploymentUI.get_node("DeploymentPanel")
-@onready var _recruitContainer: VBoxContainer = _deploymentPanel.get_node("RecruitContainer")
+@onready var _recruitContainer: VBoxContainer = _deploymentPanel.get_node("Margin/RecruitContainer")
 
 @onready var _characterButtonContainer: HBoxContainer = _recruitContainer.get_node(
 	"CharacterButtonContainer"
 )
-@onready var _recruitRatioSpinBox: SpinBox = _recruitContainer.get_node(
+@onready var _recruitInfo: VBoxContainer = _recruitContainer.get_node("RecruitInfo")
+@onready var _recruitRatioSpinBox: SpinBox = _recruitInfo.get_node(
 	"RecruitRatio/RecruitRatioSpinBox"
 )
-@onready var _recruitPopulationLabel: Label = _recruitContainer.get_node("RecruitPopulationLabel")
+@onready var _recruitPopulationLabel: Label = _recruitInfo.get_node("RecruitPopulationLabel")
 @onready var _deploymentApplyButton: Button = _recruitContainer.get_node("ApplyButton")
 
-@onready var _recruitRatioLabel: Label = _deploymentUI.get_node("RecruitRatioLabel")
-@onready var _confirmButton: Button = _deploymentUI.get_node("ConfirmButton")
+@onready var _deploymentHUDContainer: HBoxContainer = _deploymentUI.get_node(
+	"DeploymentHUD/Margin/HUDContainer"
+)
+
+@onready var _recruitRatioLabel: Label = _deploymentHUDContainer.get_node("RecruitRatioLabel")
+@onready var _confirmButton: Button = _deploymentHUDContainer.get_node("ConfirmButton")
 
 #endregion
 
@@ -40,24 +51,23 @@ signal DefenseFinished(result: DefenseResult)
 
 @onready var _battleHudContainer: VBoxContainer = _battleHud.get_node("Margin/BattleHudContainer")
 
-@onready var _elapsedTime: Label = _battleHudContainer.get_node("ElapsedTime")
+@onready var _elapsedTime: Label = _battleHudContainer.get_node("BattleHeader/ElapsedTime")
+@onready var _pauseButton: Button = _battleHudContainer.get_node("BattleHeader/PauseButton")
 
-@onready var _cp: VBoxContainer = _battleHudContainer.get_node("CP")
+@onready var _cpHud: VBoxContainer = _battleHudContainer.get_node("CPHud")
 
-@onready var _cpHp: VBoxContainer = _cp.get_node("Hp")
+@onready var _cpHp: HBoxContainer = _cpHud.get_node("Hp")
 @onready var _cpHpLabel: Label = _cpHp.get_node("HpLabel")
 @onready var _cpHpBar: ProgressBar = _cpHp.get_node("HpBar")
-
-@onready var _cpMp: VBoxContainer = _cp.get_node("Mp")
+@onready var _cpMp: HBoxContainer = _cpHud.get_node("Mp")
 @onready var _cpMpLabel: Label = _cpMp.get_node("MpLabel")
 @onready var _cpMpBar: ProgressBar = _cpMp.get_node("MpBar")
 
-@onready var _population: VBoxContainer = _battleHudContainer.get_node("Population")
+@onready var _population: HBoxContainer = _battleHudContainer.get_node("Population")
+
 @onready var _recruitedPopulation: Label = _population.get_node("RecruitedPopulation")
 @onready var _survivingPopulation: Label = _population.get_node("SurvivingPopulation")
 @onready var _deadPopulation: Label = _population.get_node("DeadPopulation")
-
-@onready var _pauseButton: Button = _battleHudContainer.get_node("PauseButton")
 
 #endregion
 
@@ -109,8 +119,13 @@ func _ready() -> void:
 		return
 
 	_InitializeDeploymentGrid()
+
+	_cp.global_position = _deploymentGrid.CellToWorldCenter(COMMAND_POST_CELL)
+
 	_InitializeStartData()
 	_InitializeDefenseManager()
+
+	_InitializeDeploymentGridView()
 
 	if not _InitializeDeploymentSelection():
 		return
@@ -129,6 +144,8 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	_HandleDebugResultInput(event)
+
 	if not _deploymentPanel.visible:
 		return
 
@@ -161,7 +178,7 @@ func _OnDeploymentCellRightClicked(cell: Vector2i) -> void:
 	if not _defenseManager.RemoveDeployment(cell):
 		return
 
-	_deploymentGridView.RemoveDeployment(cell)
+	_deploymentInfoView.RemoveRecruitRatio(cell)
 
 	if _selectedDeploymentCell == cell:
 		_selectedRecruitRatio = 0
@@ -199,6 +216,8 @@ func _FinishDeploymentUI() -> void:
 
 	_deploymentGridView.visible = false
 	_deploymentGridView.process_mode = Node.PROCESS_MODE_DISABLED
+
+	_deploymentInfoView.visible = false
 
 	_deploymentUI.visible = false
 	_battleHud.visible = true
@@ -265,12 +284,6 @@ func _InitializeDeploymentGrid() -> void:
 		deploymentGridSize,
 	)
 
-	_deploymentGridView.Initialize(_deploymentGrid, Callable(self, "_CanInteractDeploymentCell"))
-	_deploymentGridView.CellClicked.connect(_OnDeploymentCellClicked)
-	_deploymentGridView.CellRightClicked.connect(_OnDeploymentCellRightClicked)
-
-	_confirmButton.pressed.connect(_OnConfirmDeploymentPressed)
-
 
 func _InitializeStartData() -> void:
 	if _startData != null:
@@ -284,8 +297,22 @@ func _InitializeStartData() -> void:
 
 
 func _InitializeDefenseManager() -> void:
-	_defenseManager = DefenseManager.new(_startData, _pools, _navigationService, _movementSimulator)
+	_defenseManager = DefenseManager.new(
+		_startData,
+		_pools,
+		_navigationService,
+		_movementSimulator,
+		_cp,
+	)
 	_defenseManager.DefenseFinished.connect(_OnDefenseFinished)
+
+
+func _InitializeDeploymentGridView() -> void:
+	_deploymentGridView.Initialize(_deploymentGrid, Callable(self, "_CanInteractDeploymentCell"))
+	_deploymentInfoView.Initialize(_deploymentGrid)
+
+	_deploymentGridView.CellClicked.connect(_OnDeploymentCellClicked)
+	_deploymentGridView.CellRightClicked.connect(_OnDeploymentCellRightClicked)
 
 
 func _InitializeDeploymentSelection() -> bool:
@@ -301,6 +328,10 @@ func _InitializeDeploymentSelection() -> bool:
 	_selectedCharacterKey = unitDataList[0].characterKey
 	_selectedRecruitRatio = 0
 
+	var firstButton: Button = _characterButtonByKey.get(_selectedCharacterKey)
+	if firstButton != null:
+		firstButton.set_pressed_no_signal(true)
+
 	_ConnectDeploymentSelectionSignals()
 
 	_deploymentPanel.visible = false
@@ -313,13 +344,12 @@ func _InitializeCharacterButtons(unitDataList: Array[CharacterData]) -> void:
 	_characterButtonGroup.allow_unpress = false
 
 	for characterData: CharacterData in unitDataList:
-		var characterButton: Button = Button.new()
-		characterButton.text = characterData.characterName
-		characterButton.toggle_mode = true
+		var characterButton: DefenseCharacterButton = DEFENSE_CHARACTER_BUTTON_SCENE.instantiate()
 		characterButton.button_group = _characterButtonGroup
+		_characterButtonContainer.add_child(characterButton)
+		characterButton.Initialize(characterData)
 		characterButton.pressed.connect(_OnCharacterButtonPressed.bind(characterData.characterKey))
 
-		_characterButtonContainer.add_child(characterButton)
 		_characterButtonByKey[characterData.characterKey] = characterButton
 
 
@@ -329,6 +359,8 @@ func _ConnectDeploymentSelectionSignals() -> void:
 
 
 func _InitializeUI() -> void:
+	_confirmButton.pressed.connect(_OnConfirmDeploymentPressed)
+
 	_pauseButton.pressed.connect(_OnPauseButtonPressed)
 	_resultConfirmButton.pressed.connect(_OnResultConfirmPressed)
 
@@ -368,7 +400,7 @@ func _RemoveSelectedDeployment() -> bool:
 	if not _defenseManager.RemoveDeployment(_selectedDeploymentCell):
 		return false
 
-	_deploymentGridView.RemoveDeployment(_selectedDeploymentCell)
+	_deploymentInfoView.RemoveRecruitRatio(_selectedDeploymentCell)
 	return true
 
 
@@ -382,16 +414,20 @@ func _AddSelectedDeployment() -> bool:
 	):
 		return false
 
-	_deploymentGridView.SetDeployment(_selectedDeploymentCell)
+	_deploymentInfoView.SetRecruitRatio(_selectedDeploymentCell, _selectedRecruitRatio)
 	return true
 
 
 func _UpdateSelectedDeployment() -> bool:
-	return _defenseManager.UpdateDeployment(
+	if not _defenseManager.UpdateDeployment(
 		_selectedDeploymentCell,
 		_selectedCharacterKey,
 		_selectedRecruitRatio,
-	)
+	):
+		return false
+
+	_deploymentInfoView.SetRecruitRatio(_selectedDeploymentCell, _selectedRecruitRatio)
+	return true
 
 
 func _ReloadDeploymentSelection() -> void:
@@ -520,6 +556,12 @@ func _CloseDeploymentPanel() -> void:
 
 
 func _CanInteractDeploymentCell(cell: Vector2i) -> bool:
+	if _defenseManager.GetDeploymentByCell(cell) != null:
+		return true
+
+	if cell == COMMAND_POST_CELL:
+		return false
+
 	var position: Vector2 = _deploymentGrid.CellToWorldCenter(cell)
 	return _navigationService.CanPlaceStatic(position, DEPLOYMENT_UNIT_HALF_SIZE)
 
@@ -645,3 +687,33 @@ func _SetResultElapsedTime(elapsedTimeMs: int) -> void:
 	_resultElapsedTime.text = "전투 시간: %02d:%02d" % [minutes, seconds]
 
 #endregion
+
+
+# jhw, 추후 삭제
+func _HandleDebugResultInput(event: InputEvent) -> void:
+	if event is not InputEventKey:
+		return
+
+	var keyEvent: InputEventKey = event
+	if not keyEvent.pressed or keyEvent.echo:
+		return
+
+	match keyEvent.keycode:
+		KEY_F:
+			_ShowDebugResult(true, false)
+
+		KEY_G:
+			_ShowDebugResult(false, true)
+
+
+# jhw, 추후 삭제
+func _ShowDebugResult(isVictory: bool, cpDestroyed: bool) -> void:
+	var result: DefenseResult = DefenseResult.new()
+	result.isVictory = isVictory
+	result.cpDestroyed = cpDestroyed
+	result.elapsedTimeMs = _defenseManager.GetElapsedTimeMs()
+	result.recruitedPopulation = _defenseManager.GetRecruitedPopulation()
+	result.survivingPopulation = _defenseManager.GetSurvivingPopulation()
+	result.deadPopulation = _defenseManager.GetDeadPopulation()
+
+	_OnDefenseFinished(result)

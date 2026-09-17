@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://dqdotall8h6j8"]
+
+[ext_resource type="Script" uid="uid://bxv6588yo8x8q" path="res://scripts/defense/objects/DefenseCP.gd" id="1_7pl1g"]
+[ext_resource type="PackedScene" uid="uid://dd6c3nmhvvai0" path="res://unit/Unit.tscn" id="1_ssf1c"]
+[ext_resource type="Texture2D" uid="uid://cosiom7bhmu3j" path="res://picture/CP.png" id="1_tn5m1"]
+
+[node name="CP" unique_id=470747039 instance=ExtResource("1_ssf1c")]
+script = ExtResource("1_7pl1g")
+playerControllable = false
+
+[node name="Sprite2D" parent="." index="1" unique_id=617625335]
+scale = Vector2(0.1, 0.1)
+texture = ExtResource("1_tn5m1")

@@ -6,6 +6,8 @@
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="3_m8apv"]
 [ext_resource type="Script" uid="uid://b7ert7hoc8245" path="res://unit/MovementSimulator.gd" id="5_ffq3l"]
 [ext_resource type="Script" uid="uid://blgbhtt23abdo" path="res://scripts/defense/DefenseDeploymentGridView.gd" id="5_to5m3"]
+[ext_resource type="PackedScene" uid="uid://dqdotall8h6j8" path="res://prefabs/facilities/CP.tscn" id="6_fns1k"]
+[ext_resource type="Script" uid="uid://d2t3mpohidf45" path="res://scripts/defense/DefenseDeploymentInfoView.gd" id="7_f716s"]
 
 [node name="DefenseScene" type="Node2D" unique_id=745379328 node_paths=PackedStringArray("_deploymentUI", "_battleHud", "_resultUI")]
 script = ExtResource("1_aixx4")
@@ -31,9 +33,16 @@ centered = false
 anchor_mode = 0
 zoom = Vector2(0.5, 0.5)
 
+[node name="CP" parent="." unique_id=1269883416 instance=ExtResource("6_fns1k")]
+position = Vector2(556, 275)
+
 [node name="DeploymentGridView" type="Node2D" parent="." unique_id=1390217635]
 z_index = 1
 script = ExtResource("5_to5m3")
+
+[node name="DeploymentInfoView" type="Node2D" parent="." unique_id=1212854668]
+z_index = 10
+script = ExtResource("7_f716s")
 
 [node name="Pools" type="Node" parent="." unique_id=804699937]
 
@@ -54,56 +63,93 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
+[node name="DeploymentHUD" type="PanelContainer" parent="CanvasLayer/DeploymentUI" unique_id=1849233849]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 72.0
+grow_horizontal = 2
+
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/DeploymentUI/DeploymentHUD" unique_id=2023229178]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="HUDContainer" type="HBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentHUD/Margin" unique_id=2022496766]
+layout_mode = 2
+
+[node name="RecruitRatioLabel" type="Label" parent="CanvasLayer/DeploymentUI/DeploymentHUD/Margin/HUDContainer" unique_id=525627175]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "징집률"
+vertical_alignment = 1
+
+[node name="ConfirmButton" type="Button" parent="CanvasLayer/DeploymentUI/DeploymentHUD/Margin/HUDContainer" unique_id=1173458760]
+custom_minimum_size = Vector2(140, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0, 1)
+text = "배치 확정"
+
 [node name="DeploymentPanel" type="PanelContainer" parent="CanvasLayer/DeploymentUI" unique_id=1087225553]
 visible = false
 layout_mode = 0
-offset_right = 216.0
-offset_bottom = 172.0
+offset_right = 291.0
+offset_bottom = 192.0
 
-[node name="RecruitContainer" type="VBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel" unique_id=626978669]
+[node name="Margin" type="MarginContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel" unique_id=1598864454]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="RecruitContainer" type="VBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin" unique_id=626978669]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CharacterButtonContainer" type="HBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer" unique_id=119731575]
 layout_mode = 2
 
-[node name="CharacterButtonContainer" type="HBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/RecruitContainer" unique_id=119731575]
+[node name="RecruitInfo" type="VBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer" unique_id=1221180301]
 layout_mode = 2
+size_flags_horizontal = 8
+theme_override_constants/separation = 4
 
-[node name="RecruitRatio" type="HBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/RecruitContainer" unique_id=1387139256]
+[node name="RecruitRatio" type="HBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer/RecruitInfo" unique_id=1387139256]
 layout_mode = 2
+alignment = 2
 
-[node name="Label" type="Label" parent="CanvasLayer/DeploymentUI/DeploymentPanel/RecruitContainer/RecruitRatio" unique_id=468015328]
+[node name="RecruitRatioLabel" type="Label" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer/RecruitInfo/RecruitRatio" unique_id=468015328]
 layout_mode = 2
+text = "징집률"
 
-[node name="RecruitRatioSpinBox" type="SpinBox" parent="CanvasLayer/DeploymentUI/DeploymentPanel/RecruitContainer/RecruitRatio" unique_id=603133742]
+[node name="RecruitRatioSpinBox" type="SpinBox" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer/RecruitInfo/RecruitRatio" unique_id=603133742]
 layout_mode = 2
 max_value = 30.0
 suffix = "%"
 
-[node name="RecruitPopulationLabel" type="Label" parent="CanvasLayer/DeploymentUI/DeploymentPanel/RecruitContainer" unique_id=1842847679]
+[node name="RecruitPopulationLabel" type="Label" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer/RecruitInfo" unique_id=1842847679]
 layout_mode = 2
 text = "징집 인구: 10명"
+horizontal_alignment = 2
 
-[node name="ApplyButton" type="Button" parent="CanvasLayer/DeploymentUI/DeploymentPanel/RecruitContainer" unique_id=95337210]
+[node name="ApplyButton" type="Button" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer" unique_id=95337210]
 layout_mode = 2
 text = "확정"
 
-[node name="RecruitRatioLabel" type="Label" parent="CanvasLayer/DeploymentUI" unique_id=525627175]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 48.0
-
-[node name="ConfirmButton" type="Button" parent="CanvasLayer/DeploymentUI" unique_id=1173458760]
-layout_mode = 0
-offset_left = 1579.0
-offset_top = 42.0
-offset_right = 1715.0
-offset_bottom = 98.0
-scale = Vector2(2, 2)
-theme_override_colors/font_color = Color(0, 1, 0, 1)
-text = "배치 확정"
-
 [node name="BattleHUD" type="PanelContainer" parent="CanvasLayer" unique_id=1787820532]
 visible = false
-offset_right = 250.0
-offset_bottom = 252.0
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -268.0
+offset_bottom = 288.0
+grow_horizontal = 0
 
 [node name="Margin" type="MarginContainer" parent="CanvasLayer/BattleHUD" unique_id=1043934567]
 layout_mode = 2
@@ -115,66 +161,81 @@ theme_override_constants/margin_bottom = 12
 [node name="BattleHudContainer" type="VBoxContainer" parent="CanvasLayer/BattleHUD/Margin" unique_id=1743776954]
 layout_mode = 2
 
-[node name="ElapsedTime" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer" unique_id=740040494]
+[node name="BattleHeader" type="HBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer" unique_id=1836485645]
 layout_mode = 2
+
+[node name="ElapsedTime" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/BattleHeader" unique_id=740040494]
+layout_mode = 2
+size_flags_horizontal = 3
 text = "00:00"
 
-[node name="CP" type="VBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer" unique_id=609795488]
+[node name="PauseButton" type="Button" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/BattleHeader" unique_id=124565690]
+custom_minimum_size = Vector2(100, 36)
+layout_mode = 2
+text = "일시 정지"
+
+[node name="CPHud" type="VBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer" unique_id=609795488]
 layout_mode = 2
 
-[node name="CPLabel" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CP" unique_id=651983700]
+[node name="CPLabel" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CPHud" unique_id=651983700]
 layout_mode = 2
 text = "지휘소"
 
-[node name="Hp" type="VBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CP" unique_id=1583190048]
+[node name="Hp" type="HBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CPHud" unique_id=1995577281]
 layout_mode = 2
 
-[node name="HpLabel" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CP/Hp" unique_id=1651647183]
+[node name="HpLabel" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CPHud/Hp" unique_id=1651647183]
+custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
+vertical_alignment = 1
 
-[node name="HpBar" type="ProgressBar" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CP/Hp" unique_id=1521875936]
-custom_minimum_size = Vector2(250, 20)
+[node name="HpBar" type="ProgressBar" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CPHud/Hp" unique_id=1521875936]
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
+size_flags_horizontal = 3
 show_percentage = false
 
-[node name="Mp" type="VBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CP" unique_id=1982758875]
+[node name="Mp" type="HBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CPHud" unique_id=342897729]
 layout_mode = 2
 
-[node name="MpLabel" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CP/Mp" unique_id=851454679]
+[node name="MpLabel" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CPHud/Mp" unique_id=851454679]
+custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
+vertical_alignment = 1
 
-[node name="MpBar" type="ProgressBar" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CP/Mp" unique_id=1324772526]
-custom_minimum_size = Vector2(250, 20)
+[node name="MpBar" type="ProgressBar" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/CPHud/Mp" unique_id=1324772526]
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
+size_flags_horizontal = 3
 show_percentage = false
 
-[node name="Population" type="VBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer" unique_id=1335195934]
+[node name="Population" type="HBoxContainer" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer" unique_id=825084062]
 layout_mode = 2
+theme_override_constants/separation = 12
 
 [node name="PopulationTitle" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/Population" unique_id=483742361]
 layout_mode = 2
 text = "병력"
+vertical_alignment = 1
 
 [node name="RecruitedPopulation" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/Population" unique_id=1093784979]
 layout_mode = 2
+vertical_alignment = 1
 
 [node name="SurvivingPopulation" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/Population" unique_id=607305899]
 layout_mode = 2
+vertical_alignment = 1
 
 [node name="DeadPopulation" type="Label" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer/Population" unique_id=1272564478]
 layout_mode = 2
-
-[node name="PauseButton" type="Button" parent="CanvasLayer/BattleHUD/Margin/BattleHudContainer" unique_id=124565690]
-visible = false
-layout_mode = 2
-text = "일시 정지"
+vertical_alignment = 1
 
 [node name="ResultUI" type="PanelContainer" parent="CanvasLayer" unique_id=1564974183]
 visible = false
 offset_left = 700.0
 offset_top = 300.0
 offset_right = 1100.0
-offset_bottom = 600.0
+offset_bottom = 708.0
 
 [node name="Margin" type="MarginContainer" parent="CanvasLayer/ResultUI" unique_id=697595188]
 layout_mode = 2
@@ -185,26 +246,36 @@ theme_override_constants/margin_bottom = 20
 
 [node name="ResultContainer" type="VBoxContainer" parent="CanvasLayer/ResultUI/Margin" unique_id=30057868]
 layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
 
 [node name="Result" type="Label" parent="CanvasLayer/ResultUI/Margin/ResultContainer" unique_id=632569703]
 layout_mode = 2
+theme_override_font_sizes/font_size = 28
 text = "승리"
+horizontal_alignment = 1
 
 [node name="ElapsedTime" type="Label" parent="CanvasLayer/ResultUI/Margin/ResultContainer" unique_id=1995951558]
 layout_mode = 2
+horizontal_alignment = 1
 
 [node name="CPStatus" type="Label" parent="CanvasLayer/ResultUI/Margin/ResultContainer" unique_id=149526806]
 layout_mode = 2
+horizontal_alignment = 1
 
 [node name="RecruitedPopulation" type="Label" parent="CanvasLayer/ResultUI/Margin/ResultContainer" unique_id=48669350]
 layout_mode = 2
+horizontal_alignment = 1
 
 [node name="SurvivingPopulation" type="Label" parent="CanvasLayer/ResultUI/Margin/ResultContainer" unique_id=1882802888]
 layout_mode = 2
+horizontal_alignment = 1
 
 [node name="DeadPopulation" type="Label" parent="CanvasLayer/ResultUI/Margin/ResultContainer" unique_id=64228656]
 layout_mode = 2
+horizontal_alignment = 1
 
 [node name="ConfirmButton" type="Button" parent="CanvasLayer/ResultUI/Margin/ResultContainer" unique_id=1483478756]
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "확인"

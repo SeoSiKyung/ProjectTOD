@@ -4,7 +4,8 @@ extends DefenseObjectStatus
 var characterKey: int
 var characterName: String
 var characterType: CharacterData.CharacterType
-var path: String
+var iconPath: String
+var prefabPath: String
 
 var atk: int
 var magicAtk: int
@@ -26,7 +27,8 @@ func _init(characterData: CharacterData) -> void:
 	characterKey = characterData.characterKey
 	characterName = characterData.characterName
 	characterType = characterData.characterType
-	path = characterData.path
+	iconPath = characterData.iconPath
+	prefabPath = characterData.prefabPath
 
 	atk = characterData.atk
 	magicAtk = characterData.magicAtk

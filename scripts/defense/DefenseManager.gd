@@ -12,6 +12,7 @@ enum DefensePhase {
 var _startData: DefenseStartData
 var _navigationService: NavigationService
 var _movementSimulator: MovementSimulator
+var _cp: DefenseCP
 
 var _deploymentManager: DefenseDeploymentManager
 var _unitGroupManager: DefenseUnitGroupManager
@@ -36,10 +37,12 @@ func _init(
 	pools: Node,
 	navigationService: NavigationService,
 	movementSimulator: MovementSimulator,
+	cp: DefenseCP,
 ) -> void:
 	_startData = startData
 	_navigationService = navigationService
 	_movementSimulator = movementSimulator
+	_cp = cp
 
 	_deploymentManager = DefenseDeploymentManager.new()
 	_unitGroupManager = DefenseUnitGroupManager.new()
@@ -88,6 +91,10 @@ func GetTotalRecruitedPopulation() -> int:
 
 func GetElapsedTimeMs() -> int:
 	return _timeManager.GetElapsedTimeMs()
+
+
+func GetCPPosition() -> Vector2:
+	return _cpManager.GetPosition()
 
 
 func GetCPMaxHp() -> int:
@@ -214,7 +221,7 @@ func ConfirmDeployment() -> bool:
 		_RollbackDeploymentConfirmation()
 		return false
 
-	if not _cpManager.Initialize(_startData.cpMaxHp):
+	if not _cpManager.Initialize(_cp, _startData.cpMaxHp):
 		push_error("DefenseManager: 지휘소 초기화에 실패했습니다.")
 		_RollbackDeploymentConfirmation()
 		return false
