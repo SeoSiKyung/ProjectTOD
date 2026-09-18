@@ -4,8 +4,8 @@ extends RefCounted
 
 var _pool: Node2D
 
-var _inactiveObjectsByCharacterKey: Dictionary = { }
-var _characterKeyByActiveObject: Dictionary = { }
+var _inactiveObjectsByCharacterKey: Dictionary[int, Array] = { }
+var _characterKeyByActiveObject: Dictionary[Node2D, int] = { }
 
 
 func _init(pool: Node2D) -> void:

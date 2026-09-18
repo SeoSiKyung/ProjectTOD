@@ -7,13 +7,11 @@ extends Resource
 
 @export_multiline var description: String = ""
 
-
 # =========================================================
 # 발생 설정
 # =========================================================
 
-@export_range(0.0, 1.0, 0.01)
-var triggerChance: float = 0.0
+@export_range(0, 1000, 1) var triggerChance: int = 0
 
 # =========================================================
 # 1회성

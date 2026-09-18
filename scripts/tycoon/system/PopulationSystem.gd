@@ -77,7 +77,7 @@ func _CalculatePopulationChange(settlement: SettlementState, stats: DerivedStats
 	if stability < POPULATION_GROWTH_STABILITY:
 		return 0
 
-	var developmentBonus: int = int(stats.development / float(DEVELOPMENT_PER_GROWTH_BONUS))
+	var developmentBonus: int = Math.DivideInt(stats.development, DEVELOPMENT_PER_GROWTH_BONUS)
 
 	return (BASE_POPULATION_GROWTH + developmentBonus)
 

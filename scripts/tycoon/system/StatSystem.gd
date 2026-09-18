@@ -76,10 +76,10 @@ func _ApplyEffect(stats: DerivedStats, effect: FacilityEffectData) -> void:
 			stats.technology += effect.value
 
 		FacilityEffectData.EffectType.MAX_POPULATION:
-			stats.maxPopulation += int(effect.value)
+			stats.maxPopulation += effect.value
 
 		FacilityEffectData.EffectType.DEVELOPMENT:
 			stats.development += effect.value
 
 		FacilityEffectData.EffectType.STABILITY_MINIMUM:
-			stats.stabilityMinimum = max(stats.stabilityMinimum, effect.value)
+			stats.stabilityMinimum = maxi(stats.stabilityMinimum, effect.value)

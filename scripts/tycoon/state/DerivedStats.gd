@@ -2,17 +2,17 @@ class_name DerivedStats
 extends RefCounted
 
 # 자원 변화량
-var goldIncome: float = 0.0
-var foodDelta: float = 0.0
-var woodIncome: float = 0.0
-var stoneIncome: float = 0.0
-var ironIncome: float = 0.0
-var magicStoneIncome: float = 0.0
+var goldIncome: int = 0
+var foodDelta: int = 0
+var woodIncome: int = 0
+var stoneIncome: int = 0
+var ironIncome: int = 0
+var magicStoneIncome: int = 0
 
 
 # 발전 관련
-var technology: float = 0.0
-var development: float = 0.0
+var technology: int = 0
+var development: int = 0
 
 
 # 인구
@@ -20,4 +20,4 @@ var maxPopulation: int = 0
 
 
 # 안정도 관련
-var stabilityMinimum: float = 0.0
+var stabilityMinimum: int = 0

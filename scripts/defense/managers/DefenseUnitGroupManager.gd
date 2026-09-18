@@ -1,7 +1,7 @@
 class_name DefenseUnitGroupManager
 extends DefenseCharacterManager
 
-var _unitGroupStatusByCell: Dictionary = { }
+var _unitGroupStatusByCell: Dictionary[Vector2i, DefenseUnitGroupStatus] = { }
 
 
 func Initialize(deploymentManager: DefenseDeploymentManager, totalPopulation: int) -> bool:
@@ -9,7 +9,9 @@ func Initialize(deploymentManager: DefenseDeploymentManager, totalPopulation: in
 
 	var cells: Array[Vector2i] = deploymentManager.GetDeploymentCells()
 	for cell: Vector2i in cells:
-		var deployment := deploymentManager.GetDeploymentByCell(cell)
+		var deployment: DefenseDeploymentManager.DefenseDeployment = (
+			deploymentManager.GetDeploymentByCell(cell)
+		)
 		if deployment == null:
 			Clear()
 			return false

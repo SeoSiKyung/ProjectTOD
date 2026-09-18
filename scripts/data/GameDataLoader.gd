@@ -2,18 +2,18 @@ class_name GameDataLoader
 extends RefCounted
 
 const GAME_DATA_PATH: String = "res://data/gameData"
-const ICON_PATH: String = "res://picture"
-const PREFAB_PATH: String = "res://prefabs"
+const ICON_BASE_PATH: String = "res://picture"
+const PREFAB_BASE_PATH: String = "res://prefabs"
 const INVALID_INT: int = -100
 
 
 #region Load
 
-static func LoadCharacterData() -> Dictionary:
+static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 	var tablePath: String = _GetTablePath("character", "CharacterTable")
 	var rows: Array[Dictionary] = CSVLoader.Load(tablePath)
 
-	var characterDataByKey: Dictionary = { }
+	var characterDataByKey: Dictionary[int, CharacterData] = { }
 
 	for row: Dictionary in rows:
 		var characterKeyText: String = row["characterKey"].strip_edges()
@@ -51,8 +51,8 @@ static func LoadCharacterData() -> Dictionary:
 		if relativePath.is_empty():
 			push_error("CharacterTable path가 비어있습니다. " + context)
 			continue
-		var iconPath: String = ICON_PATH.path_join(relativePath + ".png")
-		var prefabPath: String = PREFAB_PATH.path_join(relativePath + ".tscn")
+		var iconPath: String = ICON_BASE_PATH.path_join(relativePath + ".png")
+		var prefabPath: String = PREFAB_BASE_PATH.path_join(relativePath + ".tscn")
 
 		var maxHp: int = _ReadInt(row, "maxHp", 1, "CharacterTable", context)
 		if maxHp == INVALID_INT:
@@ -128,11 +128,11 @@ static func LoadCharacterData() -> Dictionary:
 	return characterDataByKey
 
 
-static func LoadDefenseSpawnData() -> Dictionary:
+static func LoadDefenseSpawnData() -> Dictionary[int, Array]:
 	var tablePath: String = _GetTablePath("defense", "DefenseSpawnTable")
 	var rows: Array[Dictionary] = CSVLoader.Load(tablePath)
 
-	var spawnDataByCycle: Dictionary = { }
+	var spawnDataByCycle: Dictionary[int, Array] = { }
 
 	for row: Dictionary in rows:
 		var cycle: int = _ReadInt(row, "cycle", 1, "DefenseSpawnTable")
@@ -183,8 +183,8 @@ static func LoadDefenseSpawnData() -> Dictionary:
 #region Validate
 
 static func ValidateDefenseSpawnDataReferences(
-	spawnDataByCycle: Dictionary,
-	characterDataByKey: Dictionary,
+	spawnDataByCycle: Dictionary[int, Array],
+	characterDataByKey: Dictionary[int, CharacterData],
 ) -> bool:
 	var isValid: bool = true
 

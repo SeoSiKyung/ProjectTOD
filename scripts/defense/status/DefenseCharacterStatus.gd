@@ -2,10 +2,7 @@ class_name DefenseCharacterStatus
 extends DefenseObjectStatus
 
 var characterKey: int
-var characterName: String
 var characterType: CharacterData.CharacterType
-var iconPath: String
-var prefabPath: String
 
 var atk: int
 var magicAtk: int
@@ -25,10 +22,7 @@ func _init(characterData: CharacterData) -> void:
 	super(characterData.maxHp, characterData.maxMp, characterData.hpRegen, characterData.mpRegen)
 
 	characterKey = characterData.characterKey
-	characterName = characterData.characterName
 	characterType = characterData.characterType
-	iconPath = characterData.iconPath
-	prefabPath = characterData.prefabPath
 
 	atk = characterData.atk
 	magicAtk = characterData.magicAtk

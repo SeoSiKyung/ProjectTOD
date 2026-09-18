@@ -15,4 +15,4 @@ enum EffectType {
 }
 
 @export var type: EffectType = EffectType.GOLD_INCOME
-@export var value: float = 0.0
+@export var value: int = 0

@@ -4,12 +4,8 @@ extends Button
 @onready var _icon: TextureRect = $MarginContainer/VBoxContainer/TextureRect
 @onready var _nameLabel: Label = $MarginContainer/VBoxContainer/Label
 
-var characterKey: int = -1
-
 
 func Initialize(characterData: CharacterData) -> void:
-	characterKey = characterData.characterKey
-
 	_nameLabel.text = characterData.characterName
 	_icon.texture = _LoadIcon(characterData.iconPath)
 

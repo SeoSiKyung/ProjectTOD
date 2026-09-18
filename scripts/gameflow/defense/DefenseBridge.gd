@@ -1,7 +1,7 @@
 class_name DefenseBridge
 extends Node
 
-const TEMP_COMMAND_POST_MAX_HP: int = 1000
+const TEMP_CP_MAX_HP: int = 1000
 
 
 func CreateStartData(campaign: CampaignState, population: int) -> DefenseStartData:
@@ -9,7 +9,7 @@ func CreateStartData(campaign: CampaignState, population: int) -> DefenseStartDa
 	startData.cycle = campaign.cycle
 	startData.population = population
 
-	startData.cpMaxHp = TEMP_COMMAND_POST_MAX_HP
+	startData.cpMaxHp = TEMP_CP_MAX_HP
 
 	return startData
 

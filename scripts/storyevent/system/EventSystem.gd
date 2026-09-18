@@ -136,14 +136,14 @@ func _MeetsConditions(
 # =========================================================
 
 
-func _RollTriggerChance(triggerChance: float) -> bool:
-	if triggerChance <= 0.0:
+func _RollTriggerChance(triggerChance: int) -> bool:
+	if triggerChance <= 0:
 		return false
 
-	if triggerChance >= 1.0:
+	if triggerChance >= Math.RATIO_SCALE:
 		return true
 
-	return (_random.randf() < triggerChance)
+	return _random.randi_range(0, Math.RATIO_SCALE - 1) < triggerChance
 
 # =========================================================
 # Event 조회

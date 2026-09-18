@@ -5,7 +5,7 @@ signal MonsterSpawnRequested(characterKey: int, spawnPosition: Vector2)
 
 # TODO: 실제 Spawn Point 시스템 연결 후 제거
 const TEMP_SPAWN_POSITION: Vector2 = Vector2(640, 640)
-const TEMP_SPAWN_SPACING: float = 64.0
+const TEMP_SPAWN_SPACING: int = 64
 const TEMP_SPAWN_COLUMNS: int = 5
 
 var _spawnDataList: Array[DefenseSpawnData] = []
@@ -46,7 +46,7 @@ func _GetNextSpawnPosition() -> Vector2:
 	_nextSpawnPositionIndex += 1
 
 	var column: int = spawnIndex % TEMP_SPAWN_COLUMNS
-	var row: int = floori(float(spawnIndex) / TEMP_SPAWN_COLUMNS)
+	var row: int = Math.DivideInt(spawnIndex, TEMP_SPAWN_COLUMNS)
 	return TEMP_SPAWN_POSITION + Vector2(column, row) * TEMP_SPAWN_SPACING
 	# TODO: 실제 Spawn Point 시스템 연결
 	# return _spawnPointManager.GetSpawnPosition()

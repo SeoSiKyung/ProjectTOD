@@ -38,6 +38,6 @@ script = ExtResource("4_n76jo")
 id = &"tavern_brawl"
 displayName = "술집의 소동"
 description = "술에 취한 용병들이 시비가 붙어 싸움을 벌이기 시작했다."
-triggerChance = 1.0
+triggerChance = 1000
 condition = SubResource("Resource_tlfif")
 choices = Array[ExtResource("1_3jepq")]([SubResource("Resource_2xhv1"), SubResource("Resource_fvfmh")])

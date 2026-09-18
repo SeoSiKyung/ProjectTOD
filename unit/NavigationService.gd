@@ -42,6 +42,7 @@ var _anchorConnectionCacheOrder: Array[Vector4] = []
 
 var _benchmarkMetrics: NavigationProfileMetrics = null
 
+
 #region Class
 class PathSearchState:
 	var f: PackedFloat64Array = PackedFloat64Array()
@@ -141,7 +142,7 @@ class AnchorGraphEdge:
 
 
 class AnchorGraphData:
-	var edgesByNode: Dictionary = { }
+	var edgesByNode: Dictionary[Vector2i, Array] = { }
 
 
 class AnchorConnection:
@@ -163,12 +164,14 @@ class AnchorGraphPath:
 
 class RegionAnchorTopology:
 	var nodes: Array[Vector2i] = []
-	var componentByNode: Dictionary = { }
+	var componentByNode: Dictionary[Vector2i, int] = { }
 
 #endregion
 
+
 func Ready() -> void:
 	_LoadNavigationData()
+
 
 #region Public
 func IsReady() -> bool:
@@ -495,6 +498,7 @@ func IsCellInGrid(cell: Vector2i) -> bool:
 
 #endregion
 
+
 #region Unit Path
 
 func _BuildPathToSharedPath(
@@ -567,6 +571,7 @@ func _BuildPathToSharedPath(
 	return result
 
 #endregion
+
 
 #region Initialization
 func _LoadNavigationData() -> void:
@@ -682,6 +687,7 @@ func _ResetPathBuffers() -> void:
 	_pathState.Reset()
 
 #endregion
+
 
 #region Footprint Navigation Map
 func _GetFootprintMap(halfSize: int) -> FootprintNavigationMap:
@@ -979,6 +985,7 @@ func _IsNearestCellSearchComplete(
 	return outerMinDistance * outerMinDistance > bestDistance + Math.EPSILON
 
 #endregion
+
 
 #region Path Finding
 func _FindFallbackGridPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Array:
@@ -1339,6 +1346,7 @@ func _FurthestStaticClearPoint(start: Vector2, target: Vector2, halfSize: int) -
 
 #endregion
 
+
 #region Static Navigation
 func _StaticHalfSize(halfSize: int) -> float:
 	return maxf(0.0, float(halfSize) - maxf(staticContactSlop, 0.0))
@@ -1484,6 +1492,7 @@ func _PrefixRectCount(x0: int, y0: int, x1: int, y1: int) -> int:
 
 #endregion
 
+
 #region Region / Portal
 func _GetRegionIds(position: Vector2) -> Array[int]:
 	var result: Array[int] = []
@@ -1506,8 +1515,8 @@ func _GetRegionIds(position: Vector2) -> Array[int]:
 
 func _GetPortalRegionIds(startCell: Vector2i) -> Array[int]:
 	var result: Array[int] = []
-	var foundRegions: Dictionary = { }
-	var visited: Dictionary = { }
+	var foundRegions: Dictionary[int, bool] = { }
+	var visited: Dictionary[int, bool] = { }
 
 	var queue: Array[Vector2i] = [startCell]
 	visited[Grid.CellToIndex(startCell, _gridWidth)] = true
@@ -1595,6 +1604,7 @@ func _IsLocalPathCellAllowed(
 
 #endregion
 
+
 #region Anchor
 
 #region Anchor Graph
@@ -1671,6 +1681,7 @@ func _GetAnchorPosition(footprint: NavigationFootprintData, nodeKey: Vector2i) -
 
 #endregion
 
+
 #region Anchor Topology
 func _GetRegionAnchorNodes(regionId: int, footprint: NavigationFootprintData) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
@@ -1700,8 +1711,8 @@ func _MakeRegionAnchorComponentMap(
 	regionId: int,
 	nodes: Array[Vector2i],
 	footprint: NavigationFootprintData,
-) -> Dictionary:
-	var adjacency: Dictionary = { }
+) -> Dictionary[Vector2i, int]:
+	var adjacency: Dictionary[Vector2i, Array] = { }
 	for nodeKey: Vector2i in nodes:
 		adjacency[nodeKey] = []
 
@@ -1720,7 +1731,7 @@ func _MakeRegionAnchorComponentMap(
 		var toEdges: Array = adjacency[toKey]
 		toEdges.append(fromKey)
 
-	var result: Dictionary = { }
+	var result: Dictionary[Vector2i, int] = { }
 	var componentId: int = 0
 	for startNode: Vector2i in nodes:
 		if result.has(startNode):
@@ -1771,6 +1782,7 @@ func _GetRegionAnchorTopology(
 
 #endregion
 
+
 #region Anchor Connection
 func _MakeRegionAnchorConnectionsForRegions(
 	position: Vector2,
@@ -1779,7 +1791,7 @@ func _MakeRegionAnchorConnectionsForRegions(
 	footprint: NavigationFootprintData,
 ) -> Array[AnchorConnection]:
 	var result: Array[AnchorConnection] = []
-	var bestByNode: Dictionary = { }
+	var bestByNode: Dictionary[Vector2i, AnchorConnection] = { }
 	for regionId: int in regionIds:
 		var connections: Array[AnchorConnection] = _MakeRegionAnchorConnections(
 			position,
@@ -1853,10 +1865,10 @@ func _BuildRegionAnchorConnections(
 	if nodes.is_empty():
 		return result
 
-	var componentByNode: Dictionary = topology.componentByNode
+	var componentByNode: Dictionary[Vector2i, int] = topology.componentByNode
 
-	var reachableComponents: Dictionary = { }
-	var addedNodes: Dictionary = { }
+	var reachableComponents: Dictionary[int, bool] = { }
+	var addedNodes: Dictionary[Vector2i, bool] = { }
 
 	var directCheckStartUsec: int = 0
 	if _benchmarkMetrics != null:
@@ -1887,8 +1899,8 @@ func _BuildRegionAnchorConnections(
 		_benchmarkMetrics.anchorDirectCheckUsec += (Time.get_ticks_usec() - directCheckStartUsec)
 
 	# 2. 아직 reachability가 확인되지 않은 component마다 가장 가까운 Anchor 하나만 probe
-	var probeByComponent: Dictionary = { }
-	var probeDistanceByComponent: Dictionary = { }
+	var probeByComponent: Dictionary[int, Vector2i] = { }
+	var probeDistanceByComponent: Dictionary[int, float] = { }
 	for nodeKey: Vector2i in nodes:
 		if addedNodes.has(nodeKey):
 			continue
@@ -1908,7 +1920,7 @@ func _BuildRegionAnchorConnections(
 		probeByComponent[componentId] = nodeKey
 		probeDistanceByComponent[componentId] = distance
 
-	var unreachableComponents: Dictionary = { }
+	var unreachableComponents: Dictionary[int, bool] = { }
 
 	var probeStartUsec: int = 0
 	if _benchmarkMetrics != null:
@@ -1939,7 +1951,7 @@ func _BuildRegionAnchorConnections(
 		_benchmarkMetrics.anchorProbeUsec += (Time.get_ticks_usec() - probeStartUsec)
 
 	# 3. 남은 Anchor를 Portal별로 묶어서 한 번의 A*로 계산.
-	var nodesByPortal: Dictionary = { }
+	var nodesByPortal: Dictionary[int, Array] = { }
 	for nodeKey: Vector2i in nodes:
 		if addedNodes.has(nodeKey):
 			continue
@@ -1965,7 +1977,7 @@ func _BuildRegionAnchorConnections(
 		if _benchmarkMetrics != null:
 			batchStartUsec = Time.get_ticks_usec()
 
-		var pathsByNode: Dictionary = _FindLocalPathsToPortalAnchors(
+		var pathsByNode: Dictionary[Vector2i, PackedVector2Array] = _FindLocalPathsToPortalAnchors(
 			position,
 			portalNodes,
 			halfSize,
@@ -2033,8 +2045,8 @@ func _FindLocalPathsToPortalAnchors(
 	halfSize: int,
 	regionId: int,
 	footprint: NavigationFootprintData,
-) -> Dictionary:
-	var result: Dictionary = { }
+) -> Dictionary[Vector2i, PackedVector2Array]:
+	var result: Dictionary[Vector2i, PackedVector2Array] = { }
 
 	if nodeKeys.is_empty():
 		return result
@@ -2063,7 +2075,7 @@ func _FindLocalPathsToPortalAnchors(
 		return result
 
 	# lattice target cell → 그 cell을 사용하는 Anchor들
-	var nodesByTargetIndex: Dictionary = { }
+	var nodesByTargetIndex: Dictionary[int, Array] = { }
 	var targetCells: Array[Vector2i] = []
 
 	for nodeKey: Vector2i in nodeKeys:
@@ -2125,7 +2137,7 @@ func _FindLocalPathsToPortalAnchors(
 
 	var heap: PathHeap = _BeginPathSearch(startIndex, startH, heuristicWeight)
 
-	var remainingTargetIndices: Dictionary = { }
+	var remainingTargetIndices: Dictionary[int, bool] = { }
 	for targetIndex: int in nodesByTargetIndex:
 		remainingTargetIndices[targetIndex] = true
 
@@ -2318,6 +2330,7 @@ func _TrimAnchorConnectionCache() -> void:
 
 #endregion
 
+
 #region Hierarchical Path
 func _FindAnchorGraphPath(
 	startConnections: Array[AnchorConnection],
@@ -2330,16 +2343,16 @@ func _FindAnchorGraphPath(
 		_benchmarkMetrics.anchorGraphSearchCalls += 1
 
 	var open: Array[Vector2i] = []
-	var closed: Dictionary = { }
+	var closed: Dictionary[Vector2i, bool] = { }
 
-	var gScore: Dictionary = { }
-	var fScore: Dictionary = { }
+	var gScore: Dictionary[Vector2i, float] = { }
+	var fScore: Dictionary[Vector2i, float] = { }
 
-	var parentNode: Dictionary = { }
-	var parentEdge: Dictionary = { }
+	var parentNode: Dictionary[Vector2i, Vector2i] = { }
+	var parentEdge: Dictionary[Vector2i, AnchorGraphEdge] = { }
 
-	var startConnectionByNode: Dictionary = { }
-	var targetConnectionByNode: Dictionary = { }
+	var startConnectionByNode: Dictionary[Vector2i, AnchorConnection] = { }
+	var targetConnectionByNode: Dictionary[Vector2i, AnchorConnection] = { }
 
 	# 같은 Target Anchor에 여러 Connection이 있으면 가장 싼 것만 유지.
 	for connection: AnchorConnection in targetConnections:
@@ -2454,7 +2467,7 @@ func _FindAnchorGraphPath(
 	return result
 
 
-func _PopBestAnchorNode(open: Array[Vector2i], fScore: Dictionary) -> Vector2i:
+func _PopBestAnchorNode(open: Array[Vector2i], fScore: Dictionary[Vector2i, float]) -> Vector2i:
 	var bestIndex: int = 0
 	var bestScore: float = Math.BIG_NUMBER
 	for index: int in range(open.size()):
@@ -2517,6 +2530,7 @@ func _GetWaypointPathCost(start: Vector2, path: PackedVector2Array) -> float:
 
 #endregion
 
+
 #region Coordinates
 func _PathLatticeOffset(halfSize: int) -> Vector2:
 	var offset: float = _LatticeAxisOffset(float(halfSize))
@@ -2551,6 +2565,7 @@ func _WorldToCellFloor(position: Vector2) -> Vector2i:
 	return Vector2i(floori(local.x / _navCellSize), floori(local.y / _navCellSize))
 
 #endregion
+
 
 #region Utility
 func _PathEndsAtPoint(path: PackedVector2Array, point: Vector2) -> bool:

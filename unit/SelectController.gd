@@ -12,7 +12,7 @@ signal selection_changed(selectedUnits)
 @export var commandController: Node
 
 var _selectedUnits: Array[Unit] = []
-var _controlGroups: Dictionary = { }
+var _controlGroups: Dictionary[int, Array] = { }
 
 var _leftPressed: bool = false
 var _dragActive: bool = false

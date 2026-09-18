@@ -26,7 +26,7 @@ func ProcessTurnStart(settlement: SettlementState, context: TurnContext) -> void
 	# =====================================================
 	# 시설 효과 등에 의한 안정도 최저치
 	# =====================================================
-	var minimumStability: int = maxi(int(context.stats.stabilityMinimum), 0)
+	var minimumStability: int = maxi(context.stats.stabilityMinimum, 0)
 
 	# =====================================================
 	# 범위 적용

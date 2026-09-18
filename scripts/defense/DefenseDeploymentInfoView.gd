@@ -3,7 +3,7 @@ extends Node2D
 
 var _grid: DefenseDeploymentGrid
 
-var _ratioLabelByCell: Dictionary = { }
+var _ratioLabelByCell: Dictionary[Vector2i, Label] = { }
 
 
 func Initialize(grid: DefenseDeploymentGrid) -> void:

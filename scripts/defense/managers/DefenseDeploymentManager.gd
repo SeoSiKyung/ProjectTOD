@@ -14,7 +14,7 @@ class DefenseDeployment:
 		recruitRatio = pRecruitRatio
 
 
-var _deployments: Dictionary = { }
+var _deployments: Dictionary[Vector2i, DefenseDeployment] = { }
 var _totalRecruitRatio: int = 0
 
 

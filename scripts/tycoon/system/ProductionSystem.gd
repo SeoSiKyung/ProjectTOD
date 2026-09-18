@@ -12,17 +12,17 @@ func ProcessTurnStart(settlement: SettlementState, context: TurnContext) -> void
 	# =====================================================
 	# 이번 턴 생산량 계산
 	# =====================================================
-	context.producedGold = int(stats.goldIncome)
+	context.producedGold = stats.goldIncome
 
-	context.producedFood = int(stats.foodDelta)
+	context.producedFood = stats.foodDelta
 
-	context.producedWood = int(stats.woodIncome)
+	context.producedWood = stats.woodIncome
 
-	context.producedStone = int(stats.stoneIncome)
+	context.producedStone = stats.stoneIncome
 
-	context.producedIron = int(stats.ironIncome)
+	context.producedIron = stats.ironIncome
 
-	context.producedMagicStone = int(stats.magicStoneIncome)
+	context.producedMagicStone = stats.magicStoneIncome
 
 	# =====================================================
 	# SettlementState 반영

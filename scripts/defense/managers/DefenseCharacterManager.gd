@@ -3,7 +3,7 @@ extends RefCounted
 
 signal CharacterDied(character: Unit, status: DefenseCharacterStatus)
 
-var _statusByCharacter: Dictionary = { }
+var _statusByCharacter: Dictionary[Unit, DefenseCharacterStatus] = { }
 
 
 func Clear() -> void:

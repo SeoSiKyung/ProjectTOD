@@ -1,9 +1,9 @@
 extends Node
 
 # 여기에 Dictionary 추가
-var _characterDataByKey: Dictionary = { }
-var _characterDataByType: Dictionary = { }
-var _defenseSpawnDataByCycle: Dictionary = { }
+var _characterDataByKey: Dictionary[int, CharacterData] = { }
+var _characterDataByType: Dictionary[int, Array] = { }
+var _defenseSpawnDataByCycle: Dictionary[int, Array] = { }
 
 var _emptyDefenseSpawnDataList: Array[DefenseSpawnData] = []
 
@@ -29,6 +29,7 @@ func Initialize() -> void:
 
 #endregion
 
+
 #region Data Getters
 
 func GetCharacterData(characterKey: int) -> CharacterData:
@@ -46,6 +47,7 @@ func GetDefenseSpawnData(cycle: int) -> Array[DefenseSpawnData]:
 	return _defenseSpawnDataByCycle[cycle]
 
 #endregion
+
 
 # 여기서 Load 함수 호출
 func _LoadGameData() -> void:
@@ -69,8 +71,8 @@ func _ValidateGameData() -> bool:
 	return isValid
 
 
-func _BuildCharacterDataByType() -> Dictionary:
-	var characterDataByType: Dictionary = { }
+func _BuildCharacterDataByType() -> Dictionary[int, Array]:
+	var characterDataByType: Dictionary[int, Array] = { }
 	var characterTypes: Array = CharacterData.CharacterType.values()
 
 	for characterType: CharacterData.CharacterType in characterTypes:

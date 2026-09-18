@@ -25,7 +25,7 @@ var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
 var _unitPoolManager: DefensePoolManager.UnitPoolManager
 # var _trapPoolManager: DefenseTrapPoolManager
 
-var _deploymentUnitsByCell: Dictionary = { }
+var _deploymentUnitsByCell: Dictionary[Vector2i, Unit] = { }
 
 var _phase: DefensePhase = DefensePhase.DEPLOYMENT
 
@@ -194,7 +194,9 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 	if not _CanRecruitPopulation(recruitRatio):
 		return false
 
-	var deployment := _deploymentManager.GetDeploymentByCell(cell)
+	var deployment: DefenseDeploymentManager.DefenseDeployment = (
+		_deploymentManager.GetDeploymentByCell(cell)
+	)
 	if deployment == null:
 		return false
 
