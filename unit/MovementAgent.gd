@@ -13,6 +13,7 @@ var settleTickCount: int = 0
 var settleProgressDistance: float = INF
 var isSettled: bool = false
 var isPaused: bool = false
+var movementRevision: int = 0
 var _pathFollower: PathFollower
 
 func _init(pUnitId: int, pPosition: Vector2, pMoveSpeed: float, pHalfSize: int) -> void:
@@ -42,12 +43,14 @@ func Stop() -> void:
 
 
 func Pause() -> void:
+	movementRevision += 1
 	isPaused = true
 	lastMoveDelta = Vector2.ZERO
 	ResetSettleProgress()
 
 
 func Resume() -> void:
+	movementRevision += 1
 	isPaused = false
 	ResetSettleProgress()
 		
@@ -98,6 +101,7 @@ func TrackGoalProgress(minimumProgress: float) -> void:
 
 
 func _SetPath(path: PackedVector2Array) -> void:
+	movementRevision += 1
 	_pathFollower.SetPath(path, position)
 	_pathFollower.OnMovementCommitted(position)
 
@@ -112,6 +116,7 @@ func _ResetMoveCommand() -> void:
 	isPaused = false
 	
 func _ClearPath() -> void:
+	movementRevision += 1
 	_pathFollower.ClearPath()
 	lastMoveDelta = Vector2.ZERO
 	
@@ -124,6 +129,11 @@ func GetDesiredPosition() -> Vector2:
 
 	var maxStepDistance: float = moveSpeed
 	return _pathFollower.GetDesiredPosition(position, maxStepDistance)
+
+
+func GetSteeringTarget() -> Vector2:
+	return _pathFollower.GetTargetPosition(position)
+
 
 func CommitMovement(newPosition: Vector2, fixedDelta: float) -> void:
 	Move(newPosition, fixedDelta)

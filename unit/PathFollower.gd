@@ -51,15 +51,19 @@ func GetDesiredPosition(position: Vector2, maxStepDistance: float) -> Vector2:
 
 
 func OnMovementCommitted(position: Vector2) -> void:
-	# 후보를 계산한 것만으로 경로를 소비하지 않는다. 실제 도착 후에만 진행한다.
 	if _targetNodeIndex >= 0 and _HasReached(position, _path[_targetNodeIndex]):
 		_nextNodeIndex = _targetNodeIndex + 1
 	_targetNodeIndex = -1
 	_SkipReachedNodes(position)
 
 
+func GetTargetPosition(fallback: Vector2) -> Vector2:
+	if _targetNodeIndex < 0:
+		return fallback
+	return _path[_targetNodeIndex]
+
+
 func _FindFarthestVisibleNode(position: Vector2) -> int:
-	# 가시성은 경로 순서에 대해 단조롭지 않으므로 끝에서부터 검사한다.
 	for index: int in range(_path.size() - 1, _nextNodeIndex - 1, -1):
 		if _navigationService == null:
 			return index

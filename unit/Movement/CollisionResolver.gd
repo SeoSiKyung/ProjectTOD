@@ -18,10 +18,12 @@ class ResolveFrame:
 	var data: CollisionGroup.AgentData
 	var candidates: Array[MoveCandidate] = []
 	var candidateIndex: int = 0
+	var isDetouring: bool = false
 
 
 var lastError: String = ""
 var _query: MovementCollisionQuery
+var _avoidance: MovementAvoidancePlanner
 var _group: CollisionGroup
 var _states: Dictionary[int, int] = {}
 var _stack: Array[ResolveFrame] = []
@@ -32,6 +34,7 @@ var _profileMetrics: MovementProfileMetrics
 
 func _init(navigationService: NavigationService) -> void:
 	_query = MovementCollisionQuery.new(navigationService)
+	_avoidance = MovementAvoidancePlanner.new(navigationService)
 
 
 func SetProfileMetrics(metrics: MovementProfileMetrics) -> void:
@@ -46,6 +49,7 @@ func Resolve(group: CollisionGroup) -> bool:
 	_ResetOccupancy()
 	if not _InitializeReservations():
 		return false
+	_avoidance.BeginTick(group)
 	for data: CollisionGroup.AgentData in group.agents:
 		if _states[data.unitId] == VisitState.DONE:
 			continue
@@ -116,6 +120,8 @@ func _ResolveStack() -> void:
 			continue
 		if _TryReserveCandidate(frame.data, candidate, travel.distance):
 			_stack.pop_back()
+		elif _TryUpdateDetour(frame, candidate, travel.blockerIds):
+			continue
 		else:
 			frame.candidateIndex += 1
 
@@ -124,8 +130,61 @@ func _PushAgent(data: CollisionGroup.AgentData) -> void:
 	_states[data.unitId] = VisitState.VISITING
 	var frame: ResolveFrame = ResolveFrame.new()
 	frame.data = data
-	frame.candidates = _BuildCandidates(data)
+	if data.canMove:
+		var detour: MovementAvoidancePlanner.Detour = _avoidance.GetDetour(data)
+		if detour == null:
+			frame.candidates = _BuildCandidates(data)
+		else:
+			_ApplyDetour(frame, detour)
 	_stack.append(frame)
+
+
+func _TryUpdateDetour(frame: ResolveFrame, candidate: MoveCandidate, blockerIds: Array[int]) -> bool:
+	if frame.candidateIndex != 0:
+		return false
+	var blocker: CollisionGroup.AgentData = _FindStationaryBlocker(frame.data, candidate.direction, blockerIds)
+	if blocker == null:
+		return false
+	var detour: MovementAvoidancePlanner.Detour
+	if frame.isDetouring:
+		detour = _avoidance.ExtendDetour(frame.data, blocker)
+	else:
+		detour = _avoidance.BeginDetour(frame.data, blocker)
+	if detour == null:
+		return false
+	_ApplyDetour(frame, detour)
+	return true
+
+
+func _FindStationaryBlocker(
+	data: CollisionGroup.AgentData,
+	direction: Vector2,
+	blockerIds: Array[int],
+) -> CollisionGroup.AgentData:
+	var nearest: CollisionGroup.AgentData
+	var shortest: float = INF
+	for unitId: int in blockerIds:
+		if _states[unitId] != VisitState.DONE:
+			continue
+		var blocker: CollisionGroup.AgentData = _group.GetAgent(unitId)
+		if blocker.desiredPosition != blocker.startPosition or blocker.nextPosition != blocker.startPosition:
+			continue
+		var distance: float = MovementCollisionQuery.FirstContactDistance(
+			data.startPosition, direction, blocker.nextPosition, float(data.halfSize + blocker.halfSize),
+		)
+		if distance < shortest:
+			shortest = distance
+			nearest = blocker
+	return nearest
+
+
+func _ApplyDetour(frame: ResolveFrame, detour: MovementAvoidancePlanner.Detour) -> void:
+	frame.isDetouring = true
+	frame.candidateIndex = 0
+	frame.candidates.clear()
+	var delta: Vector2 = _avoidance.GetDesiredPosition(frame.data, detour) - frame.data.startPosition
+	if delta.length() > EPSILON:
+		_AddCandidate(frame.candidates, delta.normalized(), minf(delta.length(), frame.data.maxStepDistance))
 
 
 func _BuildCandidates(data: CollisionGroup.AgentData) -> Array[MoveCandidate]:
@@ -169,7 +228,6 @@ func _FindUnvisitedBlocker(blockerIds: Array[int]) -> int:
 	for blockerId: int in blockerIds:
 		if _states[blockerId] == VisitState.UNVISITED:
 			return blockerId
-			
 	return INVALID_UNIT_ID
 
 

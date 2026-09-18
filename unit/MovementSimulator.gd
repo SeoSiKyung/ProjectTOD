@@ -185,9 +185,13 @@ func _CaptureTick() -> CollisionGroup:
 	var tick: CollisionGroup = CollisionGroup.new()
 	for agent: MovementAgent in _agents:
 		var desiredPosition: Vector2 = agent.position
-		if _CanAgentMove(agent):
+		var canMove: bool = (
+			_CanAgentMove(agent) and not agent.isPaused
+			and agent.moveSpeed > 0.0 and agent.HasPath()
+		)
+		if canMove:
 			desiredPosition = agent.GetDesiredPosition()
-		tick.AddAgent(agent, desiredPosition, agent.moveSpeed)
+		tick.AddAgent(agent, desiredPosition, agent.moveSpeed, canMove)
 	return tick
 
 
