@@ -18,7 +18,6 @@ signal DefenseFinished(result: DefenseResult)
 @export var _battleHUD: PanelContainer
 @export var _resultUI: PanelContainer
 
-@onready var _movementSimulator: MovementSimulator = $MovementSimulator
 @onready var _cp: DefenseCP = $CP
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
 @onready var _deploymentInfoView: DefenseDeploymentInfoView = $DeploymentInfoView
@@ -87,6 +86,7 @@ signal DefenseFinished(result: DefenseResult)
 #endregion
 
 var _navigationService: NavigationService
+var _movementSimulator: MovementSimulator
 var _deploymentGrid: DefenseDeploymentGrid
 
 var _defenseManager: DefenseManager
@@ -119,6 +119,7 @@ func _ready() -> void:
 	if not _InitializeNavigation():
 		return
 
+	_InitializeMovementSimulator()
 	_InitializeDeploymentGrid()
 
 	_cp.global_position = _deploymentGrid.CellToWorldCenter(CP_CELL)
@@ -268,9 +269,11 @@ func _InitializeNavigation() -> bool:
 		push_error("DefenseScene: NavigationService 초기화에 실패했습니다.")
 		return false
 
-	_movementSimulator.navigationService = _navigationService
-
 	return true
+
+
+func _InitializeMovementSimulator() -> void:
+	_movementSimulator = MovementSimulator.new(_navigationService)
 
 
 func _InitializeDeploymentGrid() -> void:

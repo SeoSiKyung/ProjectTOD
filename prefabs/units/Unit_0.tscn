@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://dkxigt8ftn4dd"]
+
+[ext_resource type="PackedScene" uid="uid://dmtwwqwhhf1qk" path="res://prefabs/units/Unit.tscn" id="1_bgrv0"]
+[ext_resource type="Texture2D" uid="uid://ie7m62iaycty" path="res://picture/units/Unit_0.png" id="2_jdpgl"]
+
+[node name="Unit_0" unique_id=470747039 instance=ExtResource("1_bgrv0")]
+
+[node name="Sprite2D" parent="." index="1" unique_id=617625335]
+scale = Vector2(0.1, 0.1)
+texture = ExtResource("2_jdpgl")
