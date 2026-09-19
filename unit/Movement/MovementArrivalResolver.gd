@@ -11,10 +11,15 @@ class CommandArea:
 
 var _navigationService: NavigationService
 var _commandAreas: Dictionary[int, CommandArea] = {}
+var _profileMetrics: MovementProfileMetrics
 
 
 func _init(navigationService: NavigationService) -> void:
 	_navigationService = navigationService
+
+
+func SetProfileMetrics(metrics: MovementProfileMetrics) -> void:
+	_profileMetrics = metrics
 
 
 func Resolve(tick: CollisionGroup, snapshot: StageSnapshot) -> void:
@@ -25,6 +30,8 @@ func Resolve(tick: CollisionGroup, snapshot: StageSnapshot) -> void:
 			pendingAgents.append(data.agent)
 	for agent: MovementAgent in pendingAgents:
 		agent.Settle()
+		if _profileMetrics != null:
+			_profileMetrics.settledAgentCount += 1
 
 
 func _BuildCommandAreas(tick: CollisionGroup) -> void:

@@ -9,6 +9,7 @@ var _navigationService: NavigationService
 var _unitManager: UnitManager
 var _collisionResolver: CollisionResolver
 var _arrivalResolver: MovementArrivalResolver
+var _profileMetrics: MovementProfileMetrics
 var _agents: Array[MovementAgent] = []
 var _agentIndexByUnitId: Dictionary[int, int] = {}
 
@@ -22,7 +23,19 @@ func SetNavigationService(navigationService: NavigationService) -> void:
 	_navigationService = navigationService
 	_collisionResolver = CollisionResolver.new(navigationService)
 	_arrivalResolver = MovementArrivalResolver.new(navigationService)
+	_collisionResolver.SetProfileMetrics(_profileMetrics)
+	_arrivalResolver.SetProfileMetrics(_profileMetrics)
 	PathFollower.SetNavigationService(navigationService)
+
+
+func SetProfileMetrics(metrics: MovementProfileMetrics) -> void:
+	_profileMetrics = metrics
+	_collisionResolver.SetProfileMetrics(metrics)
+	_arrivalResolver.SetProfileMetrics(metrics)
+
+
+func ClearProfileMetrics() -> void:
+	SetProfileMetrics(null)
 
 
 func RegisterAgent(agent: MovementAgent) -> bool:
@@ -127,12 +140,34 @@ func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 		return false
 	if not _ValidateSnapshot(snapshot):
 		return false
+
+	if _profileMetrics != null:
+		_profileMetrics.simulationTickCount += 1
+
+	var phaseStart: int = Time.get_ticks_usec() if _profileMetrics != null else 0
 	var tick: CollisionGroup = _CaptureTick()
+	if _profileMetrics != null:
+		_profileMetrics.captureTickUsec += Time.get_ticks_usec() - phaseStart
+
+	phaseStart = Time.get_ticks_usec() if _profileMetrics != null else 0
 	if not _collisionResolver.Resolve(tick):
+		if _profileMetrics != null:
+			_profileMetrics.collisionResolveUsec += Time.get_ticks_usec() - phaseStart
 		lastError = _collisionResolver.lastError
 		return false
+	if _profileMetrics != null:
+		_profileMetrics.collisionResolveUsec += Time.get_ticks_usec() - phaseStart
+
+	phaseStart = Time.get_ticks_usec() if _profileMetrics != null else 0
 	_CommitTick(tick, snapshot, fixedDelta)
+	if _profileMetrics != null:
+		_profileMetrics.commitTickUsec += Time.get_ticks_usec() - phaseStart
+
+	phaseStart = Time.get_ticks_usec() if _profileMetrics != null else 0
 	_arrivalResolver.Resolve(tick, snapshot)
+	if _profileMetrics != null:
+		_profileMetrics.arrivalResolveUsec += Time.get_ticks_usec() - phaseStart
+
 	return true
 
 
@@ -141,6 +176,8 @@ func Clear() -> void:
 	_agentIndexByUnitId.clear()
 	_collisionResolver = CollisionResolver.new(_navigationService)
 	_arrivalResolver = MovementArrivalResolver.new(_navigationService)
+	_collisionResolver.SetProfileMetrics(_profileMetrics)
+	_arrivalResolver.SetProfileMetrics(_profileMetrics)
 	lastError = ""
 
 

@@ -1,9 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://cd3j3nq367tle"]
+[gd_scene format=3 uid="uid://cd3j3nq367tle"]
 
 [ext_resource type="Script" uid="uid://8s25cos6ongp" path="res://benchmark/NavigationBenchmark.gd" id="1_5u34k"]
-[ext_resource type="Resource" path="res://maps/2_navigation.res" id="2_xljt8"]
+[ext_resource type="Resource" uid="uid://lt8x2mdk8vwc" path="res://maps/2_navigation.res" id="2_xljt8"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="3_d1o1b"]
-[ext_resource type="PackedScene" path="res://benchmark/NavigationBenchmarkUI.tscn" id="4_ui"]
+[ext_resource type="PackedScene" uid="uid://b0ie86vw4qtak" path="res://benchmark/NavigationBenchmarkUI.tscn" id="4_ui"]
 
 [node name="NavigationBenchmark" type="Node2D" unique_id=1971426958]
 script = ExtResource("1_5u34k")
@@ -18,10 +18,10 @@ centered = false
 anchor_mode = 0
 zoom = Vector2(0.5, 0.27)
 
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1455334438]
 
-[node name="RunBenchmarkButton" type="Button" parent="CanvasLayer"]
-layout_mode = 0
+[node name="RunBenchmarkButton" type="Button" parent="CanvasLayer" unique_id=1304841149]
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -198.0
@@ -32,4 +32,4 @@ grow_horizontal = 0
 focus_mode = 0
 text = "Run Benchmark"
 
-[node name="BenchmarkUI" parent="CanvasLayer" instance=ExtResource("4_ui")]
+[node name="BenchmarkUI" parent="CanvasLayer" unique_id=39689797 instance=ExtResource("4_ui")]

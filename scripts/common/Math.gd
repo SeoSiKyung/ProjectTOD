@@ -41,6 +41,19 @@ static func RatioToPercent(ratio: int) -> int:
 	return (ratio * PERCENT_SCALE) / RATIO_SCALE
 
 
+static func Percentile(values: Array, percentilePercent: int) -> int:
+	if values.is_empty():
+		return 0
+
+	var sortedValues: Array = values.duplicate()
+	sortedValues.sort()
+
+	var indexNumerator: int = (sortedValues.size() - 1) * percentilePercent
+	var index: int = CeilDivide(indexNumerator, 100)
+
+	return int(sortedValues[index])
+
+
 static func CeilDivide(value: int, divisor: int) -> int:
 	@warning_ignore("integer_division")
 	return (value + divisor - 1) / divisor

@@ -27,10 +27,15 @@ var _states: Dictionary[int, int] = {}
 var _stack: Array[ResolveFrame] = []
 var _occupancy: StageSnapshot
 var _occupancyCellSize: float = 0.0
+var _profileMetrics: MovementProfileMetrics
 
 
 func _init(navigationService: NavigationService) -> void:
 	_query = MovementCollisionQuery.new(navigationService)
+
+
+func SetProfileMetrics(metrics: MovementProfileMetrics) -> void:
+	_profileMetrics = metrics
 
 
 func Resolve(group: CollisionGroup) -> bool:
@@ -85,14 +90,26 @@ func _ResolveStack() -> void:
 	while not _stack.is_empty():
 		var frame: ResolveFrame = _stack.back()
 		if frame.candidateIndex >= frame.candidates.size():
+			if _profileMetrics != null and frame.data.desiredPosition != frame.data.startPosition:
+				_profileMetrics.stalledAgentTicks += 1
 			_ReservePosition(frame.data, frame.data.startPosition)
 			_stack.pop_back()
 			continue
 		var candidate: MoveCandidate = frame.candidates[frame.candidateIndex]
 		_PrepareStaticDistance(frame.data, candidate)
+		if _profileMetrics != null:
+			_profileMetrics.collisionCandidateQueries += 1
+			if frame.candidateIndex > 0:
+				_profileMetrics.alternateCandidateQueries += 1
 		var travel: MovementCollisionQuery.TravelQuery = _query.QueryTravel(
 			frame.data, candidate.direction, candidate.staticDistance, _occupancy,
 		)
+		if (
+			_profileMetrics != null
+			and not travel.blockerIds.is_empty()
+			and travel.distance + EPSILON < candidate.staticDistance
+		):
+			_profileMetrics.dynamicBlockedCandidates += 1
 		var blockerId: int = _FindUnvisitedBlocker(travel.blockerIds)
 		if blockerId != INVALID_UNIT_ID:
 			_PushAgent(_group.GetAgent(blockerId))

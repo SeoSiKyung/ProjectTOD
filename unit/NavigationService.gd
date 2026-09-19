@@ -206,6 +206,12 @@ func SegmentClear(start: Vector2, end: Vector2, halfSize: int) -> bool:
 	if _benchmarkMetrics != null:
 		_benchmarkMetrics.segmentClearQueryCalls += 1
 
+		var startTime: int = Time.get_ticks_usec()
+		var result: bool = _IsStaticSegmentClear(start, end, halfSize)
+		_benchmarkMetrics.segmentClearQueryUsec += Time.get_ticks_usec() - startTime
+
+		return result
+
 	return _IsStaticSegmentClear(start, end, halfSize)
 
 
@@ -451,22 +457,38 @@ func BuildPaths(
 		center += unitStart
 	center /= float(unitStarts.size())
 
+	var groupPhaseStart: int = 0
 	# 2. 평균 위치를 target과 같은 Component의 실제 합류 지점으로 보정
+	if _benchmarkMetrics != null:
+		groupPhaseStart = Time.get_ticks_usec()
+
 	var joinPoint: Vector2 = GetNearestReachablePoint(center, halfSize, target)
+	if _benchmarkMetrics != null:
+		_benchmarkMetrics.groupJoinPointUsec += (Time.get_ticks_usec() - groupPhaseStart)
 
 	# 3. 합류 지점 → 목적지 공통 Raw Path를 한 번만 생성
+	if _benchmarkMetrics != null:
+		groupPhaseStart = Time.get_ticks_usec()
+
 	var sharedPath: PackedVector2Array = PackedVector2Array()
 	if joinPoint.distance_squared_to(target) <= Math.EPSILON:
 		sharedPath.append(target)
 	else:
 		sharedPath = FindPath(joinPoint, target, halfSize)
-		if not _PathEndsAtPoint(sharedPath, target):
-			for _unitStart: Vector2 in unitStarts:
-				paths.append(PackedVector2Array())
 
-			return paths
+	if _benchmarkMetrics != null:
+		_benchmarkMetrics.groupSharedPathUsec += (Time.get_ticks_usec() - groupPhaseStart)
+
+	if not _PathEndsAtPoint(sharedPath, target):
+		for _unitStart: Vector2 in unitStarts:
+			paths.append(PackedVector2Array())
+
+		return paths
 
 	# 4. 각 유닛의 개별 합류 경로 구성
+	if _benchmarkMetrics != null:
+		groupPhaseStart = Time.get_ticks_usec()
+
 	for unitStart: Vector2 in unitStarts:
 		var unitPath: PackedVector2Array = _BuildPathToSharedPath(
 			unitStart,
@@ -478,7 +500,10 @@ func BuildPaths(
 			unitPath = PackedVector2Array()
 
 		paths.append(unitPath)
-		
+
+	if _benchmarkMetrics != null:
+		_benchmarkMetrics.groupUnitPathsUsec += (Time.get_ticks_usec() - groupPhaseStart)
+
 	return paths
 
 
@@ -533,8 +558,12 @@ func _BuildPathToSharedPath(
 			segmentEnd,
 		)
 
+		if _benchmarkMetrics != null:
+			_benchmarkMetrics.groupJoinSegmentAttempts += 1
 		if not SegmentClear(unitStart, joinCandidate, halfSize):
 			continue
+		if _benchmarkMetrics != null:
+			_benchmarkMetrics.groupJoinSegmentSuccesses += 1
 
 		if unitStart.distance_squared_to(joinCandidate) > Math.EPSILON:
 			_AppendUniquePoint(result, joinCandidate)
@@ -546,8 +575,12 @@ func _BuildPathToSharedPath(
 
 	# 2. 선분 합류가 안 되면 목적지 쪽 waypoint부터 역순으로 확인
 	for index: int in range(routeSize - 1, -1, -1):
+		if _benchmarkMetrics != null:
+			_benchmarkMetrics.groupJoinWaypointAttempts += 1
 		if not SegmentClear(unitStart, sharedRoute[index], halfSize):
 			continue
+		if _benchmarkMetrics != null:
+			_benchmarkMetrics.groupJoinWaypointSuccesses += 1
 
 		for pathIndex: int in range(index, routeSize):
 			_AppendUniquePoint(result, sharedRoute[pathIndex])
@@ -555,12 +588,16 @@ func _BuildPathToSharedPath(
 		return result
 
 	# 3. 전부 실패한 유닛만 joinPoint까지 A*
+	if _benchmarkMetrics != null:
+		_benchmarkMetrics.groupJoinFallbackCalls += 1
 	var localPath: PackedVector2Array = FindPath(unitStart, joinPoint, halfSize)
 	if localPath.is_empty():
 		# 이미 joinPoint에 있는 경우 FindPath()가 빈 배열을 반환하는 것은 정상.
 		if unitStart.distance_squared_to(joinPoint) > Math.EPSILON:
 			return result
 	else:
+		if _benchmarkMetrics != null:
+			_benchmarkMetrics.groupJoinFallbackSuccesses += 1
 		for point: Vector2 in localPath:
 			_AppendUniquePoint(result, point)
 

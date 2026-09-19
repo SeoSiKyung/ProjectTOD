@@ -14,7 +14,25 @@ extends RefCounted
 #
 # 일반 게임 실행에서는 metrics가 null이므로 계측하지 않는다.
 
+#region Group Build
+
+var groupJoinPointUsec: int = 0
+var groupSharedPathUsec: int = 0
+var groupUnitPathsUsec: int = 0
+
+var groupJoinSegmentAttempts: int = 0
+var groupJoinSegmentSuccesses: int = 0
+
+var groupJoinWaypointAttempts: int = 0
+var groupJoinWaypointSuccesses: int = 0
+
+var groupJoinFallbackCalls: int = 0
+var groupJoinFallbackSuccesses: int = 0
+
+#endregion
+
 #region Phase Time
+
 var startAnchorConnectionUsec: int = 0
 var targetAnchorConnectionUsec: int = 0
 var anchorGraphUsec: int = 0
@@ -23,12 +41,15 @@ var fallbackGridUsec: int = 0
 #endregion
 
 #region Static Query
+
+var segmentClearQueryUsec: int = 0
 var segmentClearQueryCalls: int = 0
 var staticSegmentChecks: int = 0
 
 #endregion
 
 #region Grid A*
+
 # _FindGridPathInternal() 전체 계측.
 # Complete Grid fallback뿐 아니라 Local Path / Component Probe에서 발생한 Grid A*도 모두 포함한다.
 var gridSearchCalls: int = 0
@@ -38,7 +59,9 @@ var gridRelaxed: int = 0
 #endregion
 
 #region Anchor Connection
+
 #region Direct
+
 var anchorDirectCheckUsec: int = 0
 var anchorDirectCheckCount: int = 0
 var anchorDirectSuccessCount: int = 0
@@ -46,6 +69,7 @@ var anchorDirectSuccessCount: int = 0
 #endregion
 
 #region Component Probe
+
 var anchorProbeUsec: int = 0
 var anchorProbeCount: int = 0
 var anchorProbeSuccessCount: int = 0
@@ -53,6 +77,7 @@ var anchorProbeSuccessCount: int = 0
 #endregion
 
 #region Portal Batch
+
 var anchorPortalBatchUsec: int = 0
 var anchorPortalBatchSearchCalls: int = 0
 var anchorPortalBatchExpanded: int = 0
@@ -61,6 +86,7 @@ var anchorPortalBatchRelaxed: int = 0
 #endregion
 
 #region Individual Fallback
+
 var anchorIndividualFallbackUsec: int = 0
 var anchorIndividualFallbackCount: int = 0
 var anchorIndividualFallbackSuccessCount: int = 0
@@ -68,15 +94,18 @@ var anchorIndividualFallbackSuccessCount: int = 0
 #endregion
 
 #region Cache
+
 # Region Anchor Connection request cache 계측.
 # NavigationBenchmark에서는 각 측정 전에 request cache를 비우므로, baseline 측정에서는 Hit=0이 정상이다.
 var anchorCacheHits: int = 0
 var anchorCacheMisses: int = 0
 
 #endregion
+
 #endregion
 
 #region Anchor Graph
+
 var anchorGraphSearchCalls: int = 0
 var anchorGraphExpanded: int = 0
 var anchorGraphRelaxed: int = 0
@@ -84,6 +113,7 @@ var anchorGraphRelaxed: int = 0
 #endregion
 
 #region Worst Anchor Batch
+
 var anchorBatchMaxUsec: int = 0
 var anchorBatchMaxExpanded: int = 0
 var anchorBatchMaxRelaxed: int = 0
@@ -92,14 +122,26 @@ var anchorBatchMaxSearchArea: int = 0
 
 #endregion
 
+
 func ToDictionary() -> Dictionary:
 	return {
+		# Group Build
+		"group_join_point_usec": groupJoinPointUsec,
+		"group_shared_path_usec": groupSharedPathUsec,
+		"group_unit_paths_usec": groupUnitPathsUsec,
+		"group_join_segment_attempts": groupJoinSegmentAttempts,
+		"group_join_segment_successes": groupJoinSegmentSuccesses,
+		"group_join_waypoint_attempts": groupJoinWaypointAttempts,
+		"group_join_waypoint_successes": groupJoinWaypointSuccesses,
+		"group_join_fallback_calls": groupJoinFallbackCalls,
+		"group_join_fallback_successes": groupJoinFallbackSuccesses,
 		# Phase Time
 		"start_anchor_connection_usec": startAnchorConnectionUsec,
 		"target_anchor_connection_usec": targetAnchorConnectionUsec,
 		"anchor_graph_usec": anchorGraphUsec,
 		"fallback_grid_usec": fallbackGridUsec,
 		# Static Query
+		"segment_clear_query_usec": segmentClearQueryUsec,
 		"segment_clear_query_calls": segmentClearQueryCalls,
 		"static_segment_checks": staticSegmentChecks,
 		# Grid A*

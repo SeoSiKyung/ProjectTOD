@@ -26,6 +26,7 @@ var _unitPoolManager: DefensePoolManager.UnitPoolManager
 # var _trapPoolManager: DefenseTrapPoolManager
 
 var _deploymentUnitsByCell: Dictionary[Vector2i, Unit] = { }
+var _registeredUnitsById: Dictionary[int, Unit] = { }
 
 var _phase: DefensePhase = DefensePhase.DEPLOYMENT
 
@@ -474,14 +475,19 @@ func _RegisterUnit(unit: Unit) -> bool:
 		return false
 
 	var unitId: int = _GetNextUnitId()
-	unit.unitId = unitId
+	var movementAgent: MovementAgent = MovementAgent.new(
+		unitId,
+		unit.global_position,
+		unit.moveSpeed,
+		unit.GetHalfSize(),
+	)
 
-	_movementSimulator.RegisterUnit(unit)
-
-	if _movementSimulator.GetUnit(unitId) != unit:
-		push_error("DefenseManager: MovementSimulator Unit 등록에 실패했습니다. unitId: " + str(unitId))
+	if not _movementSimulator.RegisterAgent(movementAgent):
+		push_error("DefenseManager: MovementAgent 등록에 실패했습니다. unitId: " + str(unitId))
 		return false
 
+	unit.unitId = unitId
+	_registeredUnitsById[unitId] = unit
 	return true
 
 
@@ -489,14 +495,16 @@ func _UnregisterUnit(unit: Unit) -> void:
 	if unit == null:
 		return
 
-	if unit.movement != null:
-		unit.movement.Stop()
+	var unitId: int = unit.unitId
+	if _registeredUnitsById.get(unitId) != unit:
+		return
 
-	_movementSimulator.UnregisterUnit(unit)
+	_movementSimulator.UnregisterAgent(unitId)
+	_registeredUnitsById.erase(unitId)
 
 
 func _GetNextUnitId() -> int:
-	while _movementSimulator.GetUnit(_nextUnitId) != null:
+	while _registeredUnitsById.has(_nextUnitId):
 		_nextUnitId += 1
 
 	var unitId: int = _nextUnitId

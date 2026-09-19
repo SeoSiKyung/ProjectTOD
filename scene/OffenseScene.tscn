@@ -29,6 +29,7 @@ script = ExtResource("8_u7dgu")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=573415892]
 anchor_mode = 0
+zoom = Vector2(0.5, 0.5)
 
 [node name="UnitRoot" type="Node2D" parent="." unique_id=915067606]
 
