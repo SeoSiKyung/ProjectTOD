@@ -29,8 +29,10 @@ func _init(navigationService: NavigationService) -> void:
 
 func BeginTick(group: CollisionGroup) -> void:
 	for unitId: int in _detours.keys():
-		if not _IsValid(_detours[unitId], group):
+		var detour: Detour = _detours[unitId]
+		if not _IsValid(detour, group):
 			_detours.erase(unitId)
+			detour.agent.OnAvoidanceEnded()
 
 
 func GetDetour(data: CollisionGroup.AgentData) -> Detour:
@@ -39,6 +41,7 @@ func GetDetour(data: CollisionGroup.AgentData) -> Detour:
 		return null
 	if _CanResumePath(data, detour):
 		_detours.erase(data.unitId)
+		data.agent.OnAvoidanceEnded()
 		return null
 	_AdvanceWaypoint(data.startPosition, detour)
 	return detour
@@ -59,6 +62,7 @@ func BeginDetour(data: CollisionGroup.AgentData, blocker: CollisionGroup.AgentDa
 		data.startPosition, detour.targetPosition, detour,
 	)
 	_detours[data.unitId] = detour
+	data.agent.OnAvoidanceStarted()
 	return detour
 
 
@@ -131,7 +135,7 @@ func _CanResumePath(data: CollisionGroup.AgentData, detour: Detour) -> bool:
 		return false
 	var target: Vector2 = data.agent.GetSteeringTarget()
 	if target.distance_squared_to(data.startPosition) <= EPSILON * EPSILON:
-		return false
+		return true
 	if target == detour.targetPosition:
 		return true
 	return _IsEdgeClear(data.startPosition, target, detour)

@@ -119,6 +119,8 @@ func _ResolveStack() -> void:
 			_PushAgent(_group.GetAgent(blockerId))
 			continue
 		if _TryReserveCandidate(frame.data, candidate, travel.distance):
+			if not frame.isDetouring and frame.candidateIndex > 0:
+				frame.data.agent.OnAxisAvoidanceReserved()
 			_stack.pop_back()
 		elif _TryUpdateDetour(frame, candidate, travel.blockerIds):
 			continue
@@ -133,6 +135,7 @@ func _PushAgent(data: CollisionGroup.AgentData) -> void:
 	if data.canMove:
 		var detour: MovementAvoidancePlanner.Detour = _avoidance.GetDetour(data)
 		if detour == null:
+			data.desiredPosition = data.agent.GetDesiredPosition()
 			frame.candidates = _BuildCandidates(data)
 		else:
 			_ApplyDetour(frame, detour)

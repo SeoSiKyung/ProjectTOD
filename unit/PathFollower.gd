@@ -1,81 +1,128 @@
 class_name PathFollower
 extends RefCounted
 
-const REACH_DISTANCE: float = 0.001
-
+const REACH_DISTANCE: float = 1.0
 static var _navigationService: NavigationService
-var _halfSize: int
-var _path: PackedVector2Array = []
-var _nextNodeIndex: int = 0
-var _targetNodeIndex: int = -1
 
+static func SetNavigationService(naviService: NavigationService) -> void:
+	_navigationService = naviService
 
-func _init(halfSize: int) -> void:
-	_halfSize = halfSize
-
-
-static func SetNavigationService(navigationService: NavigationService) -> void:
-	_navigationService = navigationService
-
-
-static func ClearNavigationService(navigationService: NavigationService) -> void:
-	if _navigationService == navigationService:
+static func ClearNavigationService(naviService: NavigationService) -> void:
+	if _navigationService == naviService:
 		_navigationService = null
 
+var _halfSize: int = 0
+var _path: PackedVector2Array = PackedVector2Array()
+var _originalPathIndex: int = 0
+var _shortcutIndex: int = 0
+var _goalIndex: int = 0
+var _needsShortcutRefresh: bool = false
+var _isAvoiding: bool = false
 
-func SetPath(path: PackedVector2Array, position: Vector2) -> void:
-	ClearPath()
-	for node: Vector2 in path:
-		if not node.is_finite():
-			push_error("이동 경로에 유효하지 않은 좌표가 있습니다.")
-			return
-	_path = path.duplicate()
-	_SkipReachedNodes(position)
+func _init(halfSize: int):
+	_halfSize = halfSize
 
+func SetPath(path: PackedVector2Array, curPosition: Vector2) -> void:
+	_path = path
+	_initIndex()
+	if not IsEmpty():
+		_UpdateIndex(curPosition)
 
 func ClearPath() -> void:
 	_path.clear()
-	_nextNodeIndex = 0
-	_targetNodeIndex = -1
+	_initIndex()
+
+func _initIndex() -> void:
+	_originalPathIndex = 0
+	_shortcutIndex = 0
+	_goalIndex = _path.size() - 1
+	_needsShortcutRefresh = not _path.is_empty()
+	_isAvoiding = false
+
+
+func GetDesiredPosition(curPosition: Vector2, maxDistance: float) -> Vector2:
+	if IsEmpty() or _shortcutIndex < 0:
+		return curPosition
+
+	var curWaypoint: Vector2 = _path[_shortcutIndex]
+	var remainDistance: Vector2 = curWaypoint - curPosition
+	var maxDelta: Vector2 = remainDistance.normalized() * maxDistance
+	return curPosition + maxDelta if remainDistance.length() > maxDelta.length() else curPosition + remainDistance
+
+func GetTargetPosition(fallback: Vector2) -> Vector2:
+	if IsEmpty() or _shortcutIndex < 0:
+		return fallback
+	return _path[_shortcutIndex]
 
 
 func IsEmpty() -> bool:
-	return _nextNodeIndex >= _path.size()
+	return _path.is_empty()
 
 
-func GetDesiredPosition(position: Vector2, maxStepDistance: float) -> Vector2:
-	_targetNodeIndex = _FindFarthestVisibleNode(position)
-	if _targetNodeIndex < 0 or maxStepDistance <= 0.0:
-		return position
-	return position.move_toward(_path[_targetNodeIndex], maxStepDistance)
+func OnMovementCommitted(curPosition: Vector2) -> void:
+	if IsEmpty() or _isAvoiding:
+		return
 
+	if _IsReached(curPosition, _path[_goalIndex]):
+		ClearPath()
+		return
 
-func OnMovementCommitted(position: Vector2) -> void:
-	if _targetNodeIndex >= 0 and _HasReached(position, _path[_targetNodeIndex]):
-		_nextNodeIndex = _targetNodeIndex + 1
-	_targetNodeIndex = -1
-	_SkipReachedNodes(position)
+	_UpdateIndex(curPosition)
 
+func OnAvoidanceStarted() -> void:
+	_isAvoiding = true
 
-func GetTargetPosition(fallback: Vector2) -> Vector2:
-	if _targetNodeIndex < 0:
-		return fallback
-	return _path[_targetNodeIndex]
+func OnAvoidanceEnded(curPosition: Vector2) -> void:
+	_isAvoiding = false
+	if IsEmpty():
+		return
+	_needsShortcutRefresh = true
+	OnMovementCommitted(curPosition)
 
+func _UpdateIndex(curPosition: Vector2) -> void:
+	_UpdateOriginalPathIndex(curPosition)
+	_UpdateShortcutIndex(curPosition, _halfSize)
+	if _originalPathIndex > _goalIndex:
+		ClearPath()
 
-func _FindFarthestVisibleNode(position: Vector2) -> int:
-	for index: int in range(_path.size() - 1, _nextNodeIndex - 1, -1):
-		if _navigationService == null:
-			return index
-		if _navigationService.SegmentClear(position, _path[index], _halfSize):
-			return index
-	return -1
+func _UpdateOriginalPathIndex(curPosition: Vector2) -> void:
+	if _shortcutIndex < 0:
+		return
+	var target: Vector2 = _path[_shortcutIndex] - curPosition
+	var candidateIdx: int = _originalPathIndex
+	for idx in range(_originalPathIndex, _shortcutIndex):
+		var check: Vector2 = _path[idx] - curPosition
+		if Math.IsOpposite(check, target):
+			candidateIdx = idx + 1
+		else:
+			break
+	_originalPathIndex = candidateIdx
 
+func _UpdateShortcutIndex(curPosition: Vector2, halfSize: int) -> void:
+	if _needsShortcutRefresh or (
+		_shortcutIndex >= 0 and _IsReached(curPosition, _path[_shortcutIndex])
+	):
+		_needsShortcutRefresh = false
+		_FindNextShortcutIndex(curPosition, halfSize)
 
-func _SkipReachedNodes(position: Vector2) -> void:
-	while not IsEmpty() and _HasReached(position, _path[_nextNodeIndex]):
-		_nextNodeIndex += 1
+func _FindNextShortcutIndex(curPosition: Vector2, halfSize: int) -> bool:
+	if _navigationService == null:
+		_shortcutIndex = _originalPathIndex
+		return true
 
+	var firstCandidateIndex: int = _originalPathIndex
+	var lastCandidateIndex: int = _goalIndex
+	var candidateIndex: int = _goalIndex
+	var visibleShortcutIndex: int = -1
+	while firstCandidateIndex <= lastCandidateIndex:
+		if _navigationService.SegmentClear(curPosition, _path[candidateIndex], halfSize):
+			visibleShortcutIndex = candidateIndex
+			firstCandidateIndex = candidateIndex + 1
+		else:
+			lastCandidateIndex = candidateIndex - 1
+		candidateIndex = firstCandidateIndex + ((lastCandidateIndex - firstCandidateIndex) >> 1)
+	_shortcutIndex = visibleShortcutIndex
+	return _shortcutIndex >= 0
 
-func _HasReached(position: Vector2, node: Vector2) -> bool:
-	return position.distance_squared_to(node) <= REACH_DISTANCE * REACH_DISTANCE
+func _IsReached(pos1: Vector2, pos2: Vector2) -> bool:
+	return (pos1 - pos2).length() < REACH_DISTANCE

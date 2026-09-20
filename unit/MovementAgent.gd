@@ -15,6 +15,8 @@ var isSettled: bool = false
 var isPaused: bool = false
 var movementRevision: int = 0
 var _pathFollower: PathFollower
+var _isAvoiding: bool = false
+var _shouldEndAvoidanceAfterCommit: bool = false
 
 func _init(pUnitId: int, pPosition: Vector2, pMoveSpeed: float, pHalfSize: int) -> void:
 	unitId = pUnitId
@@ -102,6 +104,8 @@ func TrackGoalProgress(minimumProgress: float) -> void:
 
 func _SetPath(path: PackedVector2Array) -> void:
 	movementRevision += 1
+	_isAvoiding = false
+	_shouldEndAvoidanceAfterCommit = false
 	_pathFollower.SetPath(path, position)
 	_pathFollower.OnMovementCommitted(position)
 
@@ -117,6 +121,8 @@ func _ResetMoveCommand() -> void:
 	
 func _ClearPath() -> void:
 	movementRevision += 1
+	_isAvoiding = false
+	_shouldEndAvoidanceAfterCommit = false
 	_pathFollower.ClearPath()
 	lastMoveDelta = Vector2.ZERO
 	
@@ -135,6 +141,30 @@ func GetSteeringTarget() -> Vector2:
 	return _pathFollower.GetTargetPosition(position)
 
 
+func OnAvoidanceStarted() -> void:
+	_shouldEndAvoidanceAfterCommit = false
+	if _isAvoiding:
+		return
+	_isAvoiding = true
+	_pathFollower.OnAvoidanceStarted()
+
+
+func OnAvoidanceEnded() -> void:
+	if not _isAvoiding:
+		return
+	_isAvoiding = false
+	_shouldEndAvoidanceAfterCommit = false
+	_pathFollower.OnAvoidanceEnded(position)
+
+
+func OnAxisAvoidanceReserved() -> void:
+	OnAvoidanceStarted()
+	_shouldEndAvoidanceAfterCommit = true
+
+
 func CommitMovement(newPosition: Vector2, fixedDelta: float) -> void:
 	Move(newPosition, fixedDelta)
-	_pathFollower.OnMovementCommitted(position)
+	if _shouldEndAvoidanceAfterCommit:
+		OnAvoidanceEnded()
+	elif not _isAvoiding:
+		_pathFollower.OnMovementCommitted(position)
