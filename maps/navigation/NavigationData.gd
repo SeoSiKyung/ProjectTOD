@@ -24,6 +24,8 @@ extends Resource
 # 유닛 halfSize별로 Bake된 Portal 이동 데이터
 @export var footprints: Array[NavigationFootprintData] = []
 
+@export var staticContactSlop: float = 1.0
+
 
 func GetWorldSize() -> Vector2:
 	return Vector2(gridSize.x * cellSize, gridSize.y * cellSize)

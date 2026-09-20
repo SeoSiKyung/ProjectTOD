@@ -9,6 +9,7 @@ enum Mode {
 }
 
 signal RunAllRequested(mode: int)
+signal RunSelectedRequested(mode: int, caseIndex: int)
 
 var _pathResultsByCase: Dictionary = { }
 var _movementResultsByCase: Dictionary = { }
@@ -21,6 +22,7 @@ var _isSavingScreenshots: bool = false
 
 @onready var _controlRow: HBoxContainer = _content.get_node("ControlRow")
 @onready var _runAllButton: Button = _controlRow.get_node("RunAllButton")
+@onready var _runSelectedButton: Button = _controlRow.get_node("RunSelectedButton")
 @onready var _saveAllButton: Button = _controlRow.get_node("SaveAllButton")
 @onready var _modeSelect: OptionButton = _controlRow.get_node("ModeSelect")
 @onready var _caseSelect: OptionButton = _controlRow.get_node("CaseSelect")
@@ -115,6 +117,7 @@ func _ready() -> void:
 	_modeSelect.select(0)
 
 	_runAllButton.pressed.connect(_OnRunAllButtonPressed)
+	_runSelectedButton.pressed.connect(_OnRunSelectedButtonPressed)
 	_saveAllButton.pressed.connect(_OnSaveAllButtonPressed)
 	_modeSelect.item_selected.connect(_OnModeSelected)
 	_caseSelect.item_selected.connect(_OnCaseSelected)
@@ -141,15 +144,19 @@ func GetSelectedMode() -> int:
 	return _modeSelect.get_item_id(_modeSelect.selected)
 
 
-func SetRunning(isRunning: bool, mode: int) -> void:
+func SetRunning(isRunning: bool, mode: int, clearResults: bool = true) -> void:
 	_runAllButton.disabled = isRunning
+	_runSelectedButton.disabled = isRunning
 	_saveAllButton.disabled = isRunning
 	_modeSelect.disabled = isRunning
 	_caseSelect.disabled = isRunning
 
 	if isRunning:
 		show()
-		_ClearModeResults(mode)
+
+		if clearResults:
+			_ClearModeResults(mode)
+
 		_SetEmptyResult()
 		_statusLabel.text = (
 			"Running movement benchmark..."
@@ -203,6 +210,13 @@ func ShowMovementResult(caseName: String, summary: Dictionary) -> void:
 
 func _OnRunAllButtonPressed() -> void:
 	RunAllRequested.emit(GetSelectedMode())
+
+
+func _OnRunSelectedButtonPressed() -> void:
+	if _caseSelect.selected < 0:
+		return
+
+	RunSelectedRequested.emit(GetSelectedMode(), _caseSelect.selected)
 
 
 func _OnSaveAllButtonPressed() -> void:

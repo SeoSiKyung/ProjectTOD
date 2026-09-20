@@ -1,17 +1,26 @@
 class_name NavigationBaker
 extends Node
 
+const PATH_REGION_INVALID: int = -1
+const PATH_REGION_PORTAL: int = -2
+
 @export var navigationMask: Texture2D
 @export var cellSize: int = 8
 @export var worldOrigin: Vector2 = Vector2.ZERO
 @export var bakeHalfSizes: PackedInt32Array = PackedInt32Array([16, 32])
+
+@export_range(0.0, 2.0, 0.05) var staticContactSlop: float = 1.0
+
 @export_range(0.0, 1.0, 0.01) var blockedThreshold: float = 0.5
 @export_range(0.0, 1.0, 0.01) var portalRedThreshold: float = 0.8
 @export_range(0.0, 1.0, 0.01) var portalOtherThreshold: float = 0.2
 @export_range(1, 5, 1) var maxPortalAnchors: int = 4
+
 @export_dir var outputDirectory: String = "res://maps"
 
+
 #region Class
+
 class MaskBakeData:
 	var blocked: PackedByteArray = PackedByteArray()
 	var portalMap: PackedByteArray = PackedByteArray()
@@ -92,7 +101,9 @@ class RouteHeap extends Heap.IndexedIntHeap:
 
 #endregion
 
+
 #region Public
+
 func BakeNavigation() -> bool:
 	if not _ValidateBakeSettings():
 		return false
@@ -102,8 +113,8 @@ func BakeNavigation() -> bool:
 	if not _ValidateBakeImage(image):
 		return false
 
-	var gridWidth: int = image.get_width() / cellSize
-	var gridHeight: int = image.get_height() / cellSize
+	var gridWidth: int = Math.DivideInt(image.get_width(), cellSize)
+	var gridHeight: int = Math.DivideInt(image.get_height(), cellSize)
 	var maskData: MaskBakeData = _AnalyzeMask(image, gridWidth, gridHeight)
 
 	var prefixSum = _MakePrefixSum(maskData.blocked, gridWidth, gridHeight)
@@ -125,7 +136,9 @@ func BakeNavigation() -> bool:
 
 #endregion
 
+
 #region Validation / Setup
+
 func _ValidateBakeSettings() -> bool:
 	if navigationMask == null:
 		push_error("Navigation Mask가 지정되지 않았습니다.")
@@ -195,7 +208,9 @@ func _GetOutputPath() -> String:
 
 #endregion
 
+
 #region Analyze Mask
+
 func _AnalyzeMask(image: Image, gridWidth: int, gridHeight: int) -> MaskBakeData:
 	var result: MaskBakeData = MaskBakeData.new()
 	var total: int = gridWidth * gridHeight
@@ -245,7 +260,9 @@ func _IsBlockedPixel(color: Color) -> bool:
 
 #endregion
 
+
 #region Make Prefix Sum
+
 func _MakePrefixSum(blocked: PackedByteArray, gridWidth: int, gridHeight: int) -> PackedInt32Array:
 	var prefixWidth: int = gridWidth + 1
 
@@ -267,7 +284,9 @@ func _MakePrefixSum(blocked: PackedByteArray, gridWidth: int, gridHeight: int) -
 
 #endregion
 
+
 #region Navigation Data
+
 func _MakeNavigationData(
 	blocked: PackedByteArray,
 	portalMap: PackedByteArray,
@@ -306,7 +325,17 @@ func _MakeNavigationData(
 	data.regions = regions
 	data.portals = portals
 
-	data.footprints = _MakeFootprints(regions, portals, regionMap, prefixSum, gridWidth, gridHeight)
+	data.footprints = _MakeFootprints(
+		regions,
+		portals,
+		regionMap,
+		portalMap,
+		prefixSum,
+		gridWidth,
+		gridHeight,
+	)
+
+	data.staticContactSlop = staticContactSlop
 
 	return data
 
@@ -329,7 +358,9 @@ func _SaveNavigationData(data: NavigationData, outputPath: String) -> bool:
 
 #endregion
 
+
 #region Region / Portal
+
 func _MakeRegionMap(
 	blocked: PackedByteArray,
 	portalMap: PackedByteArray,
@@ -357,8 +388,8 @@ func _MakeRegionMap(
 			var currentIndex: int = queue[head]
 			head += 1
 
-			var currentX: int = currentIndex % gridWidth
-			var currentY: int = int(currentIndex / gridWidth)
+			var currentX: int = Math.RemainderInt(currentIndex, gridWidth)
+			var currentY: int = Math.DivideInt(currentIndex, gridWidth)
 			for direction: Vector2i in Math.DIRECTIONS_8:
 				var nextX: int = currentX + direction.x
 				var nextY: int = currentY + direction.y
@@ -436,8 +467,8 @@ func _MakePortals(
 			head += 1
 
 			var currentCell: Vector2i = Vector2i(
-				currentIndex % gridWidth,
-				int(currentIndex / gridWidth),
+				Math.RemainderInt(currentIndex, gridWidth),
+				Math.DivideInt(currentIndex, gridWidth),
 			)
 
 			portalCells.append(currentCell)
@@ -574,11 +605,14 @@ func _ConnectPortalNeighbors(
 
 #endregion
 
+
 #region Footprint
+
 func _MakeFootprints(
 	regions: Array[NavigationRegionData],
 	portals: Array[NavigationPortalData],
 	regionMap: PackedInt32Array,
+	portalMap: PackedByteArray,
 	prefixSum: PackedInt32Array,
 	gridWidth: int,
 	gridHeight: int,
@@ -595,6 +629,15 @@ func _MakeFootprints(
 
 		var footprint: NavigationFootprintData = NavigationFootprintData.new()
 		footprint.halfSize = halfSize
+
+		footprint.navigationMap = _MakeFootprintNavigationMapData(
+			halfSize,
+			regionMap,
+			portalMap,
+			prefixSum,
+			gridWidth,
+			gridHeight,
+		)
 
 		for portal: NavigationPortalData in portals:
 			var portalData: NavigationFootprintPortalData = _MakeFootprintPortalData(
@@ -650,13 +693,13 @@ func _MakePortalAnchors(candidates: Array[Vector2i], halfSize: int) -> PackedVec
 
 	# 진입로끼리 너무 촘촘하지 않게 유닛 지름 정도를 간격으로
 	var desiredSpacing: float = maxf(float(halfSize * 2), float(cellSize * 4))
-	var desiredCount: int = (int(floor(usableLength / desiredSpacing)) + 1)
+	var desiredCount: int = int(floor(usableLength / desiredSpacing)) + 1
 
 	# 충분히 긴 Portal이면 최소 3개, 짧은 Portal이면 1~2개도 허용
 	var minimumCount: int = mini(3, maximumCount)
 	var anchorCount: int = clampi(desiredCount, minimumCount, maximumCount)
 	if anchorCount == 1:
-		var middleIndex: int = candidates.size() >> 1
+		var middleIndex: int = Math.DivideInt(candidates.size(), 2)
 		result.append(_CellCenterToWorld(candidates[middleIndex]))
 
 		return result
@@ -712,6 +755,147 @@ func _GetPortalCells(portal: NavigationPortalData) -> Array[Vector2i]:
 		if error2 <= dx:
 			error += dx
 			y0 += stepY
+
+	return result
+
+
+func _MakeFootprintNavigationMapData(
+	halfSize: int,
+	regionMap: PackedInt32Array,
+	portalMap: PackedByteArray,
+	prefixSum: PackedInt32Array,
+	gridWidth: int,
+	gridHeight: int,
+) -> NavigationFootprintMapData:
+	var total: int = gridWidth * gridHeight
+
+	var result: NavigationFootprintMapData = NavigationFootprintMapData.new()
+	result.placeableMap.resize(total)
+	result.pathRegionMap.resize(total)
+	result.componentMap.resize(total)
+	result.walkMask.resize(total)
+	result.regionWalkMask.resize(total)
+
+	result.placeableMap.fill(0)
+	result.pathRegionMap.fill(PATH_REGION_INVALID)
+	result.componentMap.fill(-1)
+	result.walkMask.fill(0)
+	result.regionWalkMask.fill(0)
+
+	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
+
+	# 1. Path lattice 기준 배치 가능 여부 / Region 정보 생성
+	for index: int in range(total):
+		var cell: Vector2i = Vector2i(
+			Math.RemainderInt(index, gridWidth),
+			Math.DivideInt(index, gridWidth),
+		)
+		var center: Vector2 = _PathCellToWorld(cell, pathOffset)
+		if not _CanPlacePathStatic(center, halfSize, prefixSum, gridWidth, gridHeight):
+			continue
+
+		result.placeableMap[index] = 1
+
+		var regionCell: Vector2i = _WorldToCell(center)
+		if not Grid.IsCellInGrid(regionCell, gridWidth, gridHeight):
+			continue
+
+		var regionIndex: int = regionCell.y * gridWidth + regionCell.x
+		var regionId: int = regionMap[regionIndex]
+		if regionId >= 0:
+			result.pathRegionMap[index] = regionId
+		elif portalMap[regionIndex] != 0:
+			result.pathRegionMap[index] = PATH_REGION_PORTAL
+
+	# 2. Component / Walk Mask 생성
+	var componentId: int = 0
+	var queue: Array[int] = []
+	for startIndex: int in range(total):
+		if result.placeableMap[startIndex] == 0 or result.componentMap[startIndex] >= 0:
+			continue
+
+		queue.clear()
+		queue.append(startIndex)
+
+		result.componentMap[startIndex] = componentId
+
+		var head: int = 0
+		while head < queue.size():
+			var currentIndex: int = queue[head]
+			head += 1
+
+			var currentCell: Vector2i = Vector2i(
+				Math.RemainderInt(currentIndex, gridWidth),
+				Math.DivideInt(currentIndex, gridWidth),
+			)
+
+			var currentWalkMask: int = 0
+			var currentRegionWalkMask: int = 0
+
+			var currentRegionId: int = result.pathRegionMap[currentIndex]
+
+			for dirIndex: int in range(Math.DIRECTIONS_8.size()):
+				var direction: Vector2i = Math.DIRECTIONS_8[dirIndex]
+				var nextCell: Vector2i = currentCell + direction
+				if not Grid.IsCellInGrid(nextCell, gridWidth, gridHeight):
+					continue
+
+				var nextIndex: int = nextCell.y * gridWidth + nextCell.x
+				if result.placeableMap[nextIndex] == 0:
+					continue
+
+				# 대각선 Corner Cutting 방지
+				if direction.x != 0 and direction.y != 0:
+					var horizontal: Vector2i = Vector2i(currentCell.x + direction.x, currentCell.y)
+					var vertical: Vector2i = Vector2i(currentCell.x, currentCell.y + direction.y)
+					var horizontalIndex: int = horizontal.y * gridWidth + horizontal.x
+					var verticalIndex: int = vertical.y * gridWidth + vertical.x
+					if (
+						result.placeableMap[horizontalIndex] == 0
+						or result.placeableMap[verticalIndex] == 0
+					):
+						continue
+
+				var directionBit: int = 1 << dirIndex
+				currentWalkMask |= directionBit
+
+				# 일반 Region에서는 같은 Region + Portal 방향만 허용
+				if currentRegionId >= 0:
+					var nextRegionId: int = result.pathRegionMap[nextIndex]
+					var regionAllowed: bool = (
+						nextRegionId == currentRegionId or nextRegionId == PATH_REGION_PORTAL
+					)
+
+					if regionAllowed and direction.x != 0 and direction.y != 0:
+						var horizontalIndex: int = currentIndex + direction.x
+						var verticalIndex: int = currentIndex + direction.y * gridWidth
+						var horizontalRegionId: int = result.pathRegionMap[horizontalIndex]
+						var verticalRegionId: int = result.pathRegionMap[verticalIndex]
+						if (
+							horizontalRegionId != currentRegionId
+							and horizontalRegionId != PATH_REGION_PORTAL
+						):
+							regionAllowed = false
+
+						if (
+							verticalRegionId != currentRegionId
+							and verticalRegionId != PATH_REGION_PORTAL
+						):
+							regionAllowed = false
+
+					if regionAllowed:
+						currentRegionWalkMask |= directionBit
+
+				if result.componentMap[nextIndex] >= 0:
+					continue
+
+				result.componentMap[nextIndex] = componentId
+				queue.append(nextIndex)
+
+			result.walkMask[currentIndex] = currentWalkMask
+			result.regionWalkMask[currentIndex] = currentRegionWalkMask
+
+		componentId += 1
 
 	return result
 
@@ -772,9 +956,61 @@ func _CanPlaceStatic(
 
 	return blockedCount == 0
 
+
+func _CanPlacePathStatic(
+	center: Vector2,
+	halfSize: int,
+	prefixSum: PackedInt32Array,
+	gridWidth: int,
+	gridHeight: int,
+) -> bool:
+	var staticHalf: float = maxf(0.0, float(halfSize) - maxf(staticContactSlop, 0.0))
+
+	var half: Vector2 = Vector2(staticHalf, staticHalf)
+
+	var rectMin: Vector2 = center - half
+	var rectMax: Vector2 = center + half
+
+	var worldSize: Vector2 = Vector2(float(gridWidth * cellSize), float(gridHeight * cellSize))
+
+	var worldEnd: Vector2 = worldOrigin + worldSize
+
+	if rectMin.x < worldOrigin.x - Math.EPSILON:
+		return false
+	if rectMin.y < worldOrigin.y - Math.EPSILON:
+		return false
+	if rectMax.x > worldEnd.x + Math.EPSILON:
+		return false
+	if rectMax.y > worldEnd.y + Math.EPSILON:
+		return false
+
+	var localMin: Vector2 = rectMin - worldOrigin
+	var localMax: Vector2 = rectMax - worldOrigin
+
+	var minX: int = floori((localMin.x + Math.EPSILON) / float(cellSize))
+	var minY: int = floori((localMin.y + Math.EPSILON) / float(cellSize))
+	var maxX: int = floori((localMax.x - Math.EPSILON) / float(cellSize))
+	var maxY: int = floori((localMax.y - Math.EPSILON) / float(cellSize))
+
+	minX = clampi(minX, 0, gridWidth - 1)
+	minY = clampi(minY, 0, gridHeight - 1)
+	maxX = clampi(maxX, 0, gridWidth - 1)
+	maxY = clampi(maxY, 0, gridHeight - 1)
+
+	var prefixWidth: int = gridWidth + 1
+	var blockedCount: int = (
+		prefixSum[(maxY + 1) * prefixWidth + (maxX + 1)]
+		- prefixSum[minY * prefixWidth + (maxX + 1)] - prefixSum[(maxY + 1) * prefixWidth + minX]
+		+ prefixSum[minY * prefixWidth + minX]
+	)
+
+	return blockedCount == 0
+
 #endregion
 
+
 #region Portal Route
+
 func _MakePortalRoutes(
 	regions: Array[NavigationRegionData],
 	footprint: NavigationFootprintData,
@@ -824,6 +1060,8 @@ func _MakePortalRoutes(
 							continue
 
 						var cost: float = _GetPathCost(path)
+
+						path = _CompressPortalPath(path)
 
 						var route: NavigationPortalRouteData = NavigationPortalRouteData.new()
 						route.regionId = region.id
@@ -877,8 +1115,8 @@ func _FindPortalRoute(
 			return _ReconstructPortalRoute(state.parent, targetIndex, gridWidth)
 
 		var currentCell: Vector2i = Vector2i(
-			currentIndex % gridWidth,
-			int(currentIndex / gridWidth),
+			Math.RemainderInt(currentIndex, gridWidth),
+			Math.DivideInt(currentIndex, gridWidth),
 		)
 		for direction: Vector2i in Math.DIRECTIONS_8:
 			var nextCell: Vector2i = currentCell + direction
@@ -931,18 +1169,38 @@ func _FindPortalRoute(
 			if direction.x != 0 and direction.y != 0:
 				stepCost = Math.SQRT_2
 
-			var tentativeG: float = (state.g[currentIndex] + stepCost)
+			var tentativeG: float = state.g[currentIndex] + stepCost
 			if tentativeG >= state.g[nextIndex] - Math.EPSILON:
 				continue
 
 			state.Touch(nextIndex)
 			state.g[nextIndex] = tentativeG
 			state.parent[nextIndex] = currentIndex
-			state.f[nextIndex] = (tentativeG + Math.OctileDistance(nextCell, targetCell))
+			state.f[nextIndex] = tentativeG + Math.OctileDistance(nextCell, targetCell)
 
 			heap.PushOrUpdate(nextIndex)
 
 	return PackedVector2Array()
+
+
+func _CompressPortalPath(path: PackedVector2Array) -> PackedVector2Array:
+	if path.size() <= 2:
+		return path
+
+	var result := PackedVector2Array()
+	result.append(path[0])
+
+	var previousDirection := path[1] - path[0]
+	for index in range(1, path.size() - 1):
+		var nextDirection := path[index + 1] - path[index]
+		if absf(previousDirection.cross(nextDirection)) > Math.EPSILON \
+				or previousDirection.dot(nextDirection) <= 0.0:
+			result.append(path[index])
+
+		previousDirection = nextDirection
+
+	result.append(path[path.size() - 1])
+	return result
 
 
 func _ReconstructPortalRoute(
@@ -954,7 +1212,10 @@ func _ReconstructPortalRoute(
 
 	var current: int = targetIndex
 	while current >= 0:
-		var cell: Vector2i = Vector2i(current % gridWidth, int(current / gridWidth))
+		var cell: Vector2i = Vector2i(
+			Math.RemainderInt(current, gridWidth),
+			Math.DivideInt(current, gridWidth),
+		)
 		reversed.append(_CellCenterToWorld(cell))
 		current = parent[current]
 
@@ -988,7 +1249,32 @@ func _IsRouteCellAllowed(
 
 #endregion
 
+
 #region Coordinates / Utility
+
+func _PathLatticeOffset(halfSize: int) -> Vector2:
+	var offset: float = _LatticeAxisOffset(float(halfSize))
+	return Vector2(offset, offset)
+
+
+func _LatticeAxisOffset(halfExtent: float) -> float:
+	var offset: float = fposmod(maxf(halfExtent, 0.0), float(cellSize))
+	if offset <= Math.EPSILON or float(cellSize) - offset <= Math.EPSILON:
+		return 0.0
+
+	return offset
+
+
+func _PathCellToWorld(cell: Vector2i, pathOffset: Vector2) -> Vector2:
+	return (
+		worldOrigin
+		+ Vector2(
+			float(cell.x) * float(cellSize) + pathOffset.x,
+			float(cell.y) * float(cellSize) + pathOffset.y,
+		)
+	)
+
+
 func _CellCenterToWorld(cell: Vector2i) -> Vector2:
 	return (
 		worldOrigin

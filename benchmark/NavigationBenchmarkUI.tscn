@@ -85,6 +85,12 @@ custom_minimum_size = Vector2(116, 38)
 layout_mode = 2
 text = "Run All"
 
+[node name="RunSelectedButton" type="Button" parent="Panel/Margin/VBox/ControlRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(130, 38)
+layout_mode = 2
+text = "Run Selected"
+
 [node name="SaveAllButton" type="Button" parent="Panel/Margin/VBox/ControlRow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(110, 38)

@@ -5,6 +5,13 @@ const PATH_MEASUREMENT_COUNT: int = 25
 
 const MOVEMENT_WARMUP_COUNT: int = 1
 const MOVEMENT_MEASUREMENT_COUNT: int = 10
+
+const SELECTED_PATH_WARMUP_COUNT: int = 1
+const SELECTED_PATH_MEASUREMENT_COUNT: int = 3
+
+const SELECTED_MOVEMENT_WARMUP_COUNT: int = 1
+const SELECTED_MOVEMENT_MEASUREMENT_COUNT: int = 3
+
 const MOVEMENT_MAX_TICKS: int = 1000
 const MOVEMENT_FIXED_DELTA: float = 1.0 / 60.0
 const MOVEMENT_SPEED: float = 96.0
@@ -57,6 +64,7 @@ func _ready() -> void:
 
 	_benchmarkUI.SetCases(_cases)
 	_benchmarkUI.RunAllRequested.connect(_RunAllBenchmarks)
+	_benchmarkUI.RunSelectedRequested.connect(_RunSelectedBenchmark)
 	_runBenchmarkButton.pressed.connect(_OnRunBenchmarkButtonPressed)
 
 
@@ -118,31 +126,74 @@ func _RunAllBenchmarks(mode: int) -> void:
 	_isRunning = false
 
 
-func _RunPathBenchmark(benchmarkCase: NavigationBenchmarkCase) -> void:
+func _RunSelectedBenchmark(mode: int, caseIndex: int) -> void:
+	if _isRunning:
+		return
+
+	if caseIndex < 0 or caseIndex >= _cases.size():
+		return
+
+	_isRunning = true
+	_runBenchmarkButton.hide()
+	_benchmarkUI.SetRunning(true, mode, false)
+
+	await get_tree().process_frame
+
+	var benchmarkCase: NavigationBenchmarkCase = _cases[caseIndex]
+
+	match mode:
+		NavigationBenchmarkUI.Mode.MOVEMENT:
+			_RunMovementBenchmark(
+				benchmarkCase,
+				SELECTED_MOVEMENT_WARMUP_COUNT,
+				SELECTED_MOVEMENT_MEASUREMENT_COUNT,
+			)
+		_:
+			_RunPathBenchmark(
+				benchmarkCase,
+				SELECTED_PATH_WARMUP_COUNT,
+				SELECTED_PATH_MEASUREMENT_COUNT,
+			)
+
+	await get_tree().process_frame
+
+	_benchmarkUI.SetRunning(false, mode, false)
+	_isRunning = false
+
+
+func _RunPathBenchmark(
+	benchmarkCase: NavigationBenchmarkCase,
+	warmupCount: int = PATH_WARMUP_COUNT,
+	measurementCount: int = PATH_MEASUREMENT_COUNT,
+) -> void:
 	if not _ValidateBenchmarkCase(benchmarkCase):
 		return
 
-	for i: int in range(PATH_WARMUP_COUNT):
+	for i: int in range(warmupCount):
 		_RunPathFinding(benchmarkCase)
 
 	var results: Array[BenchmarkRunResult] = []
-	for i: int in range(PATH_MEASUREMENT_COUNT):
+	for i: int in range(measurementCount):
 		results.append(_RunPathFinding(benchmarkCase))
 
 	_ShowPathResult(benchmarkCase, results)
 
 
-func _RunMovementBenchmark(benchmarkCase: NavigationBenchmarkCase) -> void:
+func _RunMovementBenchmark(
+	benchmarkCase: NavigationBenchmarkCase,
+	warmupCount: int = MOVEMENT_WARMUP_COUNT,
+	measurementCount: int = MOVEMENT_MEASUREMENT_COUNT,
+) -> void:
 	if benchmarkCase.type != NavigationBenchmarkCase.Type.GROUP_PATHS:
 		return
 	if not _ValidateBenchmarkCase(benchmarkCase):
 		return
 
-	for i: int in range(MOVEMENT_WARMUP_COUNT):
+	for i: int in range(warmupCount):
 		_RunMovement(benchmarkCase)
 
 	var results: Array[MovementRunResult] = []
-	for i: int in range(MOVEMENT_MEASUREMENT_COUNT):
+	for i: int in range(measurementCount):
 		results.append(_RunMovement(benchmarkCase))
 
 	_ShowMovementResult(benchmarkCase, results)

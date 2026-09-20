@@ -9,7 +9,6 @@ const MAX_INT32_VALUE: int = 2147483647
 
 @export_group("Navigation")
 @export var navigationData: NavigationData
-@export_range(0.0, 2.0, 0.05) var navigationStaticContactSlop: float = 1.0
 @export_range(8, 256, 8) var navigationLocalSearchMarginCells: int = 64
 @export_range(8, 256, 8) var navigationAnchorConnectionCacheCapacity: int = 64
 
@@ -301,7 +300,6 @@ func _initializeSystems() -> void:
 
 	_navigationService = NavigationService.new()
 	_navigationService.navigationData = navigationData
-	_navigationService.staticContactSlop = navigationStaticContactSlop
 	_navigationService.localSearchMarginCells = navigationLocalSearchMarginCells
 	_navigationService.anchorConnectionCacheCapacity = navigationAnchorConnectionCacheCapacity
 	_navigationService.Reload()

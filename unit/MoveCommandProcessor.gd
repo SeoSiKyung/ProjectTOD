@@ -47,7 +47,7 @@ func Process(command: MoveCommand, snapshot: StageSnapshot) -> bool:
 	var paths: Array[PackedVector2Array] = []
 	var targets: PackedVector2Array = []
 	var pathReady: PackedByteArray = []
-	var groups: Dictionary = {}
+	var groups: Dictionary = { }
 	var groupKeys: Array[Vector2i] = []
 
 	for _index: int in range(unitIds.size()):
@@ -105,8 +105,13 @@ func Process(command: MoveCommand, snapshot: StageSnapshot) -> bool:
 
 		for groupIndex: int in range(group.unitIndices.size()):
 			var unitIndex: int = group.unitIndices[groupIndex]
-			paths[unitIndex] = groupPaths[groupIndex]
-			targets[unitIndex] = target
+			var unitPath: PackedVector2Array = groupPaths[groupIndex]
+
+			paths[unitIndex] = unitPath
+
+			if not unitPath.is_empty():
+				targets[unitIndex] = unitPath[unitPath.size() - 1]
+
 			pathReady[unitIndex] = 1
 
 	var commandId: int = _resolveCommandId(command)
@@ -170,7 +175,10 @@ func _calculateArrivalRadius(unitIds: PackedInt32Array, snapshot: StageSnapshot)
 	return sqrt(occupiedArea / PI) * ARRIVAL_RADIUS_SCALE
 
 
-func _collectExistingUnitIds(sourceUnitIds: PackedInt32Array, snapshot: StageSnapshot) -> PackedInt32Array:
+func _collectExistingUnitIds(
+	sourceUnitIds: PackedInt32Array,
+	snapshot: StageSnapshot,
+) -> PackedInt32Array:
 	var unitIds: PackedInt32Array = []
 
 	for unitId: int in sourceUnitIds:

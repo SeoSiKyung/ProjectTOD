@@ -8,3 +8,5 @@ extends Resource
 
 # 같은 Region 내부의 Portal ↔ Portal 경로
 @export var portalRoutes: Array[NavigationPortalRouteData] = []
+
+@export var navigationMap: NavigationFootprintMapData
