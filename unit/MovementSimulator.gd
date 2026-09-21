@@ -11,7 +11,7 @@ var _collisionResolver: CollisionResolver
 var _arrivalResolver: MovementArrivalResolver
 var _profileMetrics: MovementProfileMetrics
 var _agents: Array[MovementAgent] = []
-var _agentIndexByUnitId: Dictionary[int, int] = {}
+var _agentIndexByUnitId: Dictionary[int, int] = { }
 
 
 func _init(navigationService: NavigationService, unitManager: UnitManager = null) -> void:
@@ -76,6 +76,18 @@ func SetPath(unitId: int, path: PackedVector2Array) -> bool:
 	if agent == null:
 		return false
 	agent.SetPath(path)
+	return true
+
+
+func SetMoveSpeed(unitId: int, moveSpeed: float) -> bool:
+	if not is_finite(moveSpeed) or moveSpeed < 0.0:
+		return false
+
+	var agent: MovementAgent = _GetAgent(unitId)
+	if agent == null:
+		return false
+
+	agent.moveSpeed = moveSpeed
 	return true
 
 
@@ -199,10 +211,7 @@ func _CanAgentMove(agent: MovementAgent) -> bool:
 	if _unitManager == null:
 		return true
 	var unit: Unit = _unitManager.GetUnit(agent.unitId)
-	return (
-		unit != null
-		and (unit.fsm == null or unit.fsm.currentState != UnitFSM.State.IDLE)
-	)
+	return (unit != null and (unit.fsm == null or unit.fsm.currentState != UnitFSM.State.IDLE))
 
 
 func _CommitTick(tick: CollisionGroup, snapshot: StageSnapshot, fixedDelta: float) -> void:
@@ -223,7 +232,10 @@ func _ValidateSnapshot(snapshot: StageSnapshot) -> bool:
 
 
 func _CanPlaceAgent(agent: MovementAgent, position: Vector2) -> bool:
-	if _navigationService != null and not _navigationService.CanPlaceStatic(position, agent.halfSize):
+	if (
+		_navigationService != null
+		and not _navigationService.CanPlaceStatic(position, agent.halfSize)
+	):
 		return false
 	for other: MovementAgent in _agents:
 		if other.unitId == agent.unitId:

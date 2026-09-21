@@ -1,5 +1,5 @@
 class_name OffenseSceneManager
-extends Node
+extends SceneManager
 
 const INVALID_UNIT_ID: int = -1
 const MAX_INT32_VALUE: int = 2147483647
@@ -15,11 +15,7 @@ const MAX_INT32_VALUE: int = 2147483647
 @export_group("Simulation")
 @export_range(0, 100000, 1) var initialUnitCapacity: int = StageSnapshot.DEFAULT_SLOT_CAPACITY
 
-var _unitManager: UnitManager
 var _navigationService: NavigationService
-var _movementSimulator: MovementSimulator
-var _moveCommandProcessor: MoveCommandProcessor
-var _stageSnapshot: StageSnapshot
 
 var _nextUnitId: int = 0
 var _pendingDestroyUnitIds: PackedInt32Array = []
@@ -29,7 +25,14 @@ var _isProcessingTick: bool = false
 
 func _ready() -> void:
 	set_physics_process(false)
-	_initializeSystems()
+
+	if not _initializeSystems():
+		return
+
+	_isInitialized = true
+	_registerExistingUnits()
+
+	set_physics_process(true)
 
 
 func _physics_process(fixedDelta: float) -> void:
@@ -40,10 +43,7 @@ func _physics_process(fixedDelta: float) -> void:
 
 	_flushPendingDestroyUnits()
 
-	var movementSucceeded: bool = _movementSimulator.SimulateTick(_stageSnapshot, fixedDelta)
-
-	if movementSucceeded:
-		_unitManager.SyncPositions(_stageSnapshot)
+	_SimulateUnitRuntime(fixedDelta)
 
 	_isProcessingTick = false
 
@@ -63,7 +63,7 @@ func GetUnit(unitId: int) -> Unit:
 	return _unitManager.GetUnit(unitId)
 
 
-func RegisterUnit(unit: Unit, worldPosition: Vector2, moveSpeed: float) -> int:
+func RegisterUnit(unit: Unit, worldPosition: Vector2) -> int:
 	if not _isInitialized:
 		push_error("OffenseSceneManager가 초기화되지 않았습니다.")
 		return INVALID_UNIT_ID
@@ -86,58 +86,27 @@ func RegisterUnit(unit: Unit, worldPosition: Vector2, moveSpeed: float) -> int:
 		push_error("등록할 Unit은 부모가 없거나 UnitRoot의 직접적인 자식이어야 합니다.")
 		return INVALID_UNIT_ID
 
-	if not worldPosition.is_finite():
-		push_error("Unit의 월드 위치가 유효하지 않습니다.")
-		return INVALID_UNIT_ID
-
-	if moveSpeed < 0:
-		push_error("Unit의 이동 속도는 0 이상이어야 합니다.")
-		return INVALID_UNIT_ID
-
 	if _nextUnitId > MAX_INT32_VALUE:
 		push_error("더 이상 새로운 unitId를 발급할 수 없습니다.")
 		return INVALID_UNIT_ID
 
 	var unitId: int = _nextUnitId
-	var halfSize: int = unit.GetHalfSize()
-	var movementAgent: MovementAgent = MovementAgent.new(unitId, worldPosition, moveSpeed, halfSize)
-
-	if not _movementSimulator.RegisterAgent(movementAgent):
-		return INVALID_UNIT_ID
-
-	_stageSnapshot.RegisterUnit(unitId, worldPosition, halfSize)
-
-	if not _stageSnapshot.HasUnit(unitId):
-		_movementSimulator.UnregisterAgent(unitId)
-		push_error("StageSnapshot에 Unit을 등록하지 못했습니다.")
-		return INVALID_UNIT_ID
-
 	var previousUnitId: int = unit.unitId
 	var previousLocalPosition: Vector2 = unit.position
 
-	unit.unitId = unitId
-	unit.position = unitRoot.to_local(worldPosition)
-
-	if not _unitManager.RegisterUnit(unitId, unit):
-		unit.unitId = previousUnitId
-		unit.position = previousLocalPosition
-		_stageSnapshot.UnregisterUnit(unitId)
-		_movementSimulator.UnregisterAgent(unitId)
+	if not _RegisterUnitRuntime(unit, unitId, worldPosition):
 		return INVALID_UNIT_ID
 
+	unit.position = unitRoot.to_local(worldPosition)
 	_nextUnitId += 1
-	unit.BindSceneManager(self)
 
 	if not alreadyInUnitRoot:
 		unitRoot.add_child(unit)
 
 	if unit.get_parent() != unitRoot or unit.is_queued_for_deletion():
-		_unitManager.UnregisterUnit(unitId)
-		_stageSnapshot.UnregisterUnit(unitId)
-		_movementSimulator.UnregisterAgent(unitId)
+		_UnregisterUnitRuntime(unit)
 
 		if not unit.is_queued_for_deletion():
-			unit.BindSceneManager(null)
 			unit.unitId = previousUnitId
 			unit.position = previousLocalPosition
 
@@ -169,58 +138,13 @@ func SetUnitPath(unitId: int, path: PackedVector2Array) -> bool:
 	return _movementSimulator.SetPath(unitId, path)
 
 
-func StopUnit(unitId: int) -> bool:
-	if not _isInitialized or not _unitManager.HasUnit(unitId):
-		return false
-
-	return _movementSimulator.StopUnit(unitId)
-
-
-func PauseUnit(unitId: int) -> bool:
-	if not _isInitialized or not _unitManager.HasUnit(unitId):
-		return false
-
-	return _movementSimulator.PauseUnit(unitId)
-
-
-func ResumeUnit(unitId: int) -> bool:
-	if not _isInitialized or not _unitManager.HasUnit(unitId):
-		return false
-
-	return _movementSimulator.ResumeUnit(unitId)
-
-
-func IsUnitMoving(unitId: int) -> bool:
-	if not _isInitialized or not _unitManager.HasUnit(unitId):
-		return false
-
-	return _movementSimulator.IsUnitMoving(unitId)
-
-
-func IssueMoveCommand(units: Array[Unit], targetWorld: Vector2) -> int:
-	if not _isInitialized or _isProcessingTick:
-		return INVALID_UNIT_ID
-
-	var unitIds: PackedInt32Array = _collectRegisteredUnitIds(units)
-
-	if unitIds.is_empty():
-		return INVALID_UNIT_ID
-
-	var command: MoveCommand = MoveCommand.new(unitIds, targetWorld)
-
-	if not _moveCommandProcessor.Process(command, _stageSnapshot):
-		return INVALID_UNIT_ID
-
-	return command.commandId
-
-
 func IssueStopCommand(units: Array[Unit]) -> int:
 	if not _isInitialized:
 		return INVALID_UNIT_ID
 
 	var stoppedCount: int = 0
 
-	for unitId: int in _collectRegisteredUnitIds(units):
+	for unitId: int in _CollectRegisteredUnitIds(units):
 		if not _movementSimulator.StopUnit(unitId):
 			continue
 
@@ -285,18 +209,18 @@ func Clear() -> void:
 	_unitManager.Clear()
 
 
-func _initializeSystems() -> void:
+func _initializeSystems() -> bool:
 	if not is_instance_valid(unitRoot):
 		push_error("OffenseSceneManager에 UnitRoot가 지정되지 않았습니다.")
-		return
+		return false
 
 	if unitRoot.is_queued_for_deletion() or not unitRoot.is_inside_tree():
 		push_error("UnitRoot는 SceneTree에 등록된 유효한 Node2D여야 합니다.")
-		return
+		return false
 
 	if navigationData == null:
 		push_error("OffenseSceneManager에 NavigationData가 지정되지 않았습니다.")
-		return
+		return false
 
 	_navigationService = NavigationService.new()
 	_navigationService.navigationData = navigationData
@@ -307,15 +231,9 @@ func _initializeSystems() -> void:
 	if not _navigationService.IsReady():
 		push_error("NavigationService 초기화에 실패했습니다.")
 		_navigationService = null
-		return
+		return false
 
-	_unitManager = UnitManager.new()
-	_stageSnapshot = StageSnapshot.new(initialUnitCapacity)
-	_movementSimulator = MovementSimulator.new(_navigationService, _unitManager)
-	_moveCommandProcessor = MoveCommandProcessor.new(_navigationService, _movementSimulator)
-	_isInitialized = true
-	_registerExistingUnits()
-	set_physics_process(true)
+	return _InitializeUnitRuntime(_navigationService, initialUnitCapacity)
 
 
 func _registerExistingUnits() -> void:
@@ -326,8 +244,7 @@ func _registerExistingUnits() -> void:
 			existingUnits.append(child as Unit)
 
 	for unit: Unit in existingUnits:
-		var unitId: int = RegisterUnit(unit, unit.global_position, unit.moveSpeed)
-
+		var unitId: int = RegisterUnit(unit, unit.global_position)
 		if unitId < 0:
 			push_error("UnitRoot의 Unit을 등록하지 못했습니다: %s" % unit.name)
 
@@ -348,13 +265,11 @@ func _destroyUnitImmediately(unitId: int) -> bool:
 	if not _unitManager.HasUnit(unitId):
 		return false
 
-	_movementSimulator.UnregisterAgent(unitId)
-	_stageSnapshot.UnregisterUnit(unitId)
-
-	var unit: Unit = _unitManager.UnregisterUnit(unitId)
+	var unit: Unit = _unitManager.GetUnit(unitId)
+	if not _UnregisterUnitRuntime(unit):
+		return false
 
 	if is_instance_valid(unit):
-		unit.BindSceneManager(null)
 		unit.process_mode = Node.PROCESS_MODE_DISABLED
 
 		if not unit.is_queued_for_deletion():
@@ -380,21 +295,3 @@ func _shutdownSystems() -> void:
 	_navigationService = null
 	_isInitialized = false
 	_isProcessingTick = false
-
-
-func _collectRegisteredUnitIds(units: Array[Unit]) -> PackedInt32Array:
-	var unitIds: PackedInt32Array = []
-
-	for unit: Unit in units:
-		if not is_instance_valid(unit):
-			continue
-
-		if not _unitManager.HasUnit(unit.unitId):
-			continue
-
-		if _unitManager.GetUnit(unit.unitId) != unit:
-			continue
-
-		unitIds.append(unit.unitId)
-
-	return unitIds

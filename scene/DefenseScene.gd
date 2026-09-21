@@ -11,12 +11,13 @@ const DEFENSE_CHARACTER_BUTTON_SCENE: PackedScene = preload(
 
 signal DefenseFinished(result: DefenseResult)
 
-@export var _navigationData: NavigationData
 
 @export_group("UI")
 @export var _deploymentUI: Control
 @export var _battleHUD: PanelContainer
 @export var _resultUI: PanelContainer
+
+@onready var _defenseSceneManager: DefenseSceneManager = $DefenseSceneManager
 
 @onready var _cp: DefenseCP = $CP
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
@@ -85,11 +86,8 @@ signal DefenseFinished(result: DefenseResult)
 
 #endregion
 
-var _navigationService: NavigationService
-var _movementSimulator: MovementSimulator
 var _deploymentGrid: DefenseDeploymentGrid
 
-var _defenseManager: DefenseManager
 var _startData: DefenseStartData
 
 var _characterButtonGroup: ButtonGroup = ButtonGroup.new()
@@ -116,16 +114,14 @@ var _pendingDefenseResult: DefenseResult
 
 
 func _ready() -> void:
-	if not _InitializeNavigation():
-		return
-
-	_InitializeMovementSimulator()
 	_InitializeDeploymentGrid()
 
 	_cp.global_position = _deploymentGrid.CellToWorldCenter(CP_CELL)
 
 	_InitializeStartData()
-	_InitializeDefenseManager()
+
+	if not _defenseSceneManager.Initialize(_startData):
+		return
 
 	_InitializeDeploymentGridView()
 
@@ -134,14 +130,14 @@ func _ready() -> void:
 
 	_InitializeUI()
 
+	_defenseSceneManager.DefenseFinished.connect(_OnDefenseFinished)
+
 
 func _process(_delta: float) -> void:
-	if _defenseManager == null:
+	if _defenseSceneManager == null:
 		return
 
-	_defenseManager.Update()
-
-	if _defenseManager.GetPhase() == DefenseManager.DefensePhase.BATTLE:
+	if _defenseSceneManager.GetPhase() == DefenseSceneManager.DefensePhase.BATTLE:
 		_UpdateBattleHUD()
 
 
@@ -166,7 +162,7 @@ func _OnDeploymentCellClicked(cell: Vector2i) -> void:
 	_selectedDeploymentCell = cell
 
 	var deployment: DefenseDeploymentManager.DefenseDeployment = (
-		_defenseManager.GetDeploymentByCell(cell)
+		_defenseSceneManager.GetDeploymentByCell(cell)
 	)
 	if deployment != null:
 		_selectedCharacterKey = deployment.characterKey
@@ -177,7 +173,7 @@ func _OnDeploymentCellClicked(cell: Vector2i) -> void:
 
 
 func _OnDeploymentCellRightClicked(cell: Vector2i) -> void:
-	if not _defenseManager.RemoveDeployment(cell):
+	if not _defenseSceneManager.RemoveDeployment(cell):
 		return
 
 	_deploymentInfoView.RemoveRecruitRatio(cell)
@@ -207,7 +203,7 @@ func _OnDeploymentApplyPressed() -> void:
 
 
 func _OnConfirmDeploymentPressed() -> void:
-	if not _defenseManager.ConfirmDeployment():
+	if not _defenseSceneManager.ConfirmDeployment():
 		return
 
 	_FinishDeploymentUI()
@@ -231,11 +227,11 @@ func _FinishDeploymentUI() -> void:
 
 func _OnPauseButtonPressed() -> void:
 	if _isBattlePaused:
-		_defenseManager.ResumeBattle()
+		_defenseSceneManager.ResumeBattle()
 		_isBattlePaused = false
 		_pauseButton.text = "일시정지"
 	else:
-		_defenseManager.PauseBattle()
+		_defenseSceneManager.PauseBattle()
 		_isBattlePaused = true
 		_pauseButton.text = "계속"
 
@@ -260,24 +256,9 @@ func _OnDefenseFinished(result: DefenseResult) -> void:
 
 #region Initialize
 
-func _InitializeNavigation() -> bool:
-	_navigationService = NavigationService.new()
-	_navigationService.navigationData = _navigationData
-	_navigationService.Ready()
-
-	if not _navigationService.IsReady():
-		push_error("DefenseScene: NavigationService 초기화에 실패했습니다.")
-		return false
-
-	return true
-
-
-func _InitializeMovementSimulator() -> void:
-	_movementSimulator = MovementSimulator.new(_navigationService)
-
-
 func _InitializeDeploymentGrid() -> void:
-	var worldRect: Rect2 = _navigationData.GetWorldRect()
+	var worldRect: Rect2 = _defenseSceneManager.GetNavigationWorldRect()
+
 	var deploymentGridSize: Vector2i = Vector2i(
 		floori(worldRect.size.x / DEPLOYMENT_CELL_SIZE),
 		floori(worldRect.size.y / DEPLOYMENT_CELL_SIZE),
@@ -299,17 +280,6 @@ func _InitializeStartData() -> void:
 	_startData.population = 100
 
 	_startData.cpMaxHp = 1000
-
-
-func _InitializeDefenseManager() -> void:
-	_defenseManager = DefenseManager.new(
-		_startData,
-		_pools,
-		_navigationService,
-		_movementSimulator,
-		_cp,
-	)
-	_defenseManager.DefenseFinished.connect(_OnDefenseFinished)
 
 
 func _InitializeDeploymentGridView() -> void:
@@ -379,7 +349,7 @@ func _ApplyDeploymentSelection() -> bool:
 		return false
 
 	var deployment: DefenseDeploymentManager.DefenseDeployment = (
-		_defenseManager.GetDeploymentByCell(_selectedDeploymentCell)
+		_defenseSceneManager.GetDeploymentByCell(_selectedDeploymentCell)
 	)
 
 	if _selectedRecruitRatio == 0 and deployment == null:
@@ -402,7 +372,7 @@ func _ApplyDeploymentSelection() -> bool:
 
 
 func _RemoveSelectedDeployment() -> bool:
-	if not _defenseManager.RemoveDeployment(_selectedDeploymentCell):
+	if not _defenseSceneManager.RemoveDeployment(_selectedDeploymentCell):
 		return false
 
 	_deploymentInfoView.RemoveRecruitRatio(_selectedDeploymentCell)
@@ -411,7 +381,7 @@ func _RemoveSelectedDeployment() -> bool:
 
 func _AddSelectedDeployment() -> bool:
 	var spawnPosition: Vector2 = _deploymentGrid.CellToWorldCenter(_selectedDeploymentCell)
-	if not _defenseManager.AddDeployment(
+	if not _defenseSceneManager.AddDeployment(
 		_selectedDeploymentCell,
 		_selectedCharacterKey,
 		_selectedRecruitRatio,
@@ -424,7 +394,7 @@ func _AddSelectedDeployment() -> bool:
 
 
 func _UpdateSelectedDeployment() -> bool:
-	if not _defenseManager.UpdateDeployment(
+	if not _defenseSceneManager.UpdateDeployment(
 		_selectedDeploymentCell,
 		_selectedCharacterKey,
 		_selectedRecruitRatio,
@@ -437,7 +407,7 @@ func _UpdateSelectedDeployment() -> bool:
 
 func _ReloadDeploymentSelection() -> void:
 	var deployment: DefenseDeploymentManager.DefenseDeployment = (
-		_defenseManager.GetDeploymentByCell(_selectedDeploymentCell)
+		_defenseSceneManager.GetDeploymentByCell(_selectedDeploymentCell)
 	)
 	if deployment == null:
 		_selectedRecruitRatio = 0
@@ -453,7 +423,9 @@ func _UpdateDeploymentPanel() -> void:
 	if characterButton != null:
 		characterButton.set_pressed_no_signal(true)
 
-	var maxRecruitRatio: int = _defenseManager.GetMaxRecruitRatioForCell(_selectedDeploymentCell)
+	var maxRecruitRatio: int = _defenseSceneManager.GetMaxRecruitRatioForCell(
+		_selectedDeploymentCell
+	)
 	_selectedRecruitRatio = mini(_selectedRecruitRatio, maxRecruitRatio)
 	var maxRecruitPercent: int = Math.RatioToPercent(maxRecruitRatio)
 	_recruitRatioSpinBox.max_value = maxRecruitPercent
@@ -466,12 +438,12 @@ func _UpdateDeploymentPanel() -> void:
 
 
 func _UpdateRecruitPopulationLabel() -> void:
-	var population: int = _defenseManager.CalculateRecruitedPopulation(_selectedRecruitRatio)
+	var population: int = _defenseSceneManager.CalculateRecruitedPopulation(_selectedRecruitRatio)
 	_recruitPopulationLabel.text = "징집 인구: %d명" % population
 
 
 func _UpdateDeploymentApplyButton() -> void:
-	var deployment: DefenseDeploymentManager.DefenseDeployment = _defenseManager.GetDeploymentByCell(
+	var deployment: DefenseDeploymentManager.DefenseDeployment = _defenseSceneManager.GetDeploymentByCell(
 		_selectedDeploymentCell
 	)
 
@@ -479,7 +451,7 @@ func _UpdateDeploymentApplyButton() -> void:
 		_deploymentApplyButton.disabled = deployment == null
 		return
 
-	var recruitedPopulation: int = _defenseManager.CalculateRecruitedPopulation(
+	var recruitedPopulation: int = _defenseSceneManager.CalculateRecruitedPopulation(
 		_selectedRecruitRatio
 	)
 
@@ -487,12 +459,12 @@ func _UpdateDeploymentApplyButton() -> void:
 
 
 func _UpdateRecruitSummaryLabel() -> void:
-	var totalRecruitRatio: int = _defenseManager.GetTotalRecruitRatio()
-	var maxRecruitRatio: int = _defenseManager.GetMaxRecruitRatio()
+	var totalRecruitRatio: int = _defenseSceneManager.GetTotalRecruitRatio()
+	var maxRecruitRatio: int = _defenseSceneManager.GetMaxRecruitRatio()
 
 	var totalPercent: int = Math.RatioToPercent(totalRecruitRatio)
 	var maxPercent: int = Math.RatioToPercent(maxRecruitRatio)
-	var recruitedPopulation: int = _defenseManager.GetTotalRecruitedPopulation()
+	var recruitedPopulation: int = _defenseSceneManager.GetTotalRecruitedPopulation()
 
 	_recruitSummaryLabel.text = "징집: %d%% / %d%%  (%d명 / %d명)" % [
 		totalPercent,
@@ -558,14 +530,14 @@ func _CloseDeploymentPanel() -> void:
 
 
 func _CanInteractDeploymentCell(cell: Vector2i) -> bool:
-	if _defenseManager.GetDeploymentByCell(cell) != null:
+	if _defenseSceneManager.GetDeploymentByCell(cell) != null:
 		return true
 
 	if cell == CP_CELL:
 		return false
 
 	var position: Vector2 = _deploymentGrid.CellToWorldCenter(cell)
-	return _navigationService.CanPlaceStatic(position, DEPLOYMENT_UNIT_HALF_SIZE)
+	return _defenseSceneManager.CanPlaceStatic(position, DEPLOYMENT_UNIT_HALF_SIZE)
 
 #endregion
 
@@ -579,7 +551,7 @@ func _UpdateBattleHUD() -> void:
 
 
 func _UpdateBattleTimeLabel() -> void:
-	var elapsedTimeMs: int = _defenseManager.GetElapsedTimeMs()
+	var elapsedTimeMs: int = _defenseSceneManager.GetElapsedTimeMs()
 	var elapsedSeconds: int = Math.DivideInt(elapsedTimeMs, 1000)
 	if elapsedSeconds == _displayedBattleTimeSeconds:
 		return
@@ -598,8 +570,8 @@ func _UpdateCPStatus() -> void:
 
 
 func _UpdateCPHp() -> void:
-	var currentHp: int = _defenseManager.GetCPCurrentHp()
-	var maxHp: int = _defenseManager.GetCPMaxHp()
+	var currentHp: int = _defenseSceneManager.GetCPCurrentHp()
+	var maxHp: int = _defenseSceneManager.GetCPMaxHp()
 	if currentHp == _displayedCPHp and maxHp == _displayedCPMaxHp:
 		return
 
@@ -613,8 +585,8 @@ func _UpdateCPHp() -> void:
 
 
 func _UpdateCPMp() -> void:
-	var currentMp: int = _defenseManager.GetCPCurrentMp()
-	var maxMp: int = _defenseManager.GetCPMaxMp()
+	var currentMp: int = _defenseSceneManager.GetCPCurrentMp()
+	var maxMp: int = _defenseSceneManager.GetCPMaxMp()
 	if maxMp <= 0:
 		_cpMp.visible = false
 		return
@@ -634,9 +606,9 @@ func _UpdateCPMp() -> void:
 
 
 func _UpdatePopulationStatus() -> void:
-	var recruitedPopulation: int = _defenseManager.GetRecruitedPopulation()
-	var survivingPopulation: int = _defenseManager.GetSurvivingPopulation()
-	var deadPopulation: int = _defenseManager.GetDeadPopulation()
+	var recruitedPopulation: int = _defenseSceneManager.GetRecruitedPopulation()
+	var survivingPopulation: int = _defenseSceneManager.GetSurvivingPopulation()
+	var deadPopulation: int = _defenseSceneManager.GetDeadPopulation()
 
 	if (
 		recruitedPopulation == _displayedRecruitedPopulation
@@ -702,7 +674,7 @@ func _HandleDebugResultInput(event: InputEvent) -> void:
 
 	match keyEvent.keycode:
 		KEY_F:
-			_defenseManager.FinishDefense(true)
+			_defenseSceneManager.FinishDefense(true)
 
 		KEY_G:
-			_defenseManager.FinishDefense(false, true)
+			_defenseSceneManager.FinishDefense(false, true)
