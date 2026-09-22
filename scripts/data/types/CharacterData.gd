@@ -23,7 +23,7 @@ var def: int
 var magicDef: int
 
 var moveSpeed: int
-var attackSpeed: int
+var attackIntervalFrames: int
 
 var atkRange: int
 var acquisitionRange: int
@@ -44,7 +44,7 @@ func _init(
 	pDef: int,
 	pMagicDef: int,
 	pMoveSpeed: int,
-	pAttackSpeed: int,
+	pAttackIntervalFrames: int,
 	pAtkRange: int,
 	pAcquisitionRange: int,
 ) -> void:
@@ -65,7 +65,7 @@ func _init(
 	magicDef = pMagicDef
 
 	moveSpeed = pMoveSpeed
-	attackSpeed = pAttackSpeed
+	attackIntervalFrames = pAttackIntervalFrames
 
 	atkRange = pAtkRange
 	acquisitionRange = pAcquisitionRange

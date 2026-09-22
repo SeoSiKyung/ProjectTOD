@@ -131,12 +131,16 @@ static func RemainderInt(value: int, divisor: int) -> int:
 
 
 #region Battle
+
 static func CalculateDamage(atk: int, def: int, magicAtk: int, magicDef: int) -> int:
 	return _CalculateStatDamage(atk, def) + _CalculateStatDamage(magicAtk, magicDef)
 
 
 static func _CalculateStatDamage(atk: int, def: int) -> int:
-	return maxi(atk - def, 0)
+	if atk <= 0:
+		return 0
+
+	return maxi(atk - def, 1)
 
 #endregion
 

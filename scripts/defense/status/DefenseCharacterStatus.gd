@@ -10,12 +10,10 @@ var def: int
 var magicDef: int
 
 var moveSpeed: int
-var attackSpeed: int
+var attackIntervalFrames: int
 
 var atkRange: int
 var acquisitionRange: int
-
-var nextAttackTimeMs: int = 0 # jhw, 추후 작업 필요
 
 
 func _init(characterData: CharacterData) -> void:
@@ -30,7 +28,7 @@ func _init(characterData: CharacterData) -> void:
 	magicDef = characterData.magicDef
 
 	moveSpeed = characterData.moveSpeed
-	attackSpeed = characterData.attackSpeed
+	attackIntervalFrames = characterData.attackIntervalFrames
 
 	atkRange = characterData.atkRange
 	acquisitionRange = characterData.acquisitionRange
@@ -45,11 +43,3 @@ func CalculateDamage(targetStatus: DefenseCharacterStatus) -> int:
 		return 0
 
 	return Math.CalculateDamage(atk, targetStatus.def, magicAtk, targetStatus.magicDef)
-
-
-func IsAttackReady(elapsedTimeMs: int) -> bool:
-	return elapsedTimeMs >= nextAttackTimeMs
-
-
-func StartAttackCooldown(elapsedTimeMs: int, attackIntervalMs: int) -> void:
-	nextAttackTimeMs = elapsedTimeMs + maxi(attackIntervalMs, 0)

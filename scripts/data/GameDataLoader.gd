@@ -90,8 +90,14 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 		if moveSpeed == INVALID_INT:
 			continue
 
-		var attackSpeed: int = _ReadInt(row, "attackSpeed", 0, "CharacterTable", context)
-		if attackSpeed == INVALID_INT:
+		var attackIntervalFrames: int = _ReadInt(
+			row,
+			"attackIntervalFrames",
+			0,
+			"CharacterTable",
+			context,
+		)
+		if attackIntervalFrames == INVALID_INT:
 			continue
 
 		var atkRange: int = _ReadInt(row, "atkRange", 0, "CharacterTable", context)
@@ -117,7 +123,7 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			def,
 			magicDef,
 			moveSpeed,
-			attackSpeed,
+			attackIntervalFrames,
 			atkRange,
 			acquisitionRange,
 		)
@@ -143,6 +149,16 @@ static func LoadDefenseSpawnData() -> Dictionary[int, Array]:
 
 		var spawnTimeMs: int = _ReadInt(row, "spawnTimeMs", 0, "DefenseSpawnTable", cycleContext)
 		if spawnTimeMs == INVALID_INT:
+			continue
+
+		var spawnPointKey: int = _ReadInt(
+			row,
+			"spawnPointKey",
+			0,
+			"DefenseSpawnTable",
+			cycleContext,
+		)
+		if spawnPointKey == INVALID_INT:
 			continue
 
 		var characterKey: int = _ReadInt(row, "characterKey", 0, "DefenseSpawnTable", cycleContext)

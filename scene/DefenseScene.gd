@@ -674,7 +674,7 @@ func _HandleDebugResultInput(event: InputEvent) -> void:
 
 	match keyEvent.keycode:
 		KEY_F:
-			_defenseSceneManager.FinishDefense(true)
+			_defenseSceneManager._FinishDefense(true)
 
 		KEY_G:
-			_defenseSceneManager.FinishDefense(false, true)
+			_defenseSceneManager._FinishDefense(false, true)
