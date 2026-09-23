@@ -1,10 +1,10 @@
 class_name DefenseSceneManager
 extends SceneManager
 
-const MONSTER_MOVE_GROUP_SIZE: int = 20
-
-const TARGET_ACQUISITION_INTERVAL: float = 0.1
 const ATTACK_BUFFER_CAPACITY_MULTIPLIER: int = 2
+
+const MONSTER_MOVE_GROUP_SIZE: int = 20
+const TARGET_ACQUISITION_INTERVAL: float = 0.1
 
 signal DefenseFinished(result: DefenseResult)
 
@@ -110,21 +110,88 @@ func _physics_process(fixedDelta: float) -> void:
 
 	_SimulateUnitRuntime(fixedDelta)
 
-	_UpdateTargeting(CharacterData.CharacterType.MONSTER)
-	_UpdateTargeting(CharacterData.CharacterType.UNIT)
-
-	_monsterTargetAcquisitionCursor = _UpdateTargetAcquisition(
-		CharacterData.CharacterType.MONSTER,
-		_monsterTargetAcquisitionCursor,
-		fixedDelta,
-	)
-	_unitTargetAcquisitionCursor = _UpdateTargetAcquisition(
-		CharacterData.CharacterType.UNIT,
-		_unitTargetAcquisitionCursor,
-		fixedDelta,
-	)
+	_UpdateTargeting()
+	_UpdateTargetAcquisition(fixedDelta)
 
 	_UpdateCombat()
+	_combatManager.FlushAttacks()
+
+	_ResolvePendingBattleEnd()
+
+
+func _UpdateCombat() -> void:
+	_UpdateCharacterCombat(_unitGroupManager)
+	_UpdateCharacterCombat(_monsterManager)
+
+
+func _UpdateCharacterCombat(characterManager: DefenseCharacterManager) -> void:
+	var characters: Array[Unit] = characterManager.GetCharacters()
+	for attacker: Unit in characters:
+		if not _IsManagedUnit(attacker):
+			continue
+
+		var target: Unit = _targetingManager.GetTarget(attacker)
+		_UpdateAttackerCombat(attacker, target)
+
+
+func _UpdateAttackerCombat(attacker: Unit, target: Unit) -> void:
+	if not _IsManagedUnit(attacker):
+		return
+
+	if attacker.fsm == null or attacker.fsm.currentState != UnitFSM.State.ATTACK:
+		_combatManager.ResetAttackTick(attacker.unitId)
+		return
+
+	if target == null or not _IsValidTarget(attacker, target):
+		_combatManager.ResetAttackTick(attacker.unitId)
+		return
+
+	var attackerStatus: DefenseCharacterStatus = _GetCharacterStatus(attacker)
+	if attackerStatus == null or attackerStatus.IsDead():
+		_combatManager.ResetAttackTick(attacker.unitId)
+		return
+
+	if attackerStatus.attackIntervalFrames <= 0:
+		_combatManager.ResetAttackTick(attacker.unitId)
+		return
+
+	if not _combatManager.AdvanceAttackTick(attacker.unitId, attackerStatus.attackIntervalFrames):
+		return
+
+	var damage: int = _CalculateDamage(attacker, target)
+	if damage < 0:
+		return
+
+	_combatManager.QueueAttack(attacker.unitId, target.unitId, damage)
+
+
+func _CalculateDamage(attacker: Unit, target: Unit) -> int:
+	var attackerStatus: DefenseCharacterStatus = _GetCharacterStatus(attacker)
+	if attackerStatus == null or attackerStatus.IsDead():
+		return -1
+
+	if target == _cp:
+		return _CalculateCPDamage(attackerStatus)
+
+	var targetStatus: DefenseCharacterStatus = _GetCharacterStatus(target)
+	if targetStatus == null or targetStatus.IsDead():
+		return -1
+
+	if attackerStatus.characterType == targetStatus.characterType:
+		return -1
+
+	return attackerStatus.CalculateDamage(targetStatus)
+
+
+func _CalculateCPDamage(attackerStatus: DefenseCharacterStatus) -> int:
+	if attackerStatus.characterType != CharacterData.CharacterType.MONSTER:
+		return -1
+
+	var cpStatus: DefenseCPStatus = _cpManager.GetStatus()
+	if cpStatus == null or cpStatus.IsDestroyed():
+		return -1
+
+	return Math.CalculateDamage(attackerStatus.atk, 0, attackerStatus.magicAtk, 0)
 
 
 func _InitializeNavigation() -> bool:
@@ -168,20 +235,10 @@ func _InitializeManagers() -> void:
 
 	_timeManager = DefenseTimeManager.new()
 
-	_targetingManager = DefenseTargetingManager.new(
-		_unitManager,
-		_stageSnapshot,
-		_unitGroupManager,
-		_monsterManager,
-		_cpManager,
-	)
+	_targetingManager = DefenseTargetingManager.new(_stageSnapshot)
 
-	_combatManager = DefenseCombatManager.new(
-		_unitManager,
-		_unitGroupManager,
-		_monsterManager,
-		_cpManager,
-	)
+	_combatManager = DefenseCombatManager.new()
+	_combatManager.DamageRequested.connect(_OnDamageRequested)
 
 	var monsterPool: Node2D = _pools.get_node("MonsterPool")
 	_monsterPoolManager = DefensePoolManager.MonsterPoolManager.new(monsterPool)
@@ -536,7 +593,48 @@ func _OnMonsterSpawnBatchRequested(spawnPointKey: int, characterKey: int, count:
 	_IssueMonsterGroupMoveToCP(spawnedMonsters)
 
 
+func _OnDamageRequested(targetId: int, damage: int) -> void:
+	if damage <= 0:
+		return
+
+	if not _unitManager.HasUnit(targetId):
+		return
+
+	var target: Unit = _unitManager.GetUnit(targetId)
+	if target == null:
+		return
+
+	if target == _cp:
+		_ApplyCPDamage(damage)
+		return
+
+	_ApplyCharacterDamage(target, damage)
+
+
+func _ApplyCPDamage(damage: int) -> void:
+	var cpStatus: DefenseCPStatus = _cpManager.GetStatus()
+	if cpStatus == null or cpStatus.IsDestroyed():
+		return
+
+	_cpManager.TakeDamage(damage)
+
+
+func _ApplyCharacterDamage(character: Unit, damage: int) -> void:
+	var status: DefenseCharacterStatus = _GetCharacterStatus(character)
+	if status == null or status.IsDead():
+		return
+
+	var characterManager: DefenseCharacterManager = _GetCharacterManager(status.characterType)
+	if characterManager == null:
+		return
+
+	characterManager.TakeDamage(character, damage)
+
+
 func _IssueMonsterGroupMoveToCP(monsters: Array[Unit]) -> void:
+	if _cp == null:
+		return
+
 	var startIndex: int = 0
 	while startIndex < monsters.size():
 		var endIndex: int = mini(startIndex + MONSTER_MOVE_GROUP_SIZE, monsters.size())
@@ -545,7 +643,6 @@ func _IssueMonsterGroupMoveToCP(monsters: Array[Unit]) -> void:
 			group.append(monsters[index])
 
 		_IssueChaseGroupTarget(group, _cp)
-
 		startIndex = endIndex
 
 
@@ -561,7 +658,7 @@ func _IssueChaseGroupTarget(attackers: Array[Unit], target: Unit) -> bool:
 		if not _IsManagedUnit(attacker):
 			continue
 
-		if not _targetingManager.IsValidTarget(attacker, target):
+		if not _IsValidTarget(attacker, target):
 			continue
 
 		validAttackers.append(attacker)
@@ -590,6 +687,295 @@ func _IssueChaseGroupTarget(attackers: Array[Unit], target: Unit) -> bool:
 			attacker.fsm.RequestIdle()
 
 	return true
+
+
+func _IssueChaseTarget(attacker: Unit, target: Unit) -> bool:
+	if not _IsManagedUnit(attacker):
+		return false
+
+	if not _IsValidTarget(attacker, target):
+		return false
+
+	var units: Array[Unit] = [attacker]
+	var commandId: int = IssueMoveCommand(units, target.global_position)
+	if commandId < 0:
+		return false
+
+	if attacker.fsm == null:
+		StopUnit(attacker.unitId)
+		return false
+
+	if not attacker.fsm.RequestChase(target):
+		StopUnit(attacker.unitId)
+		return false
+
+	if not _targetingManager.SetTarget(attacker, target):
+		StopUnit(attacker.unitId)
+		attacker.fsm.RequestIdle()
+		return false
+
+	return true
+
+
+func _UpdateTargeting() -> void:
+	for characterType: CharacterData.CharacterType in CharacterData.CharacterType.values():
+		var characterManager: DefenseCharacterManager = _GetCharacterManager(characterType)
+		if characterManager == null:
+			continue
+
+		var characters: Array[Unit] = characterManager.GetCharacters()
+		for character: Unit in characters:
+			if not _IsManagedUnit(character):
+				continue
+
+			if character.fsm == null or not character.fsm.CanReceiveCommands():
+				continue
+
+			_UpdateCharacterTargeting(character, characterType)
+
+
+func _IsValidTarget(attacker: Unit, target: Unit) -> bool:
+	if not _IsManagedUnit(attacker) or not _IsManagedUnit(target):
+		return false
+
+	if attacker == target:
+		return false
+
+	var attackerStatus: DefenseCharacterStatus = _GetCharacterStatus(attacker)
+	if attackerStatus == null or attackerStatus.IsDead():
+		return false
+
+	if target == _cp:
+		var cpStatus: DefenseCPStatus = _cpManager.GetStatus()
+		return (
+			attackerStatus.characterType == CharacterData.CharacterType.MONSTER
+			and cpStatus != null and not cpStatus.IsDestroyed()
+		)
+
+	var targetStatus: DefenseCharacterStatus = _GetCharacterStatus(target)
+	if targetStatus == null or targetStatus.IsDead():
+		return false
+
+	return attackerStatus.characterType != targetStatus.characterType
+
+
+func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.CharacterType) -> void:
+	var target: Unit = _targetingManager.GetTarget(character)
+	if target == null or not _IsValidTarget(character, target):
+		_targetingManager.ClearTarget(character)
+		_HandleMissingTarget(character, characterType)
+		return
+
+	var status: DefenseCharacterStatus = _GetCharacterStatus(character)
+	if status == null:
+		return
+
+	if (
+		characterType == CharacterData.CharacterType.UNIT
+		and not _targetingManager.IsWithinRange(character, target, status.acquisitionRange)
+	):
+		_targetingManager.ClearTarget(character)
+		_ReturnUnitToIdle(character)
+		return
+
+	if _targetingManager.IsWithinRange(character, target, status.atkRange):
+		_EnterAttack(character, target, characterType)
+		return
+
+	if character.fsm.currentState != UnitFSM.State.ATTACK:
+		return
+
+	match characterType:
+		CharacterData.CharacterType.MONSTER:
+			_IssueChaseTarget(character, target)
+
+		CharacterData.CharacterType.UNIT:
+			character.fsm.ReturnFromAttackOutOfRange()
+
+
+func _HandleMissingTarget(character: Unit, characterType: CharacterData.CharacterType) -> void:
+	match characterType:
+		CharacterData.CharacterType.MONSTER:
+			_IssueChaseTarget(character, _cp)
+
+		CharacterData.CharacterType.UNIT:
+			_ReturnUnitToIdle(character)
+
+
+func _ReturnUnitToIdle(unit: Unit) -> void:
+	if unit.fsm.currentState == UnitFSM.State.ATTACK:
+		unit.fsm.RequestIdle()
+
+
+func _EnterAttack(attacker: Unit, target: Unit, characterType: CharacterData.CharacterType) -> void:
+	if attacker.fsm.currentState == UnitFSM.State.ATTACK:
+		return
+
+	var returnState: UnitFSM.State = UnitFSM.State.IDLE
+
+	if characterType == CharacterData.CharacterType.MONSTER:
+		if not StopUnit(attacker.unitId):
+			return
+
+		returnState = UnitFSM.State.CHASE
+
+	attacker.fsm.RequestAttack(target, returnState)
+
+
+func _FindNearestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
+	var attackerStatus: DefenseCharacterStatus = _GetCharacterStatus(attacker)
+	if attackerStatus == null or attackerStatus.IsDead():
+		return null
+
+	var acquisitionRange = attackerStatus.acquisitionRange
+
+	if not _IsManagedUnit(attacker) or acquisitionRange < 0:
+		return null
+	var candidateIds: Array[int] = _targetingManager.FindCandidateUnitIds(
+		attacker,
+		acquisitionRange,
+	)
+
+	var nearestTarget: Unit = null
+	var nearestDistanceSquared: float = INF
+	var nearestUnitId: int = -1
+
+	for unitId: int in candidateIds:
+		if unitId == attacker.unitId:
+			continue
+
+		var candidate: Unit = _unitManager.GetUnit(unitId)
+		if not _IsValidTarget(attacker, candidate):
+			continue
+
+		# CP는 기본 목적지로 따로 취급하고, acquisition 탐색에서는 일반 적 캐릭터만 찾는다.
+		if candidate == _cpManager.GetCP():
+			continue
+
+		var distanceSquared: float = _targetingManager.GetFootprintDistanceSquared(
+			attacker.unitId,
+			candidate.unitId,
+		)
+		if distanceSquared > acquisitionRange * acquisitionRange:
+			continue
+
+		if (
+			nearestTarget == null or distanceSquared < nearestDistanceSquared
+			or (is_equal_approx(distanceSquared, nearestDistanceSquared) and unitId < nearestUnitId)
+		):
+			nearestTarget = candidate
+			nearestDistanceSquared = distanceSquared
+			nearestUnitId = unitId
+
+	return nearestTarget
+
+
+func _UpdateTargetAcquisition(fixedDelta: float) -> void:
+	for characterType: CharacterData.CharacterType in CharacterData.CharacterType.values():
+		var cursor: int
+		match characterType:
+			CharacterData.CharacterType.MONSTER:
+				cursor = _monsterTargetAcquisitionCursor
+
+			CharacterData.CharacterType.UNIT:
+				cursor = _unitTargetAcquisitionCursor
+
+			_:
+				continue
+
+		cursor = _UpdateTargetAcquisitionByType(characterType, cursor, fixedDelta)
+		match characterType:
+			CharacterData.CharacterType.MONSTER:
+				_monsterTargetAcquisitionCursor = cursor
+
+			CharacterData.CharacterType.UNIT:
+				_unitTargetAcquisitionCursor = cursor
+
+
+func _UpdateTargetAcquisitionByType(
+	characterType: CharacterData.CharacterType,
+	cursor: int,
+	fixedDelta: float,
+) -> int:
+	var characterManager: DefenseCharacterManager = _GetCharacterManager(characterType)
+	if characterManager == null:
+		return 0
+
+	var characters: Array[Unit] = characterManager.GetCharacters()
+	var characterCount: int = characters.size()
+	if characterCount == 0:
+		return 0
+
+	var acquisitionCount: int = mini(
+		ceili(float(characterCount) * fixedDelta / TARGET_ACQUISITION_INTERVAL),
+		characterCount,
+	)
+
+	for i: int in range(acquisitionCount):
+		if cursor >= characterCount:
+			cursor = 0
+
+		var character: Unit = characters[cursor]
+		cursor += 1
+
+		if not _IsManagedUnit(character):
+			continue
+
+		if character.fsm == null or not character.fsm.CanReceiveCommands():
+			continue
+
+		var currentTarget: Unit = _targetingManager.GetTarget(character)
+		if not _ShouldAcquireTarget(characterType, currentTarget):
+			continue
+
+		var newTarget: Unit = _FindNearestEnemyInAcquisitionRange(character)
+		if newTarget == null:
+			continue
+
+		_SetAcquiredTarget(character, newTarget, characterType)
+
+	return cursor
+
+
+func _GetCharacterStatus(character: Unit) -> DefenseCharacterStatus:
+	var status: DefenseCharacterStatus = _unitGroupManager.GetStatusByCharacter(character)
+	if status != null:
+		return status
+
+	return _monsterManager.GetStatusByCharacter(character)
+
+
+func _ShouldAcquireTarget(characterType: CharacterData.CharacterType, currentTarget: Unit) -> bool:
+	match characterType:
+		CharacterData.CharacterType.MONSTER:
+			# CP를 향하고 있을 때만 주변 Unit을 새로 탐색한다.
+			return currentTarget == _cp
+
+		CharacterData.CharacterType.UNIT:
+			# 기존 타겟이 없을 때만 새 Monster를 탐색한다.
+			return currentTarget == null
+
+	return false
+
+
+func _SetAcquiredTarget(
+	character: Unit,
+	target: Unit,
+	characterType: CharacterData.CharacterType,
+) -> void:
+	match characterType:
+		CharacterData.CharacterType.MONSTER:
+			if _IssueChaseTarget(character, target):
+				return
+
+			if not _IssueChaseTarget(character, _cp):
+				push_warning(
+					"DefenseSceneManager: Monster 타겟 전환 및 CP 복귀에 실패했습니다. unitId: "
+					+ str(character.unitId)
+				)
+
+		CharacterData.CharacterType.UNIT:
+			_targetingManager.SetTarget(character, target)
 
 
 func _ReplaceDeploymentUnit(
@@ -628,13 +1014,34 @@ func _ReplaceDeploymentUnit(
 
 
 func _InitializeUnitGroups() -> bool:
-	if not _unitGroupManager.Initialize(_deploymentManager, _startData.population):
-		push_error("DefenseSceneManager: UnitGroupStatus 초기화에 실패했습니다.")
-		return false
+	_unitGroupManager.Clear()
+
+	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
+	for cell: Vector2i in cells:
+		var deployment: DefenseDeploymentManager.DefenseDeployment = _deploymentManager.GetDeploymentByCell(
+			cell
+		)
+		if deployment == null:
+			_unitGroupManager.Clear()
+
+			push_error("DefenseSceneManager: 배치 정보를 찾을 수 없습니다. cell: " + str(cell))
+			return false
+
+		if not _unitGroupManager.AddUnitGroup(
+			cell,
+			deployment.characterKey,
+			deployment.recruitRatio,
+			_startData.population,
+		):
+			_unitGroupManager.Clear()
+
+			push_error("DefenseSceneManager: UnitGroupStatus 생성에 실패했습니다. cell: " + str(cell))
+			return false
 
 	if not _unitGroupManager.HasAliveUnitGroup():
-		push_error("DefenseSceneManager: 배치된 병력이 없습니다.")
 		_unitGroupManager.Clear()
+
+		push_error("DefenseSceneManager: 배치된 병력이 없습니다.")
 		return false
 
 	return true
@@ -707,35 +1114,6 @@ func _SpawnDeploymentUnit(characterKey: int, position: Vector2) -> Unit:
 	return unit
 
 
-func _IssueChaseTarget(attacker: Unit, target: Unit) -> bool:
-	if not _IsManagedUnit(attacker):
-		return false
-
-	if not _targetingManager.IsValidTarget(attacker, target):
-		return false
-
-	var units: Array[Unit] = [attacker]
-
-	var commandId: int = IssueMoveCommand(units, target.global_position)
-	if commandId < 0:
-		return false
-
-	if attacker.fsm == null:
-		StopUnit(attacker.unitId)
-		return false
-
-	if not attacker.fsm.RequestChase(target):
-		StopUnit(attacker.unitId)
-		return false
-
-	if not _targetingManager.SetTarget(attacker, target):
-		StopUnit(attacker.unitId)
-		attacker.fsm.RequestIdle()
-		return false
-
-	return true
-
-
 func _ReturnToPool(character: Unit, poolManager: DefensePoolManager) -> bool:
 	if character == null:
 		return false
@@ -751,66 +1129,17 @@ func _RegisterUnit(unit: Unit) -> bool:
 		return false
 
 	var unitId: int = _GetNextUnitId()
-	var worldPosition: Vector2 = unit.global_position
-	var previousUnitId: int = unit.unitId
-
-	var movementAgent: MovementAgent = MovementAgent.new(
-		unitId,
-		worldPosition,
-		unit.moveSpeed,
-		unit.GetHalfSize(),
-	)
-
-	if not _movementSimulator.RegisterAgent(movementAgent):
-		push_error("DefenseSceneManager: MovementAgent 등록에 실패했습니다. unitId: " + str(unitId))
-		return false
-
-	_stageSnapshot.RegisterUnit(unitId, worldPosition, unit.GetHalfSize())
-
-	if not _stageSnapshot.HasUnit(unitId):
-		_movementSimulator.UnregisterAgent(unitId)
-
-		push_error("DefenseSceneManager: StageSnapshot 등록에 실패했습니다. unitId: " + str(unitId))
-		return false
-
-	if not _unitManager.RegisterUnit(unitId, unit):
-		_stageSnapshot.UnregisterUnit(unitId)
-		_movementSimulator.UnregisterAgent(unitId)
-
-		push_error("DefenseSceneManager: UnitManager 등록에 실패했습니다. unitId: " + str(unitId))
-		return false
-
-	if _unitManager.GetUnit(unitId) != unit:
-		unit.unitId = previousUnitId
-
-		_unitManager.UnregisterUnit(unitId)
-		_stageSnapshot.UnregisterUnit(unitId)
-		_movementSimulator.UnregisterAgent(unitId)
-
-		return false
-
-	unit.unitId = unitId
-	_BindUnitRuntime(unit)
-
-	return true
+	return _RegisterUnitRuntime(unit, unitId, unit.global_position)
 
 
 func _UnregisterUnit(unit: Unit) -> void:
-	if unit == null:
-		return
-
-	var unitId: int = unit.unitId
-	if not _unitManager.HasUnit(unitId) or _unitManager.GetUnit(unitId) != unit:
+	if not _IsManagedUnit(unit):
 		return
 
 	if _targetingManager != null:
 		_targetingManager.RemoveUnit(unit)
 
-	_UnbindUnitRuntime(unit)
-
-	_movementSimulator.UnregisterAgent(unitId)
-	_stageSnapshot.UnregisterUnit(unitId)
-	_unitManager.UnregisterUnit(unitId)
+	_UnregisterUnitRuntime(unit)
 
 
 func _GetNextUnitId() -> int:
@@ -823,14 +1152,6 @@ func _GetNextUnitId() -> int:
 	return unitId
 
 
-func _GetCharacterStatus(character: Unit) -> DefenseCharacterStatus:
-	var status: DefenseCharacterStatus = _unitGroupManager.GetStatusByCharacter(character)
-	if status != null:
-		return status
-
-	return _monsterManager.GetStatusByCharacter(character)
-
-
 func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
 	match characterType:
 		CharacterData.CharacterType.UNIT:
@@ -840,178 +1161,6 @@ func _GetCharacterManager(characterType: CharacterData.CharacterType) -> Defense
 			return _monsterManager
 
 	return null
-
-
-func _UpdateTargeting(characterType: CharacterData.CharacterType) -> void:
-	var characterManager: DefenseCharacterManager = _GetCharacterManager(characterType)
-	if characterManager == null:
-		return
-
-	var characters: Array[Unit] = characterManager.GetCharacters()
-	for character: Unit in characters:
-		if not _IsManagedUnit(character):
-			continue
-
-		if character.fsm == null or not character.fsm.CanReceiveCommands():
-			continue
-
-		_UpdateCharacterTargeting(character, characterType)
-
-
-func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.CharacterType) -> void:
-	var target: Unit = _targetingManager.GetTarget(character)
-
-	if target == null:
-		_HandleMissingTarget(character, characterType)
-		return
-
-	if (
-		characterType == CharacterData.CharacterType.UNIT
-		and not _targetingManager.IsInAcquisitionRange(character, target)
-	):
-		_targetingManager.ClearTarget(character)
-		_ReturnUnitToIdle(character)
-		return
-
-	if _targetingManager.IsInAttackRange(character, target):
-		_EnterAttack(character, target, characterType)
-		return
-
-	if character.fsm.currentState != UnitFSM.State.ATTACK:
-		return
-
-	match characterType:
-		CharacterData.CharacterType.MONSTER:
-			_IssueChaseTarget(character, target)
-
-		CharacterData.CharacterType.UNIT:
-			character.fsm.ReturnFromAttackOutOfRange()
-
-
-func _HandleMissingTarget(character: Unit, characterType: CharacterData.CharacterType) -> void:
-	match characterType:
-		CharacterData.CharacterType.MONSTER:
-			_IssueChaseTarget(character, _cp)
-
-		CharacterData.CharacterType.UNIT:
-			_ReturnUnitToIdle(character)
-
-
-func _ReturnUnitToIdle(unit: Unit) -> void:
-	if unit.fsm.currentState == UnitFSM.State.ATTACK:
-		unit.fsm.RequestIdle()
-
-
-func _EnterAttack(attacker: Unit, target: Unit, characterType: CharacterData.CharacterType) -> void:
-	if attacker.fsm.currentState == UnitFSM.State.ATTACK:
-		return
-
-	var returnState: UnitFSM.State = UnitFSM.State.IDLE
-
-	if characterType == CharacterData.CharacterType.MONSTER:
-		if not StopUnit(attacker.unitId):
-			return
-
-		returnState = UnitFSM.State.CHASE
-
-	attacker.fsm.RequestAttack(target, returnState)
-
-
-func _UpdateTargetAcquisition(
-	characterType: CharacterData.CharacterType,
-	cursor: int,
-	fixedDelta: float,
-) -> int:
-	var characterManager: DefenseCharacterManager = _GetCharacterManager(characterType)
-	if characterManager == null:
-		return 0
-
-	var characters: Array[Unit] = characterManager.GetCharacters()
-	var characterCount: int = characters.size()
-	if characterCount == 0:
-		return 0
-
-	var acquisitionCount: int = mini(
-		ceili(float(characterCount) * fixedDelta / TARGET_ACQUISITION_INTERVAL),
-		characterCount,
-	)
-
-	for i: int in range(acquisitionCount):
-		if cursor >= characterCount:
-			cursor = 0
-
-		var character: Unit = characters[cursor]
-		cursor += 1
-
-		if not _IsManagedUnit(character):
-			continue
-
-		if character.fsm == null or not character.fsm.CanReceiveCommands():
-			continue
-
-		var currentTarget: Unit = _targetingManager.GetTarget(character)
-		if not _ShouldAcquireTarget(characterType, currentTarget):
-			continue
-
-		var newTarget: Unit = (_targetingManager.FindNearestEnemyInAcquisitionRange(character))
-		if newTarget == null:
-			continue
-
-		_SetAcquiredTarget(character, newTarget, characterType)
-
-	return cursor
-
-
-func _ShouldAcquireTarget(characterType: CharacterData.CharacterType, currentTarget: Unit) -> bool:
-	match characterType:
-		CharacterData.CharacterType.MONSTER:
-			# CP를 향하고 있을 때만 주변 Unit을 새로 탐색한다.
-			return currentTarget == _cp
-
-		CharacterData.CharacterType.UNIT:
-			# 기존 타겟이 없을 때만 새 Monster를 탐색한다.
-			return currentTarget == null
-
-	return false
-
-
-func _SetAcquiredTarget(
-	character: Unit,
-	target: Unit,
-	characterType: CharacterData.CharacterType,
-) -> void:
-	match characterType:
-		CharacterData.CharacterType.MONSTER:
-			if _IssueChaseTarget(character, target):
-				return
-
-			if not _IssueChaseTarget(character, _cp):
-				push_warning(
-					"DefenseSceneManager: Monster 타겟 전환 및 CP 복귀에 실패했습니다. unitId: "
-					+ str(character.unitId)
-				)
-
-		CharacterData.CharacterType.UNIT:
-			_targetingManager.SetTarget(character, target)
-
-
-func _UpdateCombat() -> void:
-	_UpdateCharacterCombat(_unitGroupManager)
-	_UpdateCharacterCombat(_monsterManager)
-
-	_combatManager.FlushAttacks()
-
-	_ResolvePendingBattleEnd()
-
-
-func _UpdateCharacterCombat(characterManager: DefenseCharacterManager) -> void:
-	var characters: Array[Unit] = characterManager.GetCharacters()
-	for attacker: Unit in characters:
-		if not _IsManagedUnit(attacker):
-			continue
-
-		var target: Unit = _targetingManager.GetTarget(attacker)
-		_combatManager.UpdateAttacker(attacker, target)
 
 
 func _CalculateAttackBufferCapacity() -> int:

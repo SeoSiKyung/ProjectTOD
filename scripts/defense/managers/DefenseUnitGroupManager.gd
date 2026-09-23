@@ -4,24 +4,24 @@ extends DefenseCharacterManager
 var _unitGroupStatusByCell: Dictionary[Vector2i, DefenseUnitGroupStatus] = { }
 
 
-func Initialize(deploymentManager: DefenseDeploymentManager, totalPopulation: int) -> bool:
-	Clear()
+func AddUnitGroup(
+	cell: Vector2i,
+	characterKey: int,
+	recruitRatio: int,
+	totalPopulation: int,
+) -> bool:
+	if _unitGroupStatusByCell.has(cell):
+		return false
 
-	var cells: Array[Vector2i] = deploymentManager.GetDeploymentCells()
-	for cell: Vector2i in cells:
-		var deployment: DefenseDeploymentManager.DefenseDeployment = (
-			deploymentManager.GetDeploymentByCell(cell)
-		)
-		if deployment == null:
-			Clear()
-			return false
+	var status: DefenseUnitGroupStatus = _CreateUnitGroupStatus(
+		characterKey,
+		recruitRatio,
+		totalPopulation,
+	)
+	if status == null:
+		return false
 
-		var status: DefenseUnitGroupStatus = _CreateUnitGroupStatus(deployment, totalPopulation)
-		if status == null:
-			Clear()
-			return false
-
-		_unitGroupStatusByCell[cell] = status
+	_unitGroupStatusByCell[cell] = status
 
 	return true
 
@@ -80,25 +80,21 @@ func GetDeadPopulation() -> int:
 
 
 func _CreateUnitGroupStatus(
-	deployment: DefenseDeploymentManager.DefenseDeployment,
+	characterKey: int,
+	recruitRatio: int,
 	totalPopulation: int,
 ) -> DefenseUnitGroupStatus:
-	var recruitedPopulation: int = Math.ApplyRatio(totalPopulation, deployment.recruitRatio)
+	var recruitedPopulation: int = Math.ApplyRatio(totalPopulation, recruitRatio)
 	if recruitedPopulation <= 0:
 		return null
 
-	var characterData: CharacterData = GameDataManager.GetCharacterData(deployment.characterKey)
+	var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
 	if characterData == null:
-		push_error(
-			"DefenseUnitGroupManager: 존재하지 않는 characterKey입니다. key: " + str(deployment.characterKey)
-		)
+		push_error("DefenseUnitGroupManager: 존재하지 않는 characterKey입니다. key: " + str(characterKey))
 		return null
 
 	if characterData.characterType != CharacterData.CharacterType.UNIT:
-		push_error(
-			"DefenseUnitGroupManager: UNIT 타입이 아닌 캐릭터가 배치되었습니다. key: "
-			+ str(deployment.characterKey)
-		)
+		push_error("DefenseUnitGroupManager: UNIT 타입이 아닌 캐릭터가 배치되었습니다. key: " + str(characterKey))
 		return null
 
 	return DefenseUnitGroupStatus.new(recruitedPopulation, characterData)
