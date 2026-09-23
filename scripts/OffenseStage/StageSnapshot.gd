@@ -1,18 +1,15 @@
 class_name StageSnapshot
 extends RefCounted
 
-const SPATIAL_CELL_SIZE: float = 64.0
+const SPATIAL_CELL_SIZE: int = 64
 const DEFAULT_SLOT_CAPACITY: int = 512
 
 var _slots: UnitSlotStorage
-var _slotsByCell: Dictionary[Vector2i, Array] = {}
-var _spatialCellSize: float = SPATIAL_CELL_SIZE
+var _slotsByCell: Dictionary[Vector2i, Array] = { }
+var _spatialCellSize: int = SPATIAL_CELL_SIZE
 
 
-func _init(
-	initialCapacity: int = DEFAULT_SLOT_CAPACITY,
-	spatialCellSize: float = SPATIAL_CELL_SIZE,
-) -> void:
+func _init(initialCapacity: int = DEFAULT_SLOT_CAPACITY, spatialCellSize: int = SPATIAL_CELL_SIZE) -> void:
 	_slots = UnitSlotStorage.new(initialCapacity)
 	if is_finite(spatialCellSize) and spatialCellSize > 0.0:
 		_spatialCellSize = spatialCellSize
@@ -47,6 +44,7 @@ func GetHalfSize(unitId: int) -> int:
 
 	return _slots.GetHalfSize(slot)
 
+
 func GetUnitIds() -> Array[int]:
 	return _slots.GetUnitIds()
 
@@ -76,7 +74,7 @@ func UnregisterUnit(unitId: int) -> void:
 
 	_removeSlotFromCells(slot, minCell, maxCell)
 	_slots.ReleaseSlot(slot)
-	
+
 
 func UpdatePosition(unitId: int, position: Vector2) -> void:
 	var slot: int = _getSlotOrError(unitId)
@@ -250,7 +248,4 @@ func _removeSlotFromCells(slot: int, minCell: Vector2i, maxCell: Vector2i) -> vo
 
 
 func _getCell(position: Vector2) -> Vector2i:
-	return Vector2i(
-		floori(position.x / _spatialCellSize),
-		floori(position.y / _spatialCellSize),
-	)
+	return Vector2i(floori(position.x / _spatialCellSize), floori(position.y / _spatialCellSize))

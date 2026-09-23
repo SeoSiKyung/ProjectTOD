@@ -7,7 +7,7 @@
 [node name="CP" unique_id=470747039 instance=ExtResource("1_ssf1c")]
 script = ExtResource("1_7pl1g")
 playerControllable = false
-moveSpeed = 0.0
+moveSpeed = 0
 
 [node name="Sprite2D" parent="." index="1" unique_id=617625335]
 texture = ExtResource("1_tn5m1")

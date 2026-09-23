@@ -130,6 +130,22 @@ static func RemainderInt(value: int, divisor: int) -> int:
 	return value % divisor
 
 
+static func CeilSquareRoot(value: int) -> int:
+	if value <= 0:
+		return 0
+
+	var low: int = 1
+	var high: int = value
+	while low < high:
+		var middle: int = DivideInt(low + high, 2)
+		if middle * middle >= value:
+			high = middle
+		else:
+			low = middle + 1
+
+	return low
+
+
 #region Battle
 
 static func CalculateDamage(atk: int, def: int, magicAtk: int, magicDef: int) -> int:

@@ -22,10 +22,6 @@ func GetCount() -> int:
 	return _count
 
 
-func GetAttackerId(index: int) -> int:
-	return _attackerIds[index]
-
-
 func GetTargetId(index: int) -> int:
 	return _targetIds[index]
 

@@ -3,7 +3,7 @@ class_name MovementAgent
 
 var unitId: int = -1
 var position: Vector2 = Vector2.ZERO
-var moveSpeed: float = 0.0
+var moveSpeed: int = 0
 var halfSize: int = 0
 var lastMoveDelta: Vector2 = Vector2.ZERO
 var moveCommandId: int = UnitCommand.INVALID_COMMAND_ID
@@ -18,27 +18,31 @@ var _pathFollower: PathFollower
 var _isAvoiding: bool = false
 var _shouldEndAvoidanceAfterCommit: bool = false
 
-func _init(pUnitId: int, pPosition: Vector2, pMoveSpeed: float, pHalfSize: int) -> void:
+
+func _init(pUnitId: int, pPosition: Vector2, pMoveSpeed: int, pHalfSize: int) -> void:
 	unitId = pUnitId
 	position = pPosition
 	moveSpeed = pMoveSpeed
 	halfSize = pHalfSize
 	_pathFollower = PathFollower.new(halfSize)
-	
+
+
 func Move(newPosition: Vector2, fixedDt: float) -> void:
 	var prevPosition: Vector2 = position
 	position = newPosition
-	
+
 	if fixedDt <= Math.EPSILON:
 		lastMoveDelta = Vector2.ZERO
 	else:
 		lastMoveDelta = position - prevPosition
-	
+
+
 func Teleport(newPosition: Vector2) -> void:
 	position = newPosition
 	_ResetMoveCommand()
 	_ClearPath()
-		
+
+
 func Stop() -> void:
 	_ResetMoveCommand()
 	_ClearPath()
@@ -55,7 +59,8 @@ func Resume() -> void:
 	movementRevision += 1
 	isPaused = false
 	ResetSettleProgress()
-		
+
+
 func SetPath(path: PackedVector2Array) -> void:
 	_ResetMoveCommand()
 	_SetPath(path)
@@ -118,19 +123,22 @@ func _ResetMoveCommand() -> void:
 	settleProgressDistance = INF
 	isSettled = false
 	isPaused = false
-	
+
+
 func _ClearPath() -> void:
 	movementRevision += 1
 	_isAvoiding = false
 	_shouldEndAvoidanceAfterCommit = false
 	_pathFollower.ClearPath()
 	lastMoveDelta = Vector2.ZERO
-	
+
+
 func HasPath() -> bool:
 	return not _pathFollower.IsEmpty()
-	
+
+
 func GetDesiredPosition() -> Vector2:
-	if isPaused or moveSpeed <= 0.0:
+	if isPaused or moveSpeed <= 0:
 		return position
 
 	var maxStepDistance: float = moveSpeed

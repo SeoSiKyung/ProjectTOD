@@ -103,8 +103,8 @@ func _RegisterUnitRuntime(unit: Unit, unitId: int, worldPosition: Vector2) -> bo
 		push_error("SceneManager: Unit의 월드 위치가 유효하지 않습니다.")
 		return false
 
-	if not is_finite(unit.moveSpeed) or unit.moveSpeed < 0.0:
-		push_error("SceneManager: Unit의 이동 속도는 0 이상의 유효한 값이어야 합니다.")
+	if unit.moveSpeed < 0:
+		push_error("SceneManager: Unit의 이동 속도는 0 이상의 값이어야 합니다.")
 		return false
 
 	var halfSize: int = unit.GetHalfSize()
@@ -174,7 +174,7 @@ func _UnbindUnitRuntime(unit: Unit) -> void:
 	unit.BindSceneManager(null)
 
 
-func _OnUnitMoveSpeedChanged(moveSpeed: float, unit: Unit) -> void:
+func _OnUnitMoveSpeedChanged(moveSpeed: int, unit: Unit) -> void:
 	if not _IsManagedUnit(unit):
 		return
 

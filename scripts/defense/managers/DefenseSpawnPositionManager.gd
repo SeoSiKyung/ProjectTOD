@@ -45,14 +45,14 @@ func FindNextCandidateIndex(center: Vector2, halfSize: int, startCandidateIndex:
 
 
 func GetSpawnPosition(center: Vector2, halfSize: int, candidateIndex: int) -> Vector2:
-	var spacing: float = _CalculateSpacing(halfSize)
+	var spacing: int = _CalculateSpacing(halfSize)
 	var gridOffset: Vector2i = _GetSquareSpiralOffset(candidateIndex)
 
 	return center + Vector2(gridOffset) * spacing
 
 
-func _CalculateSpacing(halfSize: int) -> float:
-	return float(halfSize * 2 + SPAWN_POSITION_GAP)
+func _CalculateSpacing(halfSize: int) -> int:
+	return halfSize * 2 + SPAWN_POSITION_GAP
 
 
 func _CanSpawnAt(position: Vector2, halfSize: int) -> bool:
@@ -61,7 +61,7 @@ func _CanSpawnAt(position: Vector2, halfSize: int) -> bool:
 
 	var nearbyUnitIds: Array[int] = _stageSnapshot.FindUnitIdsInRect(
 		position,
-		Vector2(float(halfSize), float(halfSize)),
+		Vector2(halfSize, halfSize),
 	)
 
 	return nearbyUnitIds.is_empty()
@@ -71,11 +71,11 @@ func _GetSquareSpiralOffset(index: int) -> Vector2i:
 	if index <= 0:
 		return Vector2i.ZERO
 
-	var ring: int = ceili((sqrt(float(index + 1)) - 1.0) * 0.5)
+	var squareRoot: int = Math.CeilSquareRoot(index + 1)
+	var ring: int = Math.CeilDivide(squareRoot - 1, 2)
 
 	var sideLength: int = ring * 2
-
-	var ringStartIndex: int = ((ring * 2 - 1) * (ring * 2 - 1))
+	var ringStartIndex: int = (ring * 2 - 1) * (ring * 2 - 1)
 
 	var offset: int = index - ringStartIndex
 	if offset < sideLength:

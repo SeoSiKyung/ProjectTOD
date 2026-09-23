@@ -10,4 +10,4 @@ static func CellToIndex(cell: Vector2i, gridWidth: int) -> int:
 
 
 static func IndexToCell(index: int, gridWidth: int) -> Vector2i:
-	return Vector2i(index % gridWidth, int(index / gridWidth))
+	return Vector2i(Math.RemainderInt(index, gridWidth), Math.DivideInt(index, gridWidth))

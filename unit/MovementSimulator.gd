@@ -47,7 +47,7 @@ func RegisterAgent(agent: MovementAgent) -> bool:
 		return false
 	if agent.halfSize < 0 or not agent.position.is_finite():
 		return false
-	if not is_finite(agent.moveSpeed) or agent.moveSpeed < 0.0:
+	if agent.moveSpeed < 0:
 		return false
 	if not _CanPlaceAgent(agent, agent.position):
 		return false
@@ -79,8 +79,8 @@ func SetPath(unitId: int, path: PackedVector2Array) -> bool:
 	return true
 
 
-func SetMoveSpeed(unitId: int, moveSpeed: float) -> bool:
-	if not is_finite(moveSpeed) or moveSpeed < 0.0:
+func SetMoveSpeed(unitId: int, moveSpeed: int) -> bool:
+	if moveSpeed < 0:
 		return false
 
 	var agent: MovementAgent = _GetAgent(unitId)
@@ -198,8 +198,7 @@ func _CaptureTick() -> CollisionGroup:
 	for agent: MovementAgent in _agents:
 		var desiredPosition: Vector2 = agent.position
 		var canMove: bool = (
-			_CanAgentMove(agent) and not agent.isPaused
-			and agent.moveSpeed > 0.0 and agent.HasPath()
+			_CanAgentMove(agent) and not agent.isPaused and agent.moveSpeed > 0 and agent.HasPath()
 		)
 		if canMove:
 			desiredPosition = agent.GetDesiredPosition()

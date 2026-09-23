@@ -661,20 +661,3 @@ func _SetResultElapsedTime(elapsedTimeMs: int) -> void:
 	_resultElapsedTime.text = "전투 시간: %02d:%02d" % [minutes, seconds]
 
 #endregion
-
-
-# jhw, 추후 삭제
-func _HandleDebugResultInput(event: InputEvent) -> void:
-	if event is not InputEventKey:
-		return
-
-	var keyEvent: InputEventKey = event
-	if not keyEvent.pressed or keyEvent.echo:
-		return
-
-	match keyEvent.keycode:
-		KEY_F:
-			_defenseSceneManager._FinishDefense(true)
-
-		KEY_G:
-			_defenseSceneManager._FinishDefense(false, true)

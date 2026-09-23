@@ -5,14 +5,14 @@ class_name Unit
 @export_range(8, 256, 2) var footprintSize: int = 32
 @export var playerControllable: bool = true
 
-signal MoveSpeedChanged(moveSpeed: float)
-@export var moveSpeed: float = 96.0:
+signal MoveSpeedChanged(moveSpeed: int)
+@export var moveSpeed: int = 96:
 	set(value):
-		if not is_finite(value) or value < 0.0:
-			push_error("Unit: moveSpeed는 0 이상의 유효한 값이어야 합니다.")
+		if value < 0:
+			push_error("Unit: moveSpeed는 0 이상의 값이어야 합니다.")
 			return
 
-		if is_equal_approx(moveSpeed, value):
+		if moveSpeed == value:
 			return
 
 		moveSpeed = value
@@ -33,7 +33,7 @@ func GetFootprintSize() -> int:
 
 
 func GetHalfSize() -> int:
-	return footprintSize / 2
+	return Math.DivideInt(footprintSize, 2)
 
 
 func CanReceiveCommands() -> bool:
