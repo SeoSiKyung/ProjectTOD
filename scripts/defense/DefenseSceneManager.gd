@@ -1,6 +1,8 @@
 class_name DefenseSceneManager
 extends SceneManager
 
+const MONSTER_MOVE_GROUP_SIZE: int = 20
+
 const TARGET_ACQUISITION_INTERVAL: float = 0.1
 const ATTACK_BUFFER_CAPACITY_MULTIPLIER: int = 2
 
@@ -12,7 +14,9 @@ enum DefensePhase {
 	FINISHED,
 }
 
+
 @export_group("Scene")
+@export var _spawnPoints: Node2D
 @export var _pools: Node
 @export var _cp: DefenseCP
 
@@ -34,6 +38,7 @@ var _unitGroupManager: DefenseUnitGroupManager
 var _monsterManager: DefenseMonsterManager
 var _cpManager: DefenseCPManager
 var _spawnManager: DefenseSpawnManager
+var _spawnPositionManager: DefenseSpawnPositionManager
 var _timeManager: DefenseTimeManager
 var _targetingManager: DefenseTargetingManager
 var _combatManager: DefenseCombatManager
@@ -154,7 +159,12 @@ func _InitializeManagers() -> void:
 	_cpManager.CPDestroyed.connect(_OnCPDestroyed)
 
 	_spawnManager = DefenseSpawnManager.new()
-	_spawnManager.MonsterSpawnRequested.connect(_OnMonsterSpawnRequested)
+	_spawnManager.MonsterSpawnBatchRequested.connect(_OnMonsterSpawnBatchRequested)
+	_spawnPositionManager = DefenseSpawnPositionManager.new(
+		_spawnPoints,
+		_navigationService,
+		_stageSnapshot,
+	)
 
 	_timeManager = DefenseTimeManager.new()
 
@@ -469,32 +479,117 @@ func _OnCPDestroyed() -> void:
 	_pendingCPDestroyed = true
 
 
-func _OnMonsterSpawnRequested(characterKey: int, spawnPosition: Vector2) -> void:
-	if _phase != DefensePhase.BATTLE:
+func _OnMonsterSpawnBatchRequested(spawnPointKey: int, characterKey: int, count: int) -> void:
+	if _phase != DefensePhase.BATTLE or count <= 0:
 		return
 
-	var monster: Unit = _monsterPoolManager.SpawnMonster(characterKey, spawnPosition)
-	if monster == null:
+	var spawnPoint: Marker2D = _spawnPositionManager.GetSpawnPoint(spawnPointKey)
+	if spawnPoint == null:
+		push_error("DefenseSceneManager: SpawnPoint를 찾을 수 없습니다. key: " + str(spawnPointKey))
 		return
 
-	if not _RegisterUnit(monster):
-		_monsterPoolManager.Return(monster)
-		return
-
-	if not _monsterManager.AddMonster(monster, characterKey):
-		if not _ReturnToPool(monster, _monsterPoolManager):
+	var spawnedMonsters: Array[Unit] = []
+	var nextCandidateIndex: int = 0
+	for i: int in range(count):
+		var monster: Unit = _monsterPoolManager.SpawnMonster(
+			characterKey,
+			spawnPoint.global_position,
+		)
+		if monster == null:
 			push_error(
-				"DefenseSceneManager: Monster 등록 실패 후 반환에 실패했습니다. unitId: " + str(monster.unitId)
+				"DefenseSceneManager: Monster 생성에 실패했습니다. characterKey: " + str(characterKey)
 			)
-		return
+			break
 
-	if not _IssueChaseTarget(monster, _cp):
-		_monsterManager.UnbindCharacter(monster)
+		var halfSize: int = monster.GetHalfSize()
+		var candidateIndex: int = _spawnPositionManager.FindNextCandidateIndex(
+			spawnPoint.global_position,
+			halfSize,
+			nextCandidateIndex,
+		)
+		if candidateIndex < 0:
+			_monsterPoolManager.Return(monster)
 
-		if not _ReturnToPool(monster, _monsterPoolManager):
 			push_error(
-				"DefenseSceneManager: Monster 이동 명령 실패 후 반환에 실패했습니다. unitId: " + str(monster.unitId)
+				"DefenseSceneManager: Monster Spawn 위치를 찾지 못했습니다. "
+				+ "spawnPointKey: " + str(spawnPointKey)
 			)
+			break
+
+		nextCandidateIndex = candidateIndex + 1
+		monster.global_position = _spawnPositionManager.GetSpawnPosition(
+			spawnPoint.global_position,
+			halfSize,
+			candidateIndex,
+		)
+
+		if not _RegisterUnit(monster):
+			_monsterPoolManager.Return(monster)
+			continue
+
+		if not _monsterManager.AddMonster(monster, characterKey):
+			_ReturnToPool(monster, _monsterPoolManager)
+			continue
+
+		spawnedMonsters.append(monster)
+
+	_IssueMonsterGroupMoveToCP(spawnedMonsters)
+
+
+func _IssueMonsterGroupMoveToCP(monsters: Array[Unit]) -> void:
+	var startIndex: int = 0
+	while startIndex < monsters.size():
+		var endIndex: int = mini(startIndex + MONSTER_MOVE_GROUP_SIZE, monsters.size())
+		var group: Array[Unit] = []
+		for index: int in range(startIndex, endIndex):
+			group.append(monsters[index])
+
+		_IssueChaseGroupTarget(group, _cp)
+
+		startIndex = endIndex
+
+
+func _IssueChaseGroupTarget(attackers: Array[Unit], target: Unit) -> bool:
+	if attackers.is_empty():
+		return false
+
+	if not _IsManagedUnit(target):
+		return false
+
+	var validAttackers: Array[Unit] = []
+	for attacker: Unit in attackers:
+		if not _IsManagedUnit(attacker):
+			continue
+
+		if not _targetingManager.IsValidTarget(attacker, target):
+			continue
+
+		validAttackers.append(attacker)
+
+	if validAttackers.is_empty():
+		return false
+
+	var commandId: int = IssueMoveCommand(validAttackers, target.global_position)
+	if commandId < 0:
+		for attacker: Unit in validAttackers:
+			StopUnit(attacker.unitId)
+
+		return false
+
+	for attacker: Unit in validAttackers:
+		if attacker.fsm == null:
+			StopUnit(attacker.unitId)
+			continue
+
+		if not attacker.fsm.RequestChase(target):
+			StopUnit(attacker.unitId)
+			continue
+
+		if not _targetingManager.SetTarget(attacker, target):
+			StopUnit(attacker.unitId)
+			attacker.fsm.RequestIdle()
+
+	return true
 
 
 func _ReplaceDeploymentUnit(

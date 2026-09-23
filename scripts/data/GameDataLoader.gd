@@ -175,7 +175,12 @@ static func LoadDefenseSpawnData() -> Dictionary[int, Array]:
 		if count == INVALID_INT:
 			continue
 
-		var spawnData: DefenseSpawnData = DefenseSpawnData.new(spawnTimeMs, characterKey, count)
+		var spawnData: DefenseSpawnData = DefenseSpawnData.new(
+			spawnTimeMs,
+			spawnPointKey,
+			characterKey,
+			count,
+		)
 
 		if not spawnDataByCycle.has(cycle):
 			var spawnDataList: Array[DefenseSpawnData] = []

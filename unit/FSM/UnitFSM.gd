@@ -142,10 +142,7 @@ func ReturnFromAttackOutOfRange() -> void:
 		_ChangeState(State.CHASE)
 		return
 
-	if (
-		attackReturnState == State.ATTACK_MOVE and _unit != null
-		and _unit.IsMoving()
-	):
+	if (attackReturnState == State.ATTACK_MOVE and _unit != null and _unit.IsMoving()):
 		_attackTarget = null
 		_ChangeState(State.ATTACK_MOVE)
 		return
@@ -162,10 +159,7 @@ func FinishAttack() -> void:
 		_ChangeState(State.CHASE)
 		return
 
-	if (
-		attackReturnState == State.ATTACK_MOVE and _unit != null
-		and _unit.IsMoving()
-	):
+	if (attackReturnState == State.ATTACK_MOVE and _unit != null and _unit.IsMoving()):
 		_attackTarget = null
 		_ChangeState(State.ATTACK_MOVE)
 		return
@@ -205,6 +199,15 @@ func Die() -> void:
 		_unit.StopMovement()
 
 	_ChangeState(State.DIE)
+
+
+func ResetForReuse() -> void:
+	_stunTimeLeft = 0.0
+	_stateBeforeStun = State.IDLE
+
+	_ClearTargets()
+
+	currentState = State.IDLE
 
 
 func _UpdateMove() -> void:

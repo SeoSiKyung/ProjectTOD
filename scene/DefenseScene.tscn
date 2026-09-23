@@ -15,11 +15,23 @@ _deploymentUI = NodePath("CanvasLayer/DeploymentUI")
 _battleHUD = NodePath("CanvasLayer/BattleHUD")
 _resultUI = NodePath("CanvasLayer/ResultUI")
 
-[node name="DefenseSceneManager" type="Node" parent="." unique_id=1767082849 node_paths=PackedStringArray("_pools", "_cp")]
+[node name="DefenseSceneManager" type="Node" parent="." unique_id=1767082849 node_paths=PackedStringArray("_spawnPoints", "_pools", "_cp")]
 script = ExtResource("3_f716s")
+_spawnPoints = NodePath("../SpawnPoints")
 _pools = NodePath("../Pools")
 _cp = NodePath("../CP")
 navigationData = ExtResource("3_ffq3l")
+
+[node name="SpawnPoints" type="Node2D" parent="." unique_id=811584294]
+
+[node name="SpawnPoint0" type="Marker2D" parent="SpawnPoints" unique_id=717834886]
+position = Vector2(800, 1000)
+
+[node name="SpawnPoint1" type="Marker2D" parent="SpawnPoints" unique_id=1173646954]
+position = Vector2(600, 800)
+
+[node name="SpawnPoint2" type="Marker2D" parent="SpawnPoints" unique_id=1875199949]
+position = Vector2(400, 800)
 
 [node name="TempMap" type="Sprite2D" parent="." unique_id=914540186]
 visible = false

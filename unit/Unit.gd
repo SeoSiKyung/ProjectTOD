@@ -75,3 +75,10 @@ func Die() -> void:
 		return
 
 	fsm.Die()
+
+
+func ResetForReuse() -> void:
+	_sceneManager = null
+
+	if fsm != null:
+		fsm.ResetForReuse()

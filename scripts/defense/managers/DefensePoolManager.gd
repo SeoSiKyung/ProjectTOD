@@ -65,11 +65,19 @@ func _CreateObject(_characterKey: int) -> Node2D
 
 func _ActivateObject(object: Node2D, spawnPosition: Vector2) -> void:
 	object.position = spawnPosition
+	if object is Unit:
+		var unit: Unit = object as Unit
+		unit.ResetForReuse()
+
 	object.visible = true
 	object.process_mode = Node.PROCESS_MODE_INHERIT
 
 
 func _DeactivateObject(object: Node2D) -> void:
+	if object is Unit:
+		var unit: Unit = object as Unit
+		unit.unitId = 0
+
 	object.visible = false
 	object.process_mode = Node.PROCESS_MODE_DISABLED
 
