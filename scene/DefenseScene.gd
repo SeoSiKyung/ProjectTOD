@@ -142,8 +142,6 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	_HandleDebugResultInput(event)
-
 	if not _deploymentPanel.visible:
 		return
 
