@@ -20,7 +20,7 @@ signal MoveSpeedChanged(moveSpeed: int)
 
 @onready var fsm: UnitFSM = $UnitFSM
 
-var _sceneManager: SceneManager
+var _unitRuntime: UnitRuntime
 
 
 func _ready() -> void:
@@ -40,27 +40,27 @@ func CanReceiveCommands() -> bool:
 	return fsm != null and fsm.CanReceiveCommands()
 
 
-func BindSceneManager(sceneManager: SceneManager) -> void:
-	_sceneManager = sceneManager
+func BindUnitRuntime(unitRuntime: UnitRuntime) -> void:
+	_unitRuntime = unitRuntime
 
 
 func IsMoving() -> bool:
-	return is_instance_valid(_sceneManager) and _sceneManager.IsUnitMoving(unitId)
+	return is_instance_valid(_unitRuntime) and _unitRuntime.IsUnitMoving(unitId)
 
 
 func PauseMovement() -> void:
-	if is_instance_valid(_sceneManager):
-		_sceneManager.PauseUnit(unitId)
+	if is_instance_valid(_unitRuntime):
+		_unitRuntime.PauseUnit(unitId)
 
 
 func ResumeMovement() -> void:
-	if is_instance_valid(_sceneManager):
-		_sceneManager.ResumeUnit(unitId)
+	if is_instance_valid(_unitRuntime):
+		_unitRuntime.ResumeUnit(unitId)
 
 
 func StopMovement() -> void:
-	if is_instance_valid(_sceneManager):
-		_sceneManager.StopUnit(unitId)
+	if is_instance_valid(_unitRuntime):
+		_unitRuntime.StopUnit(unitId)
 
 
 func ApplyStun(duration: float) -> void:
@@ -78,7 +78,7 @@ func Die() -> void:
 
 
 func ResetForReuse() -> void:
-	_sceneManager = null
+	_unitRuntime = null
 
 	if fsm != null:
 		fsm.ResetForReuse()

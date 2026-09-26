@@ -8,6 +8,7 @@ class TravelQuery:
 	var blockerIds: Array[int] = []
 
 var _navigationService: NavigationService
+var _nearbyUnitIdBuffer: PackedInt32Array = []
 
 
 func _init(navigationService: NavigationService) -> void:
@@ -22,7 +23,9 @@ func QueryTravel(
 ) -> TravelQuery:
 	var result: TravelQuery = TravelQuery.new()
 	result.distance = distance
-	for otherId: int in _FindNearbyUnits(data, direction, distance, occupancy):
+	var nearbyUnitCount: int = _FindNearbyUnitCount(data, direction, distance, occupancy)
+	for index: int in nearbyUnitCount:
+		var otherId: int = _nearbyUnitIdBuffer[index]
 		if otherId == data.unitId:
 			continue
 		var contactDistance: float = FirstContactDistance(
@@ -82,7 +85,13 @@ func IsPositionClear(
 	occupancy: StageSnapshot,
 ) -> bool:
 	var extent: Vector2 = Vector2.ONE * float(halfSize)
-	for otherId: int in occupancy.FindUnitIdsInRect(position, extent):
+	var nearbyUnitCount: int = occupancy.FindUnitIdsInRect(
+		position,
+		extent,
+		_nearbyUnitIdBuffer,
+	)
+	for index: int in nearbyUnitCount:
+		var otherId: int = _nearbyUnitIdBuffer[index]
 		if otherId == ignoredUnitId:
 			continue
 		if Overlaps(position, halfSize, occupancy.GetPosition(otherId), occupancy.GetHalfSize(otherId)):
@@ -126,16 +135,16 @@ static func FirstContactDistance(
 	return maxf(0.0, enterDistance)
 
 
-func _FindNearbyUnits(
+func _FindNearbyUnitCount(
 	data: CollisionGroup.AgentData,
 	direction: Vector2,
 	distance: float,
 	occupancy: StageSnapshot,
-) -> Array[int]:
+) -> int:
 	var movement: Vector2 = direction * distance
 	var center: Vector2 = data.startPosition + movement * 0.5
 	var extent: Vector2 = movement.abs() * 0.5 + Vector2.ONE * float(data.halfSize)
-	return occupancy.FindUnitIdsInRect(center, extent)
+	return occupancy.FindUnitIdsInRect(center, extent, _nearbyUnitIdBuffer)
 
 
 func _StaticSegmentClear(data: CollisionGroup.AgentData, endpoint: Vector2) -> bool:

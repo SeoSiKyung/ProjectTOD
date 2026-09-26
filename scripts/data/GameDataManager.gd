@@ -73,9 +73,7 @@ func _ValidateGameData() -> bool:
 
 func _BuildCharacterDataByType() -> Dictionary[int, Array]:
 	var characterDataByType: Dictionary[int, Array] = { }
-	var characterTypes: Array = CharacterData.CharacterType.values()
-
-	for characterType: CharacterData.CharacterType in characterTypes:
+	for characterType: CharacterData.CharacterType in CharacterData.CharacterType.COUNT:
 		var characterDataList: Array[CharacterData] = []
 		characterDataByType[characterType] = characterDataList
 
@@ -86,7 +84,7 @@ func _BuildCharacterDataByType() -> Dictionary[int, Array]:
 		]
 		characterDataList.append(characterData)
 
-	for characterType: CharacterData.CharacterType in characterTypes:
+	for characterType: CharacterData.CharacterType in CharacterData.CharacterType.COUNT:
 		characterDataByType[characterType].make_read_only()
 
 	characterDataByType.make_read_only()

@@ -1,5 +1,5 @@
 class_name OffenseSceneManager
-extends SceneManager
+extends Node
 
 const INVALID_UNIT_ID: int = -1
 const MAX_INT32_VALUE: int = 2147483647
@@ -16,6 +16,7 @@ const MAX_INT32_VALUE: int = 2147483647
 @export_range(0, 100000, 1) var initialUnitCapacity: int = StageSnapshot.DEFAULT_SLOT_CAPACITY
 
 var _navigationService: NavigationService
+var _unitRuntime: UnitRuntime
 
 var _nextUnitId: int = 0
 var _pendingDestroyUnitIds: PackedInt32Array = []
@@ -43,7 +44,7 @@ func _physics_process(fixedDelta: float) -> void:
 
 	_flushPendingDestroyUnits()
 
-	_SimulateUnitRuntime(fixedDelta)
+	_unitRuntime.Simulate(fixedDelta)
 
 	_isProcessingTick = false
 
@@ -60,7 +61,14 @@ func GetUnit(unitId: int) -> Unit:
 	if not _isInitialized:
 		return null
 
-	return _unitManager.GetUnit(unitId)
+	return _unitRuntime.GetUnit(unitId)
+
+
+func IssueMoveCommand(units: Array[Unit], targetWorld: Vector2) -> int:
+	if not _isInitialized or _unitRuntime == null:
+		return UnitRuntime.INVALID_COMMAND_ID
+
+	return _unitRuntime.IssueMoveCommand(units, targetWorld)
 
 
 func RegisterUnit(unit: Unit, worldPosition: Vector2) -> int:
@@ -94,7 +102,7 @@ func RegisterUnit(unit: Unit, worldPosition: Vector2) -> int:
 	var previousUnitId: int = unit.unitId
 	var previousLocalPosition: Vector2 = unit.position
 
-	if not _RegisterUnitRuntime(unit, unitId, worldPosition):
+	if not _unitRuntime.RegisterUnit(unit, unitId, worldPosition):
 		return INVALID_UNIT_ID
 
 	unit.position = unitRoot.to_local(worldPosition)
@@ -104,7 +112,7 @@ func RegisterUnit(unit: Unit, worldPosition: Vector2) -> int:
 		unitRoot.add_child(unit)
 
 	if unit.get_parent() != unitRoot or unit.is_queued_for_deletion():
-		_UnregisterUnitRuntime(unit)
+		_unitRuntime.UnregisterUnit(unit)
 
 		if not unit.is_queued_for_deletion():
 			unit.unitId = previousUnitId
@@ -119,7 +127,7 @@ func RegisterUnit(unit: Unit, worldPosition: Vector2) -> int:
 
 
 func DestroyUnit(unitId: int) -> bool:
-	if not _isInitialized or not _unitManager.HasUnit(unitId):
+	if not _isInitialized or not _unitRuntime.HasUnit(unitId):
 		return false
 
 	if _isProcessingTick:
@@ -132,10 +140,10 @@ func DestroyUnit(unitId: int) -> bool:
 
 
 func SetUnitPath(unitId: int, path: PackedVector2Array) -> bool:
-	if not _isInitialized or not _unitManager.HasUnit(unitId):
+	if not _isInitialized or not _unitRuntime.HasUnit(unitId):
 		return false
 
-	return _movementSimulator.SetPath(unitId, path)
+	return _unitRuntime.SetPath(unitId, path)
 
 
 func IssueStopCommand(units: Array[Unit]) -> int:
@@ -144,11 +152,11 @@ func IssueStopCommand(units: Array[Unit]) -> int:
 
 	var stoppedCount: int = 0
 
-	for unitId: int in _CollectRegisteredUnitIds(units):
-		if not _movementSimulator.StopUnit(unitId):
+	for unitId: int in _unitRuntime.CollectRegisteredUnitIds(units):
+		if not _unitRuntime.StopUnit(unitId):
 			continue
 
-		var unit: Unit = _unitManager.GetUnit(unitId)
+		var unit: Unit = _unitRuntime.GetUnit(unitId)
 
 		if is_instance_valid(unit) and unit.fsm != null:
 			unit.fsm.RequestIdle()
@@ -166,26 +174,18 @@ func StopUnits(unitIds: PackedInt32Array) -> void:
 		return
 
 	for unitId: int in unitIds:
-		if _unitManager.HasUnit(unitId):
-			_movementSimulator.StopUnit(unitId)
+		if _unitRuntime.HasUnit(unitId):
+			_unitRuntime.StopUnit(unitId)
 
 
 func TeleportUnit(unitId: int, worldPosition: Vector2) -> bool:
-	if not _isInitialized or _isProcessingTick or not _unitManager.HasUnit(unitId):
+	if not _isInitialized or _isProcessingTick or not _unitRuntime.HasUnit(unitId):
 		return false
 
 	if not worldPosition.is_finite():
 		return false
 
-	if not _movementSimulator.TeleportUnit(unitId, worldPosition, _stageSnapshot):
-		return false
-
-	var unit: Unit = _unitManager.GetUnit(unitId)
-
-	if is_instance_valid(unit):
-		unit.global_position = worldPosition
-
-	return true
+	return _unitRuntime.TeleportUnit(unitId, worldPosition)
 
 
 func Clear() -> void:
@@ -197,16 +197,14 @@ func Clear() -> void:
 		return
 
 	_pendingDestroyUnitIds.clear()
-	var unitIds: Array[int] = _stageSnapshot.GetUnitIds()
+	var unitIds: Array[int] = _unitRuntime.GetStageSnapshot().GetUnitIds()
 
 	unitIds.sort()
 
 	for unitId: int in unitIds:
 		_destroyUnitImmediately(unitId)
 
-	_movementSimulator.Clear()
-	_stageSnapshot.Clear()
-	_unitManager.Clear()
+	_unitRuntime.Clear()
 
 
 func _initializeSystems() -> bool:
@@ -233,7 +231,8 @@ func _initializeSystems() -> bool:
 		_navigationService = null
 		return false
 
-	return _InitializeUnitRuntime(_navigationService, initialUnitCapacity)
+	_unitRuntime = UnitRuntime.new()
+	return _unitRuntime.Initialize(_navigationService, initialUnitCapacity)
 
 
 func _registerExistingUnits() -> void:
@@ -262,11 +261,11 @@ func _flushPendingDestroyUnits() -> void:
 
 
 func _destroyUnitImmediately(unitId: int) -> bool:
-	if not _unitManager.HasUnit(unitId):
+	if not _unitRuntime.HasUnit(unitId):
 		return false
 
-	var unit: Unit = _unitManager.GetUnit(unitId)
-	if not _UnregisterUnitRuntime(unit):
+	var unit: Unit = _unitRuntime.GetUnit(unitId)
+	if not _unitRuntime.UnregisterUnit(unit):
 		return false
 
 	if is_instance_valid(unit):
@@ -288,10 +287,7 @@ func _shutdownSystems() -> void:
 		_pendingDestroyUnitIds.clear()
 
 	PathFollower.SetNavigationService(null)
-	_moveCommandProcessor = null
-	_movementSimulator = null
-	_stageSnapshot = null
-	_unitManager = null
+	_unitRuntime = null
 	_navigationService = null
 	_isInitialized = false
 	_isProcessingTick = false

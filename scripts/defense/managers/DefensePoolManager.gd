@@ -25,10 +25,14 @@ func Return(object: Node2D) -> bool:
 	return true
 
 
-func _Spawn(characterKey: int, spawnPosition: Vector2) -> Node2D:
+func _Spawn(characterData: CharacterData, spawnPosition: Vector2) -> Node2D:
+	if characterData == null:
+		return null
+
+	var characterKey: int = characterData.characterKey
 	var object: Node2D = _TakeInactiveObject(characterKey)
 	if object == null:
-		object = _CreateObject(characterKey)
+		object = _CreateObject(characterData)
 		if object == null:
 			return null
 
@@ -60,7 +64,7 @@ func _AddInactiveObject(characterKey: int, object: Node2D) -> void:
 
 
 @abstract
-func _CreateObject(_characterKey: int) -> Node2D
+func _CreateObject(_characterData: CharacterData) -> Node2D
 
 
 func _ActivateObject(object: Node2D, spawnPosition: Vector2) -> void:
@@ -86,15 +90,16 @@ class MonsterPoolManager extends DefensePoolManager:
 	const TEMP_MONSTER_COLOR: Color = Color(1.0, 0.25, 0.25, 1.0)
 
 
-	func SpawnMonster(characterKey: int, spawnPosition: Vector2) -> Unit:
-		return _Spawn(characterKey, spawnPosition) as Unit
+	func SpawnMonster(characterData: CharacterData, spawnPosition: Vector2) -> Unit:
+		return _Spawn(characterData, spawnPosition) as Unit
 
 
-	func _CreateObject(characterKey: int) -> Node2D:
-		var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
+	func _CreateObject(characterData: CharacterData) -> Node2D:
 		if characterData == null:
-			push_error("MonsterPoolManager: 존재하지 않는 characterKey입니다. key: " + str(characterKey))
+			push_error("MonsterPoolManager: CharacterData가 없습니다.")
 			return null
+
+		var characterKey: int = characterData.characterKey
 
 		if characterData.characterType != CharacterData.CharacterType.MONSTER:
 			push_error("MonsterPoolManager: MONSTER 타입이 아닌 캐릭터입니다. key: " + str(characterKey))
@@ -125,15 +130,16 @@ class MonsterPoolManager extends DefensePoolManager:
 
 
 class UnitPoolManager extends DefensePoolManager:
-	func SpawnUnit(characterKey: int, spawnPosition: Vector2) -> Unit:
-		return _Spawn(characterKey, spawnPosition) as Unit
+	func SpawnUnit(characterData: CharacterData, spawnPosition: Vector2) -> Unit:
+		return _Spawn(characterData, spawnPosition) as Unit
 
 
-	func _CreateObject(characterKey: int) -> Node2D:
-		var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
+	func _CreateObject(characterData: CharacterData) -> Node2D:
 		if characterData == null:
-			push_error("UnitPoolManager: 존재하지 않는 characterKey입니다. key: " + str(characterKey))
+			push_error("UnitPoolManager: CharacterData가 없습니다.")
 			return null
+
+		var characterKey: int = characterData.characterKey
 
 		if characterData.characterType != CharacterData.CharacterType.UNIT:
 			push_error("UnitPoolManager: UNIT 타입이 아닌 캐릭터입니다. key: " + str(characterKey))

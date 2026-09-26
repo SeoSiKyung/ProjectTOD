@@ -4,17 +4,37 @@ extends RefCounted
 signal CharacterDied(character: Unit, status: DefenseCharacterStatus)
 
 var _statusByCharacter: Dictionary[Unit, DefenseCharacterStatus] = { }
+var _characters: Array[Unit] = []
+var _characterIndexByCharacter: Dictionary[Unit, int] = { }
 
 
 func Clear() -> void:
 	_statusByCharacter.clear()
+	_characters.clear()
+	_characterIndexByCharacter.clear()
 
 
 func UnbindCharacter(character: Unit) -> bool:
 	if not _statusByCharacter.has(character):
 		return false
 
+	var index: int = _characterIndexByCharacter.get(character, -1)
+	if index < 0:
+		push_error("DefenseCharacterManager: Character index를 찾을 수 없습니다.")
+		return false
+
+	var lastIndex: int = _characters.size() - 1
+
+	if index != lastIndex:
+		var lastCharacter: Unit = _characters[lastIndex]
+
+		_characters[index] = lastCharacter
+		_characterIndexByCharacter[lastCharacter] = index
+
+	_characters.pop_back()
+	_characterIndexByCharacter.erase(character)
 	_statusByCharacter.erase(character)
+
 	return true
 
 
@@ -22,16 +42,16 @@ func GetStatusByCharacter(character: Unit) -> DefenseCharacterStatus:
 	return _statusByCharacter.get(character)
 
 
-func GetCharacters() -> Array[Unit]:
-	var characters: Array[Unit] = []
-	for character: Unit in _statusByCharacter:
-		characters.append(character)
+func GetCharacterCount() -> int:
+	return _characters.size()
 
-	return characters
+
+func GetCharacterByIndex(index: int) -> Unit:
+	return _characters[index]
 
 
 func GetActiveCount() -> int:
-	return _statusByCharacter.size()
+	return _characters.size()
 
 
 func TakeDamage(character: Unit, damage: int) -> bool:
@@ -56,4 +76,8 @@ func _BindStatus(character: Unit, status: DefenseCharacterStatus) -> bool:
 	character.moveSpeed = status.moveSpeed
 
 	_statusByCharacter[character] = status
+
+	_characterIndexByCharacter[character] = _characters.size()
+	_characters.append(character)
+
 	return true

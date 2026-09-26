@@ -50,6 +50,10 @@ func CanReceiveCommands() -> bool:
 	return currentState != State.STUN and currentState != State.DIE
 
 
+func GetAttackTarget() -> Unit:
+	return _attackTarget
+
+
 func RequestIdle() -> bool:
 	if not CanReceiveCommands():
 		return false

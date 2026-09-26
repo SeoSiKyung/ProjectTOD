@@ -122,8 +122,12 @@ func FindUnitIdsInCircle(center: Vector2, radius: float) -> Array[int]:
 	return result
 
 
-func FindUnitIdsInRect(center: Vector2, halfExtent: Vector2) -> Array[int]:
-	var result: Array[int] = []
+func FindUnitIdsInRect(center: Vector2, halfExtent: Vector2, resultBuffer: PackedInt32Array) -> int:
+	var requiredCapacity: int = _slots.GetSlotCapacity()
+	if resultBuffer.size() < requiredCapacity:
+		resultBuffer.resize(requiredCapacity)
+
+	var resultCount: int = 0
 	var extent: Vector2 = Vector2(absf(halfExtent.x), absf(halfExtent.y))
 	var minCell: Vector2i = _getCell(center - extent)
 	var maxCell: Vector2i = _getCell(center + extent)
@@ -142,18 +146,25 @@ func FindUnitIdsInRect(center: Vector2, halfExtent: Vector2) -> Array[int]:
 				if not _slots.TryMarkQuerySlot(slot, queryStamp):
 					continue
 
-				if _intersectsRect(slot, center, extent):
-					result.append(_slots.GetUnitId(slot))
+				if not _intersectsRect(slot, center, extent):
+					continue
 
-	return result
+				resultBuffer[resultCount] = _slots.GetUnitId(slot)
+				resultCount += 1
+
+	return resultCount
 
 
 func FindUnitIdsInRadius(center: Vector2, radius: float) -> Array[int]:
 	return FindUnitIdsInCircle(center, radius)
 
 
-func FindUnitIdsInBounds(center: Vector2, halfExtent: Vector2) -> Array[int]:
-	return FindUnitIdsInRect(center, halfExtent)
+func FindUnitIdsInBounds(
+	center: Vector2,
+	halfExtent: Vector2,
+	resultBuffer: PackedInt32Array,
+) -> int:
+	return FindUnitIdsInRect(center, halfExtent, resultBuffer)
 
 
 func _getSlotOrError(unitId: int) -> int:

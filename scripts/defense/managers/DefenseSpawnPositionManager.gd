@@ -8,11 +8,15 @@ var _spawnPoints: Node2D
 var _navigationService: NavigationService
 var _stageSnapshot: StageSnapshot
 
+var _nearbyUnitIdBuffer: PackedInt32Array = []
+
 
 func _init(spawnPoints: Node2D, navigationService: NavigationService, stageSnapshot: StageSnapshot) -> void:
 	_spawnPoints = spawnPoints
 	_navigationService = navigationService
 	_stageSnapshot = stageSnapshot
+
+	_nearbyUnitIdBuffer.resize(_stageSnapshot.GetSlotCapacity())
 
 
 func GetSpawnPoint(spawnPointKey: int) -> Marker2D:
@@ -59,12 +63,13 @@ func _CanSpawnAt(position: Vector2, halfSize: int) -> bool:
 	if not _navigationService.CanPlaceStatic(position, halfSize):
 		return false
 
-	var nearbyUnitIds: Array[int] = _stageSnapshot.FindUnitIdsInRect(
+	var nearbyUnitCount: int = _stageSnapshot.FindUnitIdsInRect(
 		position,
 		Vector2(halfSize, halfSize),
+		_nearbyUnitIdBuffer,
 	)
 
-	return nearbyUnitIds.is_empty()
+	return nearbyUnitCount == 0
 
 
 func _GetSquareSpiralOffset(index: int) -> Vector2i:

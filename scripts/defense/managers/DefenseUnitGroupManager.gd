@@ -6,15 +6,15 @@ var _unitGroupStatusByCell: Dictionary[Vector2i, DefenseUnitGroupStatus] = { }
 
 func AddUnitGroup(
 	cell: Vector2i,
-	characterKey: int,
+	characterData: CharacterData,
 	recruitRatio: int,
 	totalPopulation: int,
 ) -> bool:
-	if _unitGroupStatusByCell.has(cell):
+	if _unitGroupStatusByCell.has(cell) or characterData == null:
 		return false
 
 	var status: DefenseUnitGroupStatus = _CreateUnitGroupStatus(
-		characterKey,
+		characterData,
 		recruitRatio,
 		totalPopulation,
 	)
@@ -80,7 +80,7 @@ func GetDeadPopulation() -> int:
 
 
 func _CreateUnitGroupStatus(
-	characterKey: int,
+	characterData: CharacterData,
 	recruitRatio: int,
 	totalPopulation: int,
 ) -> DefenseUnitGroupStatus:
@@ -88,13 +88,11 @@ func _CreateUnitGroupStatus(
 	if recruitedPopulation <= 0:
 		return null
 
-	var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
-	if characterData == null:
-		push_error("DefenseUnitGroupManager: 존재하지 않는 characterKey입니다. key: " + str(characterKey))
-		return null
-
 	if characterData.characterType != CharacterData.CharacterType.UNIT:
-		push_error("DefenseUnitGroupManager: UNIT 타입이 아닌 캐릭터가 배치되었습니다. key: " + str(characterKey))
+		push_error(
+			"DefenseUnitGroupManager: UNIT 타입이 아닌 캐릭터가 배치되었습니다. key: "
+			+ str(characterData.characterKey)
+		)
 		return null
 
 	return DefenseUnitGroupStatus.new(recruitedPopulation, characterData)

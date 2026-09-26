@@ -7,8 +7,8 @@ var _spawnDataList: Array[DefenseSpawnData] = []
 var _nextSpawnIndex: int = 0
 
 
-func Initialize(cycle: int) -> void:
-	_spawnDataList = GameDataManager.GetDefenseSpawnData(cycle)
+func Initialize(spawnDataList: Array[DefenseSpawnData]) -> void:
+	_spawnDataList = spawnDataList
 	_nextSpawnIndex = 0
 
 

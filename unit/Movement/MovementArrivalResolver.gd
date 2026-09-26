@@ -12,6 +12,7 @@ class CommandArea:
 var _navigationService: NavigationService
 var _commandAreas: Dictionary[int, CommandArea] = {}
 var _profileMetrics: MovementProfileMetrics
+var _nearbyUnitIdBuffer: PackedInt32Array = []
 
 
 func _init(navigationService: NavigationService) -> void:
@@ -106,7 +107,13 @@ func _HasSettledBlocker(
 	var contactDistance: float = _GetContactDistance(agent)
 	var searchExtent: Vector2 = Vector2.ONE * (float(agent.halfSize) + contactDistance)
 	var direction: Vector2 = agent.position.direction_to(agent.moveTarget)
-	for otherId: int in snapshot.FindUnitIdsInRect(agent.position, searchExtent):
+	var nearbyUnitCount: int = snapshot.FindUnitIdsInRect(
+		agent.position,
+		searchExtent,
+		_nearbyUnitIdBuffer,
+	)
+	for index: int in nearbyUnitCount:
+		var otherId: int = _nearbyUnitIdBuffer[index]
 		var otherData: CollisionGroup.AgentData = tick.GetAgent(otherId)
 		if otherData == null or otherId == agent.unitId:
 			continue

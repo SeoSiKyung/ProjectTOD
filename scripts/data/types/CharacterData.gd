@@ -4,6 +4,7 @@ extends RefCounted
 enum CharacterType {
 	UNIT,
 	MONSTER,
+	COUNT,
 }
 
 var characterKey: int
