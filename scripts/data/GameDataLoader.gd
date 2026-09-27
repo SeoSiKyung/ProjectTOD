@@ -35,10 +35,18 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			push_error("CharacterTable characterName이 비어있습니다. " + context)
 			continue
 
+		var characterTypeName: String = row["characterType"].strip_edges().to_upper()
+
 		var characterType: CharacterData.CharacterType
-		match row["characterType"].to_upper():
+		match characterTypeName:
 			"UNIT":
 				characterType = CharacterData.CharacterType.UNIT
+
+			"MACHINE":
+				characterType = CharacterData.CharacterType.MACHINE
+
+			"TRAP":
+				characterType = CharacterData.CharacterType.TRAP
 
 			"MONSTER":
 				characterType = CharacterData.CharacterType.MONSTER
@@ -47,12 +55,19 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 				push_error("CharacterTable characterType이 올바르지 않습니다. " + context)
 				continue
 
-		var relativePath: String = row["path"].strip_edges()
-		if relativePath.is_empty():
-			push_error("CharacterTable path가 비어있습니다. " + context)
-			continue
-		var iconPath: String = ICON_BASE_PATH.path_join(relativePath + ".png")
-		var prefabPath: String = PREFAB_BASE_PATH.path_join(relativePath + ".tscn")
+		var resourceName: String = characterTypeName + "_" + str(characterKey)
+		var iconPath: String = (
+			ICON_BASE_PATH
+			.path_join("units")
+			.path_join(characterTypeName)
+			.path_join(resourceName + ".png")
+		)
+		var prefabPath: String = (
+			PREFAB_BASE_PATH
+			.path_join("units")
+			.path_join(characterTypeName)
+			.path_join(resourceName + ".tscn")
+		)
 
 		var maxHp: int = _ReadInt(row, "maxHp", 1, "CharacterTable", context)
 		if maxHp == INVALID_INT:
@@ -132,6 +147,75 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 
 	characterDataByKey.make_read_only()
 	return characterDataByKey
+
+
+static func LoadMercenaryData() -> Dictionary[int, MercenaryData]:
+	var tablePath: String = _GetTablePath("mercenary", "MercenaryTable")
+	var rows: Array[Dictionary] = CSVLoader.Load(tablePath)
+
+	var mercenaryDataByKey: Dictionary[int, MercenaryData] = { }
+	var usedCharacterKeys: Dictionary[int, bool] = { }
+
+	for row: Dictionary in rows:
+		var mercenaryKey: int = _ReadInt(row, "mercenaryKey", 1, "MercenaryTable")
+		if mercenaryKey == INVALID_INT:
+			continue
+
+		if mercenaryDataByKey.has(mercenaryKey):
+			push_error("MercenaryTable에 중복 mercenaryKey가 있습니다. key: " + str(mercenaryKey))
+			continue
+
+		var context: String = "key: " + str(mercenaryKey)
+
+		var characterKey: int = _ReadInt(row, "characterKey", 10000, "MercenaryTable", context)
+		if characterKey == INVALID_INT:
+			continue
+
+		if usedCharacterKeys.has(characterKey):
+			push_error(
+				"MercenaryTable에 중복 characterKey가 있습니다. " + context
+				+ ", characterKey: " + str(characterKey)
+			)
+			continue
+
+		var name: String = row["name"].strip_edges()
+		if name.is_empty():
+			push_error("MercenaryTable name이 비어있습니다. " + context)
+			continue
+
+		var isHeroValue: Variant = _ReadBool(row, "isHero", "MercenaryTable", context)
+		if isHeroValue == null:
+			continue
+
+		var isHero: bool = isHeroValue
+
+		var atkBonus: int = _ReadInt(row, "atkBonus", 0, "MercenaryTable", context)
+		if atkBonus == INVALID_INT:
+			continue
+
+		var defBonus: int = _ReadInt(row, "defBonus", 0, "MercenaryTable", context)
+		if defBonus == INVALID_INT:
+			continue
+
+		var hpBonus: int = _ReadInt(row, "hpBonus", 0, "MercenaryTable", context)
+		if hpBonus == INVALID_INT:
+			continue
+
+		var mercenaryData: MercenaryData = MercenaryData.new(
+			mercenaryKey,
+			characterKey,
+			name,
+			isHero,
+			atkBonus,
+			defBonus,
+			hpBonus,
+		)
+
+		mercenaryDataByKey[mercenaryKey] = mercenaryData
+		usedCharacterKeys[characterKey] = true
+
+	mercenaryDataByKey.make_read_only()
+	return mercenaryDataByKey
 
 
 static func LoadDefenseSpawnData() -> Dictionary[int, Array]:
@@ -263,6 +347,30 @@ static func _ReadInt(
 		return INVALID_INT
 
 	return value
+
+
+static func _ReadBool(
+	row: Dictionary,
+	fieldName: String,
+	tableName: String,
+	context: String = "",
+) -> Variant:
+	var text: String = row[fieldName].strip_edges().to_upper()
+	match text:
+		"1":
+			return true
+
+		"0":
+			return false
+
+		_:
+			var message: String = ("%s %s는 1/0이어야 합니다." % [tableName, fieldName])
+
+			if not context.is_empty():
+				message += " " + context
+
+			push_error(message)
+			return null
 
 
 static func _CompareDefenseSpawnTime(a: DefenseSpawnData, b: DefenseSpawnData) -> bool:

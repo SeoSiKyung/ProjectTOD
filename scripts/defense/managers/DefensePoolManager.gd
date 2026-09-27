@@ -87,9 +87,6 @@ func _DeactivateObject(object: Node2D) -> void:
 
 
 class MonsterPoolManager extends DefensePoolManager:
-	const TEMP_MONSTER_COLOR: Color = Color(1.0, 0.25, 0.25, 1.0)
-
-
 	func SpawnMonster(characterData: CharacterData, spawnPosition: Vector2) -> Unit:
 		return _Spawn(characterData, spawnPosition) as Unit
 
@@ -124,7 +121,6 @@ class MonsterPoolManager extends DefensePoolManager:
 			return null
 
 		monster.playerControllable = false
-		monster.modulate = TEMP_MONSTER_COLOR
 
 		return monster
 
@@ -141,8 +137,8 @@ class UnitPoolManager extends DefensePoolManager:
 
 		var characterKey: int = characterData.characterKey
 
-		if characterData.characterType != CharacterData.CharacterType.UNIT:
-			push_error("UnitPoolManager: UNIT 타입이 아닌 캐릭터입니다. key: " + str(characterKey))
+		if not _IsSupportedCharacterType(characterData.characterType):
+			push_error("UnitPoolManager: 지원하지 않는 CharacterType입니다. key: " + str(characterKey))
 			return null
 
 		if characterData.prefabPath.is_empty():
@@ -159,4 +155,15 @@ class UnitPoolManager extends DefensePoolManager:
 			push_error("UnitPoolManager: 캐릭터 scene의 루트가 Unit이 아닙니다. key: " + str(characterKey))
 			return null
 
+		if characterData.characterType != CharacterData.CharacterType.UNIT:
+			unit.playerControllable = false
+
 		return unit
+
+
+	func _IsSupportedCharacterType(characterType: CharacterData.CharacterType) -> bool:
+		return (
+			characterType == CharacterData.CharacterType.UNIT
+			or characterType == CharacterData.CharacterType.MACHINE
+			or characterType == CharacterData.CharacterType.TRAP
+		)

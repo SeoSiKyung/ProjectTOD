@@ -3,6 +3,8 @@ extends RefCounted
 
 enum CharacterType {
 	UNIT,
+	MACHINE,
+	TRAP,
 	MONSTER,
 	COUNT,
 }

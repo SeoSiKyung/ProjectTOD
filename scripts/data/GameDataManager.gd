@@ -3,6 +3,7 @@ extends Node
 # 여기에 Dictionary 추가
 var _characterDataByKey: Dictionary[int, CharacterData] = { }
 var _characterDataByType: Dictionary[int, Array] = { }
+var _mercenaryDataByKey: Dictionary[int, MercenaryData] = { }
 var _defenseSpawnDataByCycle: Dictionary[int, Array] = { }
 
 var _emptyDefenseSpawnDataList: Array[DefenseSpawnData] = []
@@ -40,6 +41,10 @@ func GetCharacterDataByType(characterType: CharacterData.CharacterType) -> Array
 	return _characterDataByType[characterType]
 
 
+func GetMercenaryData(mercenaryKey: int) -> MercenaryData:
+	return _mercenaryDataByKey.get(mercenaryKey)
+
+
 func GetDefenseSpawnData(cycle: int) -> Array[DefenseSpawnData]:
 	if not _defenseSpawnDataByCycle.has(cycle):
 		return _emptyDefenseSpawnDataList
@@ -53,6 +58,9 @@ func GetDefenseSpawnData(cycle: int) -> Array[DefenseSpawnData]:
 func _LoadGameData() -> void:
 	_characterDataByKey = GameDataLoader.LoadCharacterData()
 	_characterDataByType = _BuildCharacterDataByType()
+
+	_mercenaryDataByKey = GameDataLoader.LoadMercenaryData()
+
 	_defenseSpawnDataByCycle = GameDataLoader.LoadDefenseSpawnData()
 
 	_emptyDefenseSpawnDataList.make_read_only()
