@@ -6,7 +6,9 @@ const ATTACK_BUFFER_CAPACITY_MULTIPLIER: int = 2
 signal DefenseFinished(result: DefenseResult)
 
 enum DefensePhase {
-	DEPLOYMENT,
+	UNIT_DEPLOYMENT,
+	INSTALLABLE_DEPLOYMENT,
+	MERCENARY_ASSIGNMENT,
 	BATTLE,
 	FINISHED,
 }
@@ -37,6 +39,7 @@ var _spawnDataList: Array[DefenseSpawnData] = []
 
 var _deploymentManager: DefenseDeploymentManager
 var _installableDeploymentManager: DefenseInstallableDeploymentManager
+var _mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
 
 var _unitGroupManager: DefenseUnitGroupManager
 var _machineManager: DefenseMachineManager
@@ -59,7 +62,7 @@ var _unitFactory: DefenseUnitFactory
 var _pendingDefeat: bool = false
 var _pendingCPDestroyed: bool = false
 
-var _phase: DefensePhase = DefensePhase.DEPLOYMENT
+var _phase: DefensePhase = DefensePhase.UNIT_DEPLOYMENT
 
 
 #region Lifecycle
@@ -95,6 +98,9 @@ func Initialize(startData: DefenseStartData) -> bool:
 		return false
 	if not _installableDeploymentController.Initialize(_startData.installableCountByCharacterKey):
 		push_error("DefenseSceneManager: InstallableDeploymentController 초기화에 실패했습니다.")
+		return false
+	if not _mercenaryAssignmentManager.Initialize(_startData.availableMercenaryKeys):
+		push_error("DefenseSceneManager: MercenaryAssignmentManager 초기화에 실패했습니다.")
 		return false
 
 	var initialAttackCapacity: int = _CalculateAttackBufferCapacity()
@@ -152,6 +158,7 @@ func _InitializeNavigation() -> bool:
 func _InitializeManagers() -> void:
 	_deploymentManager = DefenseDeploymentManager.new()
 	_installableDeploymentManager = DefenseInstallableDeploymentManager.new()
+	_mercenaryAssignmentManager = DefenseMercenaryAssignmentManager.new(_deploymentManager)
 
 	_unitGroupManager = DefenseUnitGroupManager.new()
 	_unitGroupManager.CharacterDied.connect(_OnCharacterDied)
@@ -227,6 +234,7 @@ func _InitializeManagers() -> void:
 
 func _StartBattle() -> void:
 	_deploymentController.CompleteDeployment()
+	_installableDeploymentController.CompleteDeployment()
 
 	_targetingManager.Reset()
 
@@ -433,7 +441,7 @@ func CalculateRecruitedPopulation(recruitRatio: int) -> int:
 #region Deployment
 
 func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int, position: Vector2) -> bool:
-	if _phase != DefensePhase.DEPLOYMENT:
+	if _phase != DefensePhase.UNIT_DEPLOYMENT:
 		return false
 
 	var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
@@ -444,14 +452,14 @@ func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int, positio
 
 
 func RemoveDeployment(cell: Vector2i) -> bool:
-	if _phase != DefensePhase.DEPLOYMENT:
+	if _phase != DefensePhase.UNIT_DEPLOYMENT:
 		return false
 
 	return _deploymentController.RemoveDeployment(cell)
 
 
 func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
-	if _phase != DefensePhase.DEPLOYMENT:
+	if _phase != DefensePhase.UNIT_DEPLOYMENT:
 		return false
 
 	var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
@@ -462,40 +470,171 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 
 
 func ConfirmDeployment() -> bool:
-	if _phase != DefensePhase.DEPLOYMENT:
+	if _phase != DefensePhase.UNIT_DEPLOYMENT:
 		return false
 
 	if not _deploymentController.HasDeployment():
 		push_error("DefenseSceneManager: 배치된 병력이 없습니다.")
 		return false
 
+	_phase = DefensePhase.INSTALLABLE_DEPLOYMENT
+	return true
+
+#endregion
+
+
+#region Installable Deployment
+
+func GetInstallableDeploymentByCell(
+	cell: Vector2i,
+) -> DefenseInstallableDeploymentManager.DefenseInstallableDeployment:
+	return _installableDeploymentController.GetDeploymentByCell(cell)
+
+
+func GetInstallableAvailableCount(characterKey: int) -> int:
+	return _installableDeploymentController.GetAvailableCount(characterKey)
+
+
+func GetInstallableDeployedCount(characterKey: int) -> int:
+	return _installableDeploymentController.GetDeployedCount(characterKey)
+
+
+func GetInstallableRemainingCount(characterKey: int) -> int:
+	return _installableDeploymentController.GetRemainingCount(characterKey)
+
+
+func AddInstallableDeployment(cell: Vector2i, characterKey: int, position: Vector2) -> bool:
+	if _phase != DefensePhase.INSTALLABLE_DEPLOYMENT:
+		return false
+
+	var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
+	if characterData == null:
+		return false
+
+	return _installableDeploymentController.AddDeployment(cell, characterData, position)
+
+
+func RemoveInstallableDeployment(cell: Vector2i) -> bool:
+	if _phase != DefensePhase.INSTALLABLE_DEPLOYMENT:
+		return false
+
+	return _installableDeploymentController.RemoveDeployment(cell)
+
+
+func UpdateInstallableDeployment(cell: Vector2i, characterKey: int) -> bool:
+	if _phase != DefensePhase.INSTALLABLE_DEPLOYMENT:
+		return false
+
+	var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
+	if characterData == null:
+		return false
+
+	return _installableDeploymentController.UpdateDeployment(cell, characterData)
+
+
+func ConfirmInstallableDeployment() -> bool:
+	if _phase != DefensePhase.INSTALLABLE_DEPLOYMENT:
+		return false
+
+	_phase = DefensePhase.MERCENARY_ASSIGNMENT
+	return true
+
+
+func _PrepareBattle() -> bool:
 	if not _deploymentController.PrepareUnitGroups():
 		return false
 
 	if not _cpManager.Initialize(_cp, _startData.cpMaxHp):
 		push_error("DefenseSceneManager: 지휘소 초기화에 실패했습니다.")
-		_RollbackDeploymentConfirmation()
+		_RollbackBattlePreparation()
 		return false
 
 	if not _unitLifecycle.RegisterUnit(_cp):
 		push_error("DefenseSceneManager: CP Runtime 등록에 실패했습니다.")
-		_RollbackDeploymentConfirmation()
+		_RollbackBattlePreparation()
 		return false
 
 	if not _deploymentController.BindPreparedUnits():
-		_RollbackDeploymentConfirmation()
+		_RollbackBattlePreparation()
 		return false
 
-	_StartBattle()
+	if not _installableDeploymentController.BindPreparedInstallables():
+		_RollbackBattlePreparation()
+		return false
+
 	return true
 
 
-func _RollbackDeploymentConfirmation() -> void:
+func _RollbackBattlePreparation() -> void:
 	if _unitLifecycle.IsManagedUnit(_cp):
 		_unitLifecycle.UnregisterUnit(_cp)
 
 	_deploymentController.RollbackBattlePreparation()
+	_installableDeploymentController.RollbackBattlePreparation()
+
 	_cpManager.Clear()
+
+#endregion
+
+
+#region Mercenary Assignment
+
+func AssignMercenaryToUnit(mercenaryKey: int, cell: Vector2i) -> bool:
+	if _phase != DefensePhase.MERCENARY_ASSIGNMENT:
+		return false
+
+	return _mercenaryAssignmentManager.AssignToUnit(mercenaryKey, cell)
+
+
+func AssignMercenaryToCP(mercenaryKey: int) -> bool:
+	if _phase != DefensePhase.MERCENARY_ASSIGNMENT:
+		return false
+
+	return _mercenaryAssignmentManager.AssignToCP(mercenaryKey)
+
+
+func UnassignMercenary(mercenaryKey: int) -> bool:
+	if _phase != DefensePhase.MERCENARY_ASSIGNMENT:
+		return false
+
+	return _mercenaryAssignmentManager.Unassign(mercenaryKey)
+
+
+func GetMercenaryKeyByUnitCell(cell: Vector2i) -> int:
+	return _mercenaryAssignmentManager.GetMercenaryKeyByUnitCell(cell)
+
+
+func GetCPMercenaryKey() -> int:
+	return _mercenaryAssignmentManager.GetCPMercenaryKey()
+
+
+func GetMercenaryAssignment(
+	mercenaryKey: int,
+) -> DefenseMercenaryAssignmentManager.DefenseMercenaryAssignment:
+	return _mercenaryAssignmentManager.GetAssignment(mercenaryKey)
+
+
+func CanConfirmMercenaryAssignment() -> bool:
+	return _mercenaryAssignmentManager.CanConfirmAssignment()
+
+
+func IsMercenaryAssigned(mercenaryKey: int) -> bool:
+	return _mercenaryAssignmentManager.IsAssigned(mercenaryKey)
+
+
+func ConfirmMercenaryAssignment() -> bool:
+	if _phase != DefensePhase.MERCENARY_ASSIGNMENT:
+		return false
+
+	if not _mercenaryAssignmentManager.CanConfirmAssignment():
+		push_error("DefenseSceneManager: 주인공 부대 배치와 지휘소 용병 배치가 필요합니다.")
+		return false
+
+	if not _PrepareBattle():
+		return false
+
+	_StartBattle()
+	return true
 
 #endregion
 

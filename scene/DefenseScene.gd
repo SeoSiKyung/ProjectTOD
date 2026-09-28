@@ -8,6 +8,9 @@ const CP_CELL: Vector2i = Vector2i(4, 1)
 const DEFENSE_CHARACTER_BUTTON_SCENE: PackedScene = preload(
 	"res://prefabs/buttons/DefenseCharacterButton.tscn"
 )
+const DEFENSE_MERCENARY_BUTTON_SCENE: PackedScene = preload(
+	"res://prefabs/buttons/DefenseMercenaryButton.tscn"
+)
 
 signal DefenseFinished(result: DefenseResult)
 
@@ -96,6 +99,9 @@ var _selectedDeploymentCell: Vector2i = INVALID_DEPLOYMENT_CELL
 var _selectedCharacterKey: int = -1
 var _selectedRecruitRatio: int = 0
 
+var _mercenaryButtonByKey: Dictionary[int, DefenseMercenaryButton] = { }
+var _selectedMercenaryKey: int = -1
+
 var _displayedBattleTimeSeconds: int = -1
 
 var _displayedCPHp: int = -1
@@ -111,6 +117,8 @@ var _isBattlePaused: bool = false
 
 var _pendingDefenseResult: DefenseResult
 
+
+#region Lifecycle
 
 func _ready() -> void:
 	_InitializeDeploymentGrid()
@@ -152,102 +160,6 @@ func _unhandled_input(event: InputEvent) -> void:
 func Initialize(startData: DefenseStartData) -> void:
 	_startData = startData
 
-
-#region Event
-
-func _OnDeploymentCellClicked(cell: Vector2i) -> void:
-	_selectedDeploymentCell = cell
-
-	var deployment: DefenseDeploymentManager.DefenseDeployment = (
-		_defenseSceneManager.GetDeploymentByCell(cell)
-	)
-	if deployment != null:
-		_selectedCharacterKey = deployment.characterKey
-		_selectedRecruitRatio = deployment.recruitRatio
-
-	_UpdateDeploymentPanel()
-	_ShowDeploymentPanel(cell)
-
-
-func _OnDeploymentCellRightClicked(cell: Vector2i) -> void:
-	if not _defenseSceneManager.RemoveDeployment(cell):
-		return
-
-	_deploymentInfoView.RemoveRecruitRatio(cell)
-
-	if _selectedDeploymentCell == cell:
-		_selectedRecruitRatio = 0
-		_UpdateDeploymentPanel()
-
-	_UpdateRecruitSummaryLabel()
-
-
-func _OnCharacterButtonPressed(characterKey: int) -> void:
-	_selectedCharacterKey = characterKey
-
-
-func _OnRecruitRatioChanged(value: float) -> void:
-	_selectedRecruitRatio = Math.PercentToRatio(int(value))
-	_UpdateRecruitPopulationLabel()
-	_UpdateDeploymentApplyButton()
-
-
-func _OnDeploymentApplyPressed() -> void:
-	if not _ApplyDeploymentSelection():
-		return
-
-	_CloseDeploymentPanel()
-
-
-func _OnConfirmDeploymentPressed() -> void:
-	if not _defenseSceneManager.ConfirmDeployment():
-		return
-
-	_FinishDeploymentUI()
-
-
-func _FinishDeploymentUI() -> void:
-	_CloseDeploymentPanel()
-
-	_deploymentGridView.visible = false
-	_deploymentGridView.process_mode = Node.PROCESS_MODE_DISABLED
-
-	_deploymentInfoView.Clear()
-	_deploymentInfoView.visible = false
-
-	_deploymentUI.visible = false
-	_battleHUD.visible = true
-
-	_displayedBattleTimeSeconds = -1
-	_UpdateBattleTimeLabel()
-
-
-func _OnPauseButtonPressed() -> void:
-	if _isBattlePaused:
-		_defenseSceneManager.ResumeBattle()
-		_isBattlePaused = false
-		_pauseButton.text = "일시정지"
-	else:
-		_defenseSceneManager.PauseBattle()
-		_isBattlePaused = true
-		_pauseButton.text = "계속"
-
-
-func _OnResultConfirmPressed() -> void:
-	if _pendingDefenseResult == null:
-		return
-
-	var result: DefenseResult = _pendingDefenseResult
-	_pendingDefenseResult = null
-
-	_resultConfirmButton.disabled = true
-
-	DefenseFinished.emit(result)
-
-
-func _OnDefenseFinished(result: DefenseResult) -> void:
-	_ShowResultUI(result)
-
 #endregion
 
 
@@ -278,6 +190,13 @@ func _InitializeStartData() -> void:
 
 	_startData.cpMaxHp = 1000
 
+	_startData.installableCountByCharacterKey[500] = 2
+	_startData.installableCountByCharacterKey[501] = 2
+	_startData.installableCountByCharacterKey[750] = 2
+	_startData.installableCountByCharacterKey[751] = 2
+
+	_startData.availableMercenaryKeys = [1, 2, 3]
+
 
 func _InitializeDeploymentGridView() -> void:
 	_deploymentGridView.Initialize(_deploymentGrid, Callable(self, "_CanInteractDeploymentCell"))
@@ -307,15 +226,15 @@ func _InitializeDeploymentSelection() -> bool:
 	_ConnectDeploymentSelectionSignals()
 
 	_deploymentPanel.visible = false
-	_UpdateRecruitSummaryLabel()
+	_UpdateUnitDeploymentSummary()
 
 	return true
 
 
-func _InitializeCharacterButtons(unitDataList: Array[CharacterData]) -> void:
+func _InitializeCharacterButtons(characterDataList: Array[CharacterData]) -> void:
 	_characterButtonGroup.allow_unpress = false
 
-	for characterData: CharacterData in unitDataList:
+	for characterData: CharacterData in characterDataList:
 		var characterButton: DefenseCharacterButton = DEFENSE_CHARACTER_BUTTON_SCENE.instantiate()
 		characterButton.button_group = _characterButtonGroup
 		_characterButtonContainer.add_child(characterButton)
@@ -323,6 +242,37 @@ func _InitializeCharacterButtons(unitDataList: Array[CharacterData]) -> void:
 		characterButton.pressed.connect(_OnCharacterButtonPressed.bind(characterData.characterKey))
 
 		_characterButtonByKey[characterData.characterKey] = characterButton
+
+
+func _InitializeMercenaryButtons() -> bool:
+	_ClearSelectionButtons()
+
+	if _startData.availableMercenaryKeys.is_empty():
+		push_error("DefenseScene: 배치 가능한 용병이 없습니다.")
+		return false
+
+	for mercenaryKey: int in _startData.availableMercenaryKeys:
+		var mercenaryData: MercenaryData = GameDataManager.GetMercenaryData(mercenaryKey)
+		if mercenaryData == null:
+			push_error("DefenseScene: MercenaryData가 없습니다. key: " + str(mercenaryKey))
+			return false
+
+		var button: DefenseMercenaryButton = (DEFENSE_MERCENARY_BUTTON_SCENE.instantiate())
+		button.button_group = _characterButtonGroup
+		_characterButtonContainer.add_child(button)
+		button.Initialize(mercenaryData)
+		button.pressed.connect(_OnMercenaryButtonPressed.bind(mercenaryKey))
+
+		_mercenaryButtonByKey[mercenaryKey] = button
+
+	_selectedMercenaryKey = _startData.availableMercenaryKeys[0]
+
+	var firstButton: DefenseMercenaryButton = (_mercenaryButtonByKey.get(_selectedMercenaryKey))
+
+	if firstButton != null:
+		firstButton.set_pressed_no_signal(true)
+
+	return true
 
 
 func _ConnectDeploymentSelectionSignals() -> void:
@@ -339,14 +289,116 @@ func _InitializeUI() -> void:
 #endregion
 
 
-#region Deployment UI
+#region Deployment Events
 
-func _ApplyDeploymentSelection() -> bool:
+func _OnDeploymentCellClicked(cell: Vector2i) -> void:
+	match _defenseSceneManager.GetPhase():
+		DefenseSceneManager.DefensePhase.UNIT_DEPLOYMENT:
+			_OnUnitDeploymentCellClicked(cell)
+
+		DefenseSceneManager.DefensePhase.INSTALLABLE_DEPLOYMENT:
+			_OnInstallableDeploymentCellClicked(cell)
+
+		DefenseSceneManager.DefensePhase.MERCENARY_ASSIGNMENT:
+			_OnMercenaryTargetClicked(cell)
+
+
+func _OnDeploymentCellRightClicked(cell: Vector2i) -> void:
+	match _defenseSceneManager.GetPhase():
+		DefenseSceneManager.DefensePhase.UNIT_DEPLOYMENT:
+			_RemoveUnitDeploymentByRightClick(cell)
+
+		DefenseSceneManager.DefensePhase.INSTALLABLE_DEPLOYMENT:
+			_RemoveInstallableByRightClick(cell)
+
+		DefenseSceneManager.DefensePhase.MERCENARY_ASSIGNMENT:
+			_RemoveMercenaryAssignmentByRightClick(cell)
+
+
+func _OnDeploymentApplyPressed() -> void:
+	var isApplied: bool = false
+
+	match _defenseSceneManager.GetPhase():
+		DefenseSceneManager.DefensePhase.UNIT_DEPLOYMENT:
+			isApplied = _ApplyUnitDeploymentSelection()
+
+		DefenseSceneManager.DefensePhase.INSTALLABLE_DEPLOYMENT:
+			isApplied = _ApplyInstallableSelection()
+
+		DefenseSceneManager.DefensePhase.MERCENARY_ASSIGNMENT:
+			isApplied = _ApplyMercenaryAssignment()
+
+	if not isApplied:
+		return
+
+	_CloseDeploymentPanel()
+
+
+func _OnConfirmDeploymentPressed() -> void:
+	match _defenseSceneManager.GetPhase():
+		DefenseSceneManager.DefensePhase.UNIT_DEPLOYMENT:
+			if not _defenseSceneManager.ConfirmDeployment():
+				return
+
+			_BeginInstallableDeploymentUI()
+
+		DefenseSceneManager.DefensePhase.INSTALLABLE_DEPLOYMENT:
+			if not _defenseSceneManager.ConfirmInstallableDeployment():
+				return
+
+			_BeginMercenaryAssignmentUI()
+
+		DefenseSceneManager.DefensePhase.MERCENARY_ASSIGNMENT:
+			if not _defenseSceneManager.ConfirmMercenaryAssignment():
+				return
+
+			_FinishDeploymentUI()
+
+#endregion
+
+
+#region Unit Deployment
+
+func _OnCharacterButtonPressed(characterKey: int) -> void:
+	_selectedCharacterKey = characterKey
+
+	match _defenseSceneManager.GetPhase():
+		DefenseSceneManager.DefensePhase.UNIT_DEPLOYMENT:
+			if _selectedDeploymentCell != INVALID_DEPLOYMENT_CELL:
+				_UpdateUnitDeploymentApplyButton()
+
+		DefenseSceneManager.DefensePhase.INSTALLABLE_DEPLOYMENT:
+			if _selectedDeploymentCell != INVALID_DEPLOYMENT_CELL:
+				_UpdateInstallableApplyButton()
+
+
+func _OnRecruitRatioChanged(value: float) -> void:
+	_selectedRecruitRatio = Math.PercentToRatio(int(value))
+	_UpdateRecruitPopulationLabel()
+	_UpdateUnitDeploymentApplyButton()
+
+
+func _OnUnitDeploymentCellClicked(cell: Vector2i) -> void:
+	_selectedDeploymentCell = cell
+	var deployment: DefenseDeploymentManager.DefenseDeployment = _defenseSceneManager.GetDeploymentByCell(
+		cell
+	)
+	if deployment != null:
+		_selectedCharacterKey = deployment.characterKey
+		_selectedRecruitRatio = deployment.recruitRatio
+	else:
+		_selectedRecruitRatio = 0
+
+	_UpdateUnitDeploymentPanel()
+	_ShowDeploymentPanel(cell)
+
+
+func _ApplyUnitDeploymentSelection() -> bool:
 	if _selectedDeploymentCell == INVALID_DEPLOYMENT_CELL or _selectedCharacterKey < 0:
 		return false
 
-	var deployment: DefenseDeploymentManager.DefenseDeployment = (
-		_defenseSceneManager.GetDeploymentByCell(_selectedDeploymentCell)
+	var deployment: DefenseDeploymentManager.DefenseDeployment = _defenseSceneManager.GetDeploymentByCell(
+		_selectedDeploymentCell
 	)
 
 	if _selectedRecruitRatio == 0 and deployment == null:
@@ -364,7 +416,7 @@ func _ApplyDeploymentSelection() -> bool:
 		_ReloadDeploymentSelection()
 		return false
 
-	_UpdateRecruitSummaryLabel()
+	_UpdateUnitDeploymentSummary()
 	return true
 
 
@@ -402,9 +454,22 @@ func _UpdateSelectedDeployment() -> bool:
 	return true
 
 
+func _RemoveUnitDeploymentByRightClick(cell: Vector2i) -> void:
+	if not _defenseSceneManager.RemoveDeployment(cell):
+		return
+
+	_deploymentInfoView.RemoveRecruitRatio(cell)
+
+	if _selectedDeploymentCell == cell:
+		_selectedRecruitRatio = 0
+		_UpdateUnitDeploymentApplyButton()
+
+	_UpdateUnitDeploymentSummary()
+
+
 func _ReloadDeploymentSelection() -> void:
-	var deployment: DefenseDeploymentManager.DefenseDeployment = (
-		_defenseSceneManager.GetDeploymentByCell(_selectedDeploymentCell)
+	var deployment: DefenseDeploymentManager.DefenseDeployment = _defenseSceneManager.GetDeploymentByCell(
+		_selectedDeploymentCell
 	)
 	if deployment == null:
 		_selectedRecruitRatio = 0
@@ -412,10 +477,10 @@ func _ReloadDeploymentSelection() -> void:
 		_selectedCharacterKey = deployment.characterKey
 		_selectedRecruitRatio = deployment.recruitRatio
 
-	_UpdateDeploymentPanel()
+	_UpdateUnitDeploymentPanel()
 
 
-func _UpdateDeploymentPanel() -> void:
+func _UpdateUnitDeploymentPanel() -> void:
 	var characterButton: DefenseCharacterButton = _characterButtonByKey.get(_selectedCharacterKey)
 	if characterButton != null:
 		characterButton.set_pressed_no_signal(true)
@@ -431,7 +496,7 @@ func _UpdateDeploymentPanel() -> void:
 	_recruitRatioSpinBox.set_value_no_signal(recruitPercent)
 
 	_UpdateRecruitPopulationLabel()
-	_UpdateDeploymentApplyButton()
+	_UpdateUnitDeploymentApplyButton()
 
 
 func _UpdateRecruitPopulationLabel() -> void:
@@ -439,7 +504,7 @@ func _UpdateRecruitPopulationLabel() -> void:
 	_recruitPopulationLabel.text = "징집 인구: %d명" % population
 
 
-func _UpdateDeploymentApplyButton() -> void:
+func _UpdateUnitDeploymentApplyButton() -> void:
 	var deployment: DefenseDeploymentManager.DefenseDeployment = _defenseSceneManager.GetDeploymentByCell(
 		_selectedDeploymentCell
 	)
@@ -455,7 +520,7 @@ func _UpdateDeploymentApplyButton() -> void:
 	_deploymentApplyButton.disabled = recruitedPopulation <= 0
 
 
-func _UpdateRecruitSummaryLabel() -> void:
+func _UpdateUnitDeploymentSummary() -> void:
 	var totalRecruitRatio: int = _defenseSceneManager.GetTotalRecruitRatio()
 	var maxRecruitRatio: int = _defenseSceneManager.GetMaxRecruitRatio()
 
@@ -472,6 +537,303 @@ func _UpdateRecruitSummaryLabel() -> void:
 
 	_deploymentConfirmButton.disabled = recruitedPopulation <= 0
 
+#endregion
+
+
+#region Installable Deployment
+
+func _BeginInstallableDeploymentUI() -> void:
+	_CloseDeploymentPanel()
+
+	_ClearSelectionButtons()
+
+	var installableDataList: Array[CharacterData] = []
+
+	var machineDataList: Array[CharacterData] = GameDataManager.GetCharacterDataByType(
+		CharacterData.CharacterType.MACHINE
+	)
+	var trapDataList: Array[CharacterData] = GameDataManager.GetCharacterDataByType(
+		CharacterData.CharacterType.TRAP
+	)
+
+	installableDataList.append_array(machineDataList)
+	installableDataList.append_array(trapDataList)
+
+	_InitializeCharacterButtons(installableDataList)
+
+	if not installableDataList.is_empty():
+		_selectedCharacterKey = installableDataList[0].characterKey
+		var firstButton: DefenseCharacterButton = _characterButtonByKey.get(_selectedCharacterKey)
+		if firstButton != null:
+			firstButton.set_pressed_no_signal(true)
+
+	_selectedDeploymentCell = INVALID_DEPLOYMENT_CELL
+
+	_recruitInfo.visible = false
+
+	_deploymentConfirmButton.text = "배치 확정"
+	_deploymentConfirmButton.disabled = false
+
+	_UpdateInstallableSummary()
+	_UpdateInstallableApplyButton()
+
+	_deploymentPanel.visible = false
+
+
+func _OnInstallableDeploymentCellClicked(cell: Vector2i) -> void:
+	_selectedDeploymentCell = cell
+	var deployment: DefenseInstallableDeploymentManager.DefenseInstallableDeployment = _defenseSceneManager.GetInstallableDeploymentByCell(
+		cell
+	)
+	if deployment != null:
+		_selectedCharacterKey = deployment.characterKey
+
+	var characterButton: DefenseCharacterButton = (_characterButtonByKey.get(_selectedCharacterKey))
+	if characterButton != null:
+		characterButton.set_pressed_no_signal(true)
+
+	_UpdateInstallableApplyButton()
+	_ShowDeploymentPanel(cell)
+
+
+func _ApplyInstallableSelection() -> bool:
+	if _selectedDeploymentCell == INVALID_DEPLOYMENT_CELL or _selectedCharacterKey < 0:
+		return false
+
+	var deployment: DefenseInstallableDeploymentManager.DefenseInstallableDeployment = _defenseSceneManager.GetInstallableDeploymentByCell(
+		_selectedDeploymentCell
+	)
+
+	var success: bool
+
+	if deployment == null:
+		var position: Vector2 = _deploymentGrid.CellToWorldCenter(_selectedDeploymentCell)
+
+		success = _defenseSceneManager.AddInstallableDeployment(
+			_selectedDeploymentCell,
+			_selectedCharacterKey,
+			position,
+		)
+	else:
+		success = _defenseSceneManager.UpdateInstallableDeployment(
+			_selectedDeploymentCell,
+			_selectedCharacterKey,
+		)
+
+	if not success:
+		return false
+
+	_UpdateInstallableSummary()
+	return true
+
+
+func _RemoveInstallableByRightClick(cell: Vector2i) -> void:
+	if not _defenseSceneManager.RemoveInstallableDeployment(cell):
+		return
+
+	if _selectedDeploymentCell == cell:
+		_UpdateInstallableApplyButton()
+
+	_UpdateInstallableSummary()
+
+
+func _UpdateInstallableApplyButton() -> void:
+	if _selectedDeploymentCell == INVALID_DEPLOYMENT_CELL or _selectedCharacterKey < 0:
+		_deploymentApplyButton.disabled = true
+		return
+
+	var deployment: DefenseInstallableDeploymentManager.DefenseInstallableDeployment = _defenseSceneManager.GetInstallableDeploymentByCell(
+		_selectedDeploymentCell
+	)
+
+	if deployment != null and deployment.characterKey == _selectedCharacterKey:
+		_deploymentApplyButton.disabled = true
+		return
+
+	_deploymentApplyButton.disabled = (
+		_defenseSceneManager.GetInstallableRemainingCount(_selectedCharacterKey) <= 0
+	)
+
+
+func _UpdateInstallableSummary() -> void:
+	var machineCount: int = 0
+	var trapCount: int = 0
+
+	for characterData: CharacterData in GameDataManager.GetCharacterDataByType(
+		CharacterData.CharacterType.MACHINE
+	):
+		machineCount += _defenseSceneManager.GetInstallableDeployedCount(characterData.characterKey)
+
+	for characterData: CharacterData in GameDataManager.GetCharacterDataByType(
+		CharacterData.CharacterType.TRAP
+	):
+		trapCount += _defenseSceneManager.GetInstallableDeployedCount(characterData.characterKey)
+
+	_recruitSummaryLabel.text = ("병기: %d개 / 함정: %d개" % [machineCount, trapCount])
+
+#endregion
+
+
+#region Mercenary Assignment
+
+func _BeginMercenaryAssignmentUI() -> void:
+	_CloseDeploymentPanel()
+
+	if not _InitializeMercenaryButtons():
+		return
+
+	_selectedDeploymentCell = INVALID_DEPLOYMENT_CELL
+
+	_recruitInfo.visible = false
+
+	_deploymentConfirmButton.text = "배치 확정"
+
+	_UpdateMercenarySummary()
+
+	_deploymentGridView.queue_redraw()
+
+	_deploymentPanel.visible = false
+
+
+func _OnMercenaryButtonPressed(mercenaryKey: int) -> void:
+	_selectedMercenaryKey = mercenaryKey
+
+	if _selectedDeploymentCell != INVALID_DEPLOYMENT_CELL:
+		_UpdateMercenaryApplyButton()
+
+
+func _OnMercenaryTargetClicked(cell: Vector2i) -> void:
+	_selectedDeploymentCell = cell
+
+	var assignedMercenaryKey: int
+
+	if cell == CP_CELL:
+		assignedMercenaryKey = _defenseSceneManager.GetCPMercenaryKey()
+	else:
+		assignedMercenaryKey = _defenseSceneManager.GetMercenaryKeyByUnitCell(cell)
+
+	if assignedMercenaryKey >= 0:
+		_selectedMercenaryKey = assignedMercenaryKey
+
+		var button: DefenseMercenaryButton = _mercenaryButtonByKey.get(assignedMercenaryKey)
+		if button != null:
+			button.set_pressed_no_signal(true)
+
+	_UpdateMercenaryApplyButton()
+	_ShowDeploymentPanel(cell)
+
+
+func _ApplyMercenaryAssignment() -> bool:
+	if _selectedDeploymentCell == INVALID_DEPLOYMENT_CELL or _selectedMercenaryKey < 0:
+		return false
+
+	var success: bool
+
+	if _selectedDeploymentCell == CP_CELL:
+		success = _defenseSceneManager.AssignMercenaryToCP(_selectedMercenaryKey)
+	else:
+		success = _defenseSceneManager.AssignMercenaryToUnit(
+			_selectedMercenaryKey,
+			_selectedDeploymentCell,
+		)
+
+	if not success:
+		return false
+
+	_RefreshMercenaryAssignmentLabels()
+	_UpdateMercenarySummary()
+	_UpdateMercenaryApplyButton()
+
+	return true
+
+
+func _RemoveMercenaryAssignmentByRightClick(cell: Vector2i) -> void:
+	var mercenaryKey: int
+
+	if cell == CP_CELL:
+		mercenaryKey = _defenseSceneManager.GetCPMercenaryKey()
+	else:
+		mercenaryKey = _defenseSceneManager.GetMercenaryKeyByUnitCell(cell)
+	if mercenaryKey < 0:
+		return
+
+	if not _defenseSceneManager.UnassignMercenary(mercenaryKey):
+		return
+
+	_RefreshMercenaryAssignmentLabels()
+	_UpdateMercenarySummary()
+
+	if _selectedDeploymentCell == cell:
+		_UpdateMercenaryApplyButton()
+
+
+func _RefreshMercenaryAssignmentLabels() -> void:
+	_deploymentInfoView.ClearMercenaries()
+
+	for mercenaryKey: int in _startData.availableMercenaryKeys:
+		var assignment: DefenseMercenaryAssignmentManager.DefenseMercenaryAssignment = _defenseSceneManager.GetMercenaryAssignment(
+			mercenaryKey
+		)
+		if assignment == null:
+			continue
+
+		var mercenaryData: MercenaryData = GameDataManager.GetMercenaryData(mercenaryKey)
+		if mercenaryData == null:
+			continue
+
+		var cell: Vector2i
+		match assignment.targetType:
+			DefenseMercenaryAssignmentManager.TargetType.UNIT_GROUP:
+				cell = assignment.unitCell
+
+			DefenseMercenaryAssignmentManager.TargetType.CP:
+				cell = CP_CELL
+
+		_deploymentInfoView.SetMercenary(cell, mercenaryData.name)
+
+
+func _UpdateMercenaryApplyButton() -> void:
+	if _selectedDeploymentCell == INVALID_DEPLOYMENT_CELL or _selectedMercenaryKey < 0:
+		_deploymentApplyButton.disabled = true
+		return
+
+	var currentMercenaryKey: int
+
+	if _selectedDeploymentCell == CP_CELL:
+		currentMercenaryKey = _defenseSceneManager.GetCPMercenaryKey()
+	else:
+		currentMercenaryKey = _defenseSceneManager.GetMercenaryKeyByUnitCell(
+			_selectedDeploymentCell
+		)
+
+	_deploymentApplyButton.disabled = (currentMercenaryKey == _selectedMercenaryKey)
+
+
+func _UpdateMercenarySummary() -> void:
+	var heroAssigned: bool = false
+
+	for mercenaryKey: int in _startData.availableMercenaryKeys:
+		var data: MercenaryData = GameDataManager.GetMercenaryData(mercenaryKey)
+		if data == null or not data.isHero:
+			continue
+
+		heroAssigned = _defenseSceneManager.IsMercenaryAssigned(mercenaryKey)
+
+		break
+
+	var cpAssigned: bool = _defenseSceneManager.GetCPMercenaryKey() >= 0
+
+	_recruitSummaryLabel.text = (
+		"주인공: %s  |  지휘소: %s"
+		% ["배치 완료" if heroAssigned else "미배치", "배치 완료" if cpAssigned else "미배치"]
+	)
+
+	_deploymentConfirmButton.disabled = (not _defenseSceneManager.CanConfirmMercenaryAssignment())
+
+#endregion
+
+
+#region Deployment UI
 
 func _ShowDeploymentPanel(cell: Vector2i) -> void:
 	_deploymentGridView.LockHoverCell(cell)
@@ -481,10 +843,8 @@ func _ShowDeploymentPanel(cell: Vector2i) -> void:
 
 
 func _PositionDeploymentPanel(cell: Vector2i) -> void:
-	var cellWorldTopLeft: Vector2 = (
-		_deploymentGrid.worldOrigin + Vector2(cell) * _deploymentGrid.cellSize
-	)
-	var cellWorldBottomRight: Vector2 = (cellWorldTopLeft + Vector2.ONE * _deploymentGrid.cellSize)
+	var cellWorldTopLeft: Vector2 = _deploymentGrid.worldOrigin + Vector2(cell) * _deploymentGrid.cellSize
+	var cellWorldBottomRight: Vector2 = cellWorldTopLeft + Vector2.ONE * _deploymentGrid.cellSize
 
 	var canvasTransform: Transform2D = _deploymentGridView.get_canvas_transform()
 
@@ -526,15 +886,80 @@ func _CloseDeploymentPanel() -> void:
 	_selectedDeploymentCell = INVALID_DEPLOYMENT_CELL
 
 
-func _CanInteractDeploymentCell(cell: Vector2i) -> bool:
-	if _defenseSceneManager.GetDeploymentByCell(cell) != null:
-		return true
+func _ClearSelectionButtons() -> void:
+	for child: Node in _characterButtonContainer.get_children():
+		child.queue_free()
 
-	if cell == CP_CELL:
-		return false
+	_characterButtonByKey.clear()
+	_mercenaryButtonByKey.clear()
+
+	_characterButtonGroup = ButtonGroup.new()
+	_characterButtonGroup.allow_unpress = false
+
+
+func _CanInteractDeploymentCell(cell: Vector2i) -> bool:
+	match _defenseSceneManager.GetPhase():
+		DefenseSceneManager.DefensePhase.UNIT_DEPLOYMENT:
+			if cell == CP_CELL:
+				return false
+
+			if _defenseSceneManager.GetDeploymentByCell(cell) != null:
+				return true
+
+		DefenseSceneManager.DefensePhase.INSTALLABLE_DEPLOYMENT:
+			if cell == CP_CELL:
+				return false
+
+			if _defenseSceneManager.GetInstallableDeploymentByCell(cell) != null:
+				return true
+
+			if _defenseSceneManager.GetDeploymentByCell(cell) != null:
+				return false
+
+		DefenseSceneManager.DefensePhase.MERCENARY_ASSIGNMENT:
+			if cell == CP_CELL:
+				return true
+
+			return _defenseSceneManager.GetDeploymentByCell(cell) != null
 
 	var position: Vector2 = _deploymentGrid.CellToWorldCenter(cell)
+
 	return _defenseSceneManager.CanPlaceStatic(position, DEPLOYMENT_UNIT_HALF_SIZE)
+
+
+func _FinishDeploymentUI() -> void:
+	_CloseDeploymentPanel()
+
+	_deploymentGridView.visible = false
+	_deploymentGridView.process_mode = Node.PROCESS_MODE_DISABLED
+
+	_deploymentInfoView.Clear()
+	_deploymentInfoView.visible = false
+
+	_deploymentUI.visible = false
+	_battleHUD.visible = true
+
+	_displayedBattleTimeSeconds = -1
+	_UpdateBattleTimeLabel()
+
+#endregion
+
+
+#region Battle Events
+
+func _OnPauseButtonPressed() -> void:
+	if _isBattlePaused:
+		_defenseSceneManager.ResumeBattle()
+		_isBattlePaused = false
+		_pauseButton.text = "일시정지"
+	else:
+		_defenseSceneManager.PauseBattle()
+		_isBattlePaused = true
+		_pauseButton.text = "계속"
+
+
+func _OnDefenseFinished(result: DefenseResult) -> void:
+	_ShowResultUI(result)
 
 #endregion
 
@@ -621,6 +1046,22 @@ func _UpdatePopulationStatus() -> void:
 	_recruitedPopulation.text = "징집: %d명" % recruitedPopulation
 	_survivingPopulation.text = "생존: %d명" % survivingPopulation
 	_deadPopulation.text = "사망: %d명" % deadPopulation
+
+#endregion
+
+
+#region Result Events
+
+func _OnResultConfirmPressed() -> void:
+	if _pendingDefenseResult == null:
+		return
+
+	var result: DefenseResult = _pendingDefenseResult
+	_pendingDefenseResult = null
+
+	_resultConfirmButton.disabled = true
+
+	DefenseFinished.emit(result)
 
 #endregion
 
