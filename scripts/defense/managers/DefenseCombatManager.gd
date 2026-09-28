@@ -10,6 +10,7 @@ var _touchedTargetIds: PackedInt32Array
 var _touchedTargetCount: int = 0
 
 var _attackTickByUnitId: PackedInt32Array
+var _pendingSelfDestructUnits: Array[Unit] = []
 
 var _isInitialized: bool = false
 
@@ -34,6 +35,8 @@ func Initialize(initialAttackCapacity: int) -> bool:
 	_attackTickByUnitId.resize(initialAttackCapacity)
 	_attackTickByUnitId.fill(0)
 
+	_pendingSelfDestructUnits.clear()
+
 	_isInitialized = true
 	return true
 
@@ -43,6 +46,8 @@ func Update() -> void:
 		return
 
 	_UpdateCharacterCombat(CharacterData.CharacterType.UNIT)
+	_UpdateCharacterCombat(CharacterData.CharacterType.MACHINE)
+	_UpdateCharacterCombat(CharacterData.CharacterType.TRAP)
 	_UpdateCharacterCombat(CharacterData.CharacterType.MONSTER)
 
 
@@ -119,6 +124,8 @@ func FlushAttacks() -> void:
 
 	_touchedTargetCount = 0
 
+	_ResolvePendingSelfDestructs()
+
 
 func _UpdateCharacterCombat(characterType: CharacterData.CharacterType) -> void:
 	var characterCount: int = _battleContext.GetCharacterCount(characterType)
@@ -149,8 +156,14 @@ func _UpdateAttackerCombat(attacker: Unit) -> void:
 		return
 
 	var damage: int = _CalculateDamage(attacker, target)
-	if damage >= 0:
-		QueueAttack(attacker.unitId, target.unitId, damage)
+	if damage < 0:
+		return
+
+	if not QueueAttack(attacker.unitId, target.unitId, damage):
+		return
+
+	if attackerStatus.characterType == CharacterData.CharacterType.TRAP:
+		_pendingSelfDestructUnits.append(attacker)
 
 
 func _CalculateDamage(attacker: Unit, target: Unit) -> int:
@@ -165,7 +178,7 @@ func _CalculateDamage(attacker: Unit, target: Unit) -> int:
 	if targetStatus == null or targetStatus.IsDead():
 		return -1
 
-	if attackerStatus.characterType == targetStatus.characterType:
+	if not _battleContext.AreEnemies(attackerStatus.characterType, targetStatus.characterType):
 		return -1
 
 	return attackerStatus.CalculateDamage(targetStatus)
@@ -234,3 +247,20 @@ func _EnsureAttackTickCapacity(unitId: int) -> void:
 		maxi(currentCapacity * 2, AttackBuffer.MIN_CAPACITY),
 	)
 	_attackTickByUnitId.resize(newCapacity)
+
+
+func _ResolvePendingSelfDestructs() -> void:
+	for trap: Unit in _pendingSelfDestructUnits:
+		if not _battleContext.IsManagedUnit(trap):
+			continue
+
+		var status: DefenseCharacterStatus = _battleContext.GetCharacterStatus(trap)
+		if status == null or status.IsDead():
+			continue
+
+		if status.characterType != CharacterData.CharacterType.TRAP:
+			continue
+
+		_battleContext.ApplyDamage(trap, status.currentHp)
+
+	_pendingSelfDestructUnits.clear()

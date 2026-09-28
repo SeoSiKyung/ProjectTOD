@@ -12,7 +12,6 @@ func _init(unitRuntime: UnitRuntime, firstUnitId: int = 1) -> void:
 	_nextUnitId = maxi(firstUnitId, 0)
 
 
-
 func IsManagedUnit(unit: Unit) -> bool:
 	return _unitRuntime != null and _unitRuntime.IsManagedUnit(unit)
 
@@ -37,6 +36,18 @@ func UnregisterUnit(unit: Unit) -> bool:
 		return false
 
 	UnitUnregistered.emit(unit)
+	return true
+
+
+func DestroyUnit(unit: Unit) -> bool:
+	if unit == null:
+		return false
+
+	if IsManagedUnit(unit):
+		if not UnregisterUnit(unit):
+			return false
+
+	unit.queue_free()
 	return true
 
 

@@ -15,6 +15,8 @@ var _targetByAttacker: Dictionary[Unit, Unit] = { }
 var _targetAcquisitionIntervalFrames: int = 1
 var _monsterTargetAcquisitionCursor: int = 0
 var _unitTargetAcquisitionCursor: int = 0
+var _machineTargetAcquisitionCursor: int = 0
+var _trapTargetAcquisitionCursor: int = 0
 
 
 func _init(battleContext: DefenseBattleFacade, unitRuntime: UnitRuntime) -> void:
@@ -35,6 +37,8 @@ func Reset() -> void:
 	_targetByAttacker.clear()
 	_monsterTargetAcquisitionCursor = 0
 	_unitTargetAcquisitionCursor = 0
+	_machineTargetAcquisitionCursor = 0
+	_trapTargetAcquisitionCursor = 0
 
 
 func Update() -> void:
@@ -170,7 +174,7 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.Cha
 		return
 
 	if (
-		characterType == CharacterData.CharacterType.UNIT
+		_IsFriendlyStaticCombatType(characterType)
 		and not IsWithinRange(character, target, status.acquisitionRange)
 	):
 		ClearTarget(character)
@@ -188,7 +192,9 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.Cha
 		CharacterData.CharacterType.MONSTER:
 			_IssueChaseTarget(character, target)
 
-		CharacterData.CharacterType.UNIT:
+		CharacterData.CharacterType.UNIT, \
+				CharacterData.CharacterType.MACHINE, \
+				CharacterData.CharacterType.TRAP:
 			character.fsm.ReturnFromAttackOutOfRange()
 
 
@@ -197,7 +203,9 @@ func _HandleMissingTarget(character: Unit, characterType: CharacterData.Characte
 		CharacterData.CharacterType.MONSTER:
 			_IssueChaseTarget(character, _battleContext.GetCP())
 
-		CharacterData.CharacterType.UNIT:
+		CharacterData.CharacterType.UNIT, \
+				CharacterData.CharacterType.MACHINE, \
+				CharacterData.CharacterType.TRAP:
 			_ReturnUnitToIdle(character)
 
 
@@ -225,6 +233,14 @@ func _UpdateTargetAcquisition() -> void:
 	_unitTargetAcquisitionCursor = _UpdateTargetAcquisitionByType(
 		CharacterData.CharacterType.UNIT,
 		_unitTargetAcquisitionCursor,
+	)
+	_machineTargetAcquisitionCursor = _UpdateTargetAcquisitionByType(
+		CharacterData.CharacterType.MACHINE,
+		_machineTargetAcquisitionCursor,
+	)
+	_trapTargetAcquisitionCursor = _UpdateTargetAcquisitionByType(
+		CharacterData.CharacterType.TRAP,
+		_trapTargetAcquisitionCursor,
 	)
 	_monsterTargetAcquisitionCursor = _UpdateTargetAcquisitionByType(
 		CharacterData.CharacterType.MONSTER,
@@ -316,7 +332,9 @@ func _ShouldAcquireTarget(characterType: CharacterData.CharacterType, currentTar
 		CharacterData.CharacterType.MONSTER:
 			return currentTarget == _battleContext.GetCP()
 
-		CharacterData.CharacterType.UNIT:
+		CharacterData.CharacterType.UNIT, \
+				CharacterData.CharacterType.MACHINE, \
+				CharacterData.CharacterType.TRAP:
 			return currentTarget == null
 
 	return false
@@ -338,7 +356,9 @@ func _SetAcquiredTarget(
 					+ str(character.unitId)
 				)
 
-		CharacterData.CharacterType.UNIT:
+		CharacterData.CharacterType.UNIT, \
+				CharacterData.CharacterType.MACHINE, \
+				CharacterData.CharacterType.TRAP:
 			SetTarget(character, target)
 
 
@@ -392,3 +412,11 @@ func _GetFootprintDistanceSquared(firstUnitId: int, secondUnitId: int) -> float:
 	var dx: float = maxf(absf(firstPosition.x - secondPosition.x) - combinedHalfSize, 0.0)
 	var dy: float = maxf(absf(firstPosition.y - secondPosition.y) - combinedHalfSize, 0.0)
 	return dx * dx + dy * dy
+
+
+func _IsFriendlyStaticCombatType(characterType: CharacterData.CharacterType) -> bool:
+	return (
+		characterType == CharacterData.CharacterType.UNIT
+		or characterType == CharacterData.CharacterType.MACHINE
+		or characterType == CharacterData.CharacterType.TRAP
+	)

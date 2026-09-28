@@ -22,7 +22,6 @@ signal DefenseFinished(result: DefenseResult)
 @onready var _cp: DefenseCP = $CP
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
 @onready var _deploymentInfoView: DefenseDeploymentInfoView = $DeploymentInfoView
-@onready var _pools: Node = $Pools
 
 #region Deployment
 

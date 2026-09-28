@@ -3,7 +3,7 @@ extends RefCounted
 
 var _deploymentManager: DefenseDeploymentManager
 var _unitGroupManager: DefenseUnitGroupManager
-var _unitPoolManager: DefensePoolManager.UnitPoolManager
+var _unitFactory: DefenseUnitFactory
 var _navigationService: NavigationService
 var _unitLifecycle: DefenseUnitLifecycle
 
@@ -14,13 +14,13 @@ var _totalPopulation: int = 0
 func _init(
 	deploymentManager: DefenseDeploymentManager,
 	unitGroupManager: DefenseUnitGroupManager,
-	unitPoolManager: DefensePoolManager.UnitPoolManager,
+	unitFactory: DefenseUnitFactory,
 	navigationService: NavigationService,
 	unitLifecycle: DefenseUnitLifecycle,
 ) -> void:
 	_deploymentManager = deploymentManager
 	_unitGroupManager = unitGroupManager
-	_unitPoolManager = unitPoolManager
+	_unitFactory = unitFactory
 	_navigationService = navigationService
 	_unitLifecycle = unitLifecycle
 
@@ -89,8 +89,8 @@ func RemoveDeployment(cell: Vector2i) -> bool:
 		push_error("DefenseDeploymentController: 배치 데이터에 대응하는 Unit이 없습니다. cell: " + str(cell))
 		return false
 
-	if not _unitLifecycle.ReturnToPool(unit, _unitPoolManager):
-		push_error("DefenseDeploymentController: 배치 Unit 반환에 실패했습니다. cell: " + str(cell))
+	if not _unitLifecycle.DestroyUnit(unit):
+		push_error("DefenseDeploymentController: 배치 Unit 제거에 실패했습니다. cell: " + str(cell))
 		return false
 
 	_deploymentManager.RemoveDeployment(cell)
@@ -207,12 +207,13 @@ func _ReplaceDeploymentUnit(
 		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
 		return false
 
-	if not _unitLifecycle.ReturnToPool(unit, _unitPoolManager):
-		if not _unitLifecycle.ReturnToPool(newUnit, _unitPoolManager):
-			push_error("DefenseDeploymentController: 새 배치 Unit 롤백 반환에 실패했습니다. cell: " + str(cell))
+	if not _unitLifecycle.DestroyUnit(unit):
+		if not _unitLifecycle.DestroyUnit(newUnit):
+			push_error("DefenseDeploymentController: 새 배치 Unit 롤백 제거에 실패했습니다. cell: " + str(cell))
 
 		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
-		push_error("DefenseDeploymentController: 기존 배치 Unit 반환에 실패했습니다. cell: " + str(cell))
+
+		push_error("DefenseDeploymentController: 기존 배치 Unit 제거에 실패했습니다. cell: " + str(cell))
 		return false
 
 	_deploymentUnitsByCell[cell] = newUnit
@@ -244,16 +245,16 @@ func _SpawnDeploymentUnit(characterData: CharacterData, position: Vector2) -> Un
 	if characterData == null:
 		return null
 
-	var unit: Unit = _unitPoolManager.SpawnUnit(characterData, position)
+	var unit: Unit = _unitFactory.Create(characterData, position)
 	if unit == null:
 		return null
 
 	if not _navigationService.CanPlaceStatic(position, unit.GetHalfSize()):
-		_unitPoolManager.Return(unit)
+		_unitLifecycle.DestroyUnit(unit)
 		return null
 
 	if not _unitLifecycle.RegisterUnit(unit):
-		_unitPoolManager.Return(unit)
+		_unitLifecycle.DestroyUnit(unit)
 		return null
 
 	return unit

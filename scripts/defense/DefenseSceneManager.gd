@@ -15,6 +15,7 @@ enum DefensePhase {
 @export_group("Scene")
 @export var _spawnPoints: Node2D
 @export var _pools: Node
+@export var _friendlyUnits: Node2D
 @export var _cp: DefenseCP
 
 @export_group("Navigation")
@@ -35,7 +36,11 @@ var _battleContext: DefenseBattleFacade
 var _spawnDataList: Array[DefenseSpawnData] = []
 
 var _deploymentManager: DefenseDeploymentManager
+var _installableDeploymentManager: DefenseInstallableDeploymentManager
+
 var _unitGroupManager: DefenseUnitGroupManager
+var _machineManager: DefenseMachineManager
+var _trapManager: DefenseTrapManager
 var _monsterManager: DefenseMonsterManager
 var _cpManager: DefenseCPManager
 var _spawnManager: DefenseSpawnManager
@@ -45,11 +50,11 @@ var _targetingManager: DefenseTargetingManager
 var _combatManager: DefenseCombatManager
 var _unitLifecycle: DefenseUnitLifecycle
 var _deploymentController: DefenseDeploymentController
+var _installableDeploymentController: DefenseInstallableDeploymentController
 var _spawnController: DefenseSpawnController
 
 var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
-var _unitPoolManager: DefensePoolManager.UnitPoolManager
-# var _trapPoolManager: DefenseTrapPoolManager
+var _unitFactory: DefenseUnitFactory
 
 var _pendingDefeat: bool = false
 var _pendingCPDestroyed: bool = false
@@ -87,6 +92,9 @@ func Initialize(startData: DefenseStartData) -> bool:
 
 	if not _deploymentController.Initialize(_startData.population):
 		push_error("DefenseSceneManager: DeploymentController 초기화에 실패했습니다.")
+		return false
+	if not _installableDeploymentController.Initialize(_startData.installableCountByCharacterKey):
+		push_error("DefenseSceneManager: InstallableDeploymentController 초기화에 실패했습니다.")
 		return false
 
 	var initialAttackCapacity: int = _CalculateAttackBufferCapacity()
@@ -143,9 +151,16 @@ func _InitializeNavigation() -> bool:
 
 func _InitializeManagers() -> void:
 	_deploymentManager = DefenseDeploymentManager.new()
+	_installableDeploymentManager = DefenseInstallableDeploymentManager.new()
 
 	_unitGroupManager = DefenseUnitGroupManager.new()
 	_unitGroupManager.CharacterDied.connect(_OnCharacterDied)
+
+	_machineManager = DefenseMachineManager.new()
+	_machineManager.CharacterDied.connect(_OnCharacterDied)
+
+	_trapManager = DefenseTrapManager.new()
+	_trapManager.CharacterDied.connect(_OnCharacterDied)
 
 	_monsterManager = DefenseMonsterManager.new()
 	_monsterManager.CharacterDied.connect(_OnCharacterDied)
@@ -167,14 +182,15 @@ func _InitializeManagers() -> void:
 	var monsterPool: Node2D = _pools.get_node("MonsterPool")
 	_monsterPoolManager = DefensePoolManager.MonsterPoolManager.new(monsterPool)
 
-	var unitPool: Node2D = _pools.get_node("UnitPool")
-	_unitPoolManager = DefensePoolManager.UnitPoolManager.new(unitPool)
+	_unitFactory = DefenseUnitFactory.new(_friendlyUnits)
 
 	_unitLifecycle = DefenseUnitLifecycle.new(_unitRuntime)
 
 	_battleContext = DefenseBattleFacade.new(
 		_unitRuntime,
 		_unitGroupManager,
+		_machineManager,
+		_trapManager,
 		_monsterManager,
 		_cpManager,
 	)
@@ -185,10 +201,21 @@ func _InitializeManagers() -> void:
 	_deploymentController = DefenseDeploymentController.new(
 		_deploymentManager,
 		_unitGroupManager,
-		_unitPoolManager,
+		_unitFactory,
 		_navigationService,
 		_unitLifecycle,
 	)
+	_installableDeploymentController = DefenseInstallableDeploymentController.new(
+		_installableDeploymentManager,
+		_deploymentManager,
+		_machineManager,
+		_trapManager,
+		_unitFactory,
+		_navigationService,
+		_unitLifecycle,
+		_unitRuntime.GetStageSnapshot(),
+	)
+
 	_spawnController = DefenseSpawnController.new(
 		_spawnPositionManager,
 		_monsterPoolManager,
@@ -196,9 +223,6 @@ func _InitializeManagers() -> void:
 		_unitLifecycle,
 	)
 	_spawnController.MonstersSpawned.connect(_targetingManager.IssueChaseGroupsToCP)
-
-	# var trapPool: Node2D = _pools.get_node("TrapPool")
-	# _trapPoolManager = DefensePoolManager.TrapPoolManager.new(trapPool)
 
 
 func _StartBattle() -> void:
@@ -295,13 +319,17 @@ func _CreateResult(isVictory: bool, cpDestroyed: bool) -> DefenseResult:
 
 
 func _CleanupBattle() -> void:
-	_CleanupCharacters(_unitGroupManager, _unitPoolManager)
+	_CleanupCharacters(_unitGroupManager)
+	_CleanupCharacters(_machineManager)
+	_CleanupCharacters(_trapManager)
 	_CleanupCharacters(_monsterManager, _monsterPoolManager)
 
 	if _unitLifecycle.IsManagedUnit(_cp):
 		_unitLifecycle.UnregisterUnit(_cp)
 
 	_unitGroupManager.Clear()
+	_machineManager.Clear()
+	_trapManager.Clear()
 	_monsterManager.Clear()
 	_cpManager.Clear()
 
@@ -498,12 +526,12 @@ func _OnCharacterDied(character: Unit, status: DefenseCharacterStatus) -> void:
 	if characterManager == null:
 		return
 
-	var poolManager: DefensePoolManager = _GetPoolManager(status.characterType)
-	if poolManager == null:
-		return
-
-	if not _RemoveCharacter(character, characterManager, poolManager):
-		return
+	if status.characterType == CharacterData.CharacterType.MONSTER:
+		if not _RemoveCharacter(character, characterManager, _monsterPoolManager):
+			return
+	else:
+		if not _RemoveCharacter(character, characterManager):
+			return
 
 	if (
 		status.characterType == CharacterData.CharacterType.UNIT
@@ -523,7 +551,7 @@ func _OnCPDestroyed() -> void:
 func _RemoveCharacter(
 	character: Unit,
 	characterManager: DefenseCharacterManager,
-	poolManager: DefensePoolManager,
+	poolManager: DefensePoolManager = null,
 ) -> bool:
 	if character == null:
 		return false
@@ -536,27 +564,48 @@ func _RemoveCharacter(
 		return false
 
 	# 그 다음 Runtime 제거 + Pool 반환.
-	if not _unitLifecycle.ReturnToPool(character, poolManager):
-		push_error("DefenseSceneManager: Character 반환에 실패했습니다. unitId: " + str(character.unitId))
-		return false
+	if poolManager != null:
+		if not _unitLifecycle.ReturnToPool(character, poolManager):
+			push_error(
+				"DefenseSceneManager: Character Pool 반환에 실패했습니다. unitId: " + str(character.unitId)
+			)
+			return false
+	else:
+		if not _unitLifecycle.DestroyUnit(character):
+			push_error(
+				"DefenseSceneManager: Character 제거에 실패했습니다. unitId: " + str(character.unitId)
+			)
+			return false
 
 	return true
 
 
 func _CleanupCharacters(
 	characterManager: DefenseCharacterManager,
-	poolManager: DefensePoolManager,
+	poolManager: DefensePoolManager = null,
 ) -> void:
 	while characterManager.GetCharacterCount() > 0:
 		var lastIndex: int = characterManager.GetCharacterCount() - 1
 		var character: Unit = characterManager.GetCharacterByIndex(lastIndex)
 
-		if not _RemoveCharacter(character, characterManager, poolManager):
+		if not characterManager.UnbindCharacter(character):
 			push_error(
-				"DefenseSceneManager: Character 정리 중 제거에 실패했습니다. unitId: " + str(character.unitId)
+				"DefenseSceneManager: Character Status 연결 해제에 실패했습니다. unitId: "
+				+ str(character.unitId)
 			)
 			break
 
+		var removed: bool
+		if poolManager != null:
+			removed = _unitLifecycle.ReturnToPool(character, poolManager)
+		else:
+			removed = _unitLifecycle.DestroyUnit(character)
+
+		if not removed:
+			push_error(
+				"DefenseSceneManager: Character 정리에 실패했습니다. unitId: " + str(character.unitId)
+			)
+			break
 #endregion
 
 
@@ -567,19 +616,14 @@ func _GetCharacterManager(characterType: CharacterData.CharacterType) -> Defense
 		CharacterData.CharacterType.UNIT:
 			return _unitGroupManager
 
+		CharacterData.CharacterType.MACHINE:
+			return _machineManager
+
+		CharacterData.CharacterType.TRAP:
+			return _trapManager
+
 		CharacterData.CharacterType.MONSTER:
 			return _monsterManager
-
-	return null
-
-
-func _GetPoolManager(characterType: CharacterData.CharacterType) -> DefensePoolManager:
-	match characterType:
-		CharacterData.CharacterType.UNIT:
-			return _unitPoolManager
-
-		CharacterData.CharacterType.MONSTER:
-			return _monsterPoolManager
 
 	return null
 

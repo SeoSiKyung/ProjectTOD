@@ -3,6 +3,8 @@ extends RefCounted
 
 var _unitRuntime: UnitRuntime
 var _unitGroupManager: DefenseUnitGroupManager
+var _machineManager: DefenseMachineManager
+var _trapManager: DefenseTrapManager
 var _monsterManager: DefenseMonsterManager
 var _cpManager: DefenseCPManager
 
@@ -10,11 +12,15 @@ var _cpManager: DefenseCPManager
 func _init(
 	unitRuntime: UnitRuntime,
 	unitGroupManager: DefenseUnitGroupManager,
+	machineManager: DefenseMachineManager,
+	trapManager: DefenseTrapManager,
 	monsterManager: DefenseMonsterManager,
 	cpManager: DefenseCPManager,
 ) -> void:
 	_unitRuntime = unitRuntime
 	_unitGroupManager = unitGroupManager
+	_machineManager = machineManager
+	_trapManager = trapManager
 	_monsterManager = monsterManager
 	_cpManager = cpManager
 
@@ -30,15 +36,14 @@ func GetUnit(unitId: int) -> Unit:
 	return _unitRuntime.GetUnit(unitId)
 
 
-func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
-	match characterType:
-		CharacterData.CharacterType.UNIT:
-			return _unitGroupManager
+func AreEnemies(a: CharacterData.CharacterType, b: CharacterData.CharacterType) -> bool:
+	if _IsFriendlyType(a):
+		return b == CharacterData.CharacterType.MONSTER
 
-		CharacterData.CharacterType.MONSTER:
-			return _monsterManager
+	if a == CharacterData.CharacterType.MONSTER:
+		return _IsFriendlyType(b)
 
-	return null
+	return false
 
 
 func GetCharacterCount(characterType: CharacterData.CharacterType) -> int:
@@ -62,6 +67,14 @@ func GetCharacterStatus(character: Unit) -> DefenseCharacterStatus:
 		return null
 
 	var status: DefenseCharacterStatus = _unitGroupManager.GetStatusByCharacter(character)
+	if status != null:
+		return status
+
+	status = _machineManager.GetStatusByCharacter(character)
+	if status != null:
+		return status
+
+	status = _trapManager.GetStatusByCharacter(character)
 	if status != null:
 		return status
 
@@ -98,7 +111,7 @@ func IsValidTarget(attacker: Unit, target: Unit) -> bool:
 	if targetStatus == null or targetStatus.IsDead():
 		return false
 
-	return attackerStatus.characterType != targetStatus.characterType
+	return AreEnemies(attackerStatus.characterType, targetStatus.characterType)
 
 
 func ApplyDamage(target: Unit, damage: int) -> bool:
@@ -118,3 +131,28 @@ func ApplyDamage(target: Unit, damage: int) -> bool:
 
 	var manager: DefenseCharacterManager = _GetCharacterManager(status.characterType)
 	return manager != null and manager.TakeDamage(target, damage)
+
+
+func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
+	match characterType:
+		CharacterData.CharacterType.UNIT:
+			return _unitGroupManager
+
+		CharacterData.CharacterType.MACHINE:
+			return _machineManager
+
+		CharacterData.CharacterType.TRAP:
+			return _trapManager
+
+		CharacterData.CharacterType.MONSTER:
+			return _monsterManager
+
+	return null
+
+
+func _IsFriendlyType(characterType: CharacterData.CharacterType) -> bool:
+	return (
+		characterType == CharacterData.CharacterType.UNIT
+		or characterType == CharacterData.CharacterType.MACHINE
+		or characterType == CharacterData.CharacterType.TRAP
+	)
