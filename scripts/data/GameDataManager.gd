@@ -4,6 +4,7 @@ extends Node
 var _characterDataByKey: Dictionary[int, CharacterData] = { }
 var _characterDataByType: Dictionary[int, Array] = { }
 var _mercenaryDataByKey: Dictionary[int, MercenaryData] = { }
+var _mercenaryBuffDataByKey: Dictionary[int, Array] = { }
 var _defenseSpawnDataByCycle: Dictionary[int, Array] = { }
 
 var _emptyDefenseSpawnDataList: Array[DefenseSpawnData] = []
@@ -43,6 +44,10 @@ func GetCharacterDataByType(characterType: CharacterData.CharacterType) -> Array
 
 func GetMercenaryData(mercenaryKey: int) -> MercenaryData:
 	return _mercenaryDataByKey.get(mercenaryKey)
+
+
+func GetMercenaryBuffEffectData(mercenaryKey: int) -> Array[MercenaryBuffData]:
+	return _mercenaryBuffDataByKey.get(mercenaryKey, [])
 
 
 func GetDefenseSpawnData(cycle: int) -> Array[DefenseSpawnData]:

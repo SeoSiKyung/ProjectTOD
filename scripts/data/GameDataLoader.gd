@@ -189,26 +189,11 @@ static func LoadMercenaryData() -> Dictionary[int, MercenaryData]:
 
 		var isHero: bool = isHeroValue
 
-		var atkBonus: int = _ReadInt(row, "atkBonus", 0, "MercenaryTable", context)
-		if atkBonus == INVALID_INT:
-			continue
-
-		var defBonus: int = _ReadInt(row, "defBonus", 0, "MercenaryTable", context)
-		if defBonus == INVALID_INT:
-			continue
-
-		var hpBonus: int = _ReadInt(row, "hpBonus", 0, "MercenaryTable", context)
-		if hpBonus == INVALID_INT:
-			continue
-
 		var mercenaryData: MercenaryData = MercenaryData.new(
 			mercenaryKey,
 			characterKey,
 			name,
 			isHero,
-			atkBonus,
-			defBonus,
-			hpBonus,
 		)
 
 		mercenaryDataByKey[mercenaryKey] = mercenaryData
@@ -216,6 +201,58 @@ static func LoadMercenaryData() -> Dictionary[int, MercenaryData]:
 
 	mercenaryDataByKey.make_read_only()
 	return mercenaryDataByKey
+
+
+static func LoadMercenaryBuffData() -> Dictionary[int, Array]:
+	var tablePath: String = _GetTablePath("mercenary", "MercenaryBuffTable")
+	var rows: Array[Dictionary] = CSVLoader.Load(tablePath)
+
+	var mercenaryBuffDataByKey: Dictionary[int, Array] = { }
+
+	for row: Dictionary in rows:
+		var mercenaryKey: int = _ReadInt(row, "mercenaryKey", 1, "MercenaryBuffTable")
+		if mercenaryKey == INVALID_INT:
+			continue
+
+		if mercenaryBuffDataByKey.has(mercenaryKey):
+			push_error("MercenaryBuffTable에 중복 mercenaryKey가 있습니다. key: " + str(mercenaryKey))
+			continue
+
+		var context: String = "key: " + str(mercenaryKey)
+
+		var statTypeText: String = row["statType"].strip_edges()
+		if statTypeText.is_empty():
+			push_error("MercenaryBuffTable statType이 비어있습니다. " + context)
+			continue
+
+		var statType: MercenaryBuffData.StatType
+		match statTypeText:
+			"ATK":
+				statType = MercenaryBuffData.StatType.ATK
+			"DEF":
+				statType = MercenaryBuffData.StatType.DEF
+			"HP":
+				statType = MercenaryBuffData.StatType.HP
+
+		var flatValue: int = _ReadInt(row, "flatValue", 0, "MercenaryBuffTable")
+		if flatValue == INVALID_INT:
+			continue
+
+		var ratioValue: int = _ReadInt(row, "ratioValue", 0, "MercenaryBuffTable")
+		if ratioValue == INVALID_INT:
+			continue
+
+		var mercenaryBuffData: MercenaryBuffData = MercenaryBuffData.new(
+			statType,
+			flatValue,
+			ratioValue,
+		)
+
+		mercenaryBuffDataByKey[mercenaryKey] = mercenaryBuffData
+
+	mercenaryBuffDataByKey.make_read_only()
+
+	return mercenaryBuffDataByKey
 
 
 static func LoadDefenseSpawnData() -> Dictionary[int, Array]:

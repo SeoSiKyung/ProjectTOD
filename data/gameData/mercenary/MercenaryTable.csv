@@ -1,4 +1,4 @@
-mercenaryKey,characterKey,name,isHero,atkBonus,defBonus,hpBonus
-1,10000,주인공,1,10,5,20
-2,10001,용병A,0,20,0,10
-3,10002,용병B,0,0,15,30
+mercenaryKey,characterKey,name,isHero
+1,10000,주인공,1
+2,10001,용병A,0
+3,10002,용병B,0
