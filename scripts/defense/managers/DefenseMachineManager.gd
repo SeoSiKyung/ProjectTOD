@@ -16,5 +16,8 @@ func AddMachine(machine: Unit, characterData: CharacterData) -> bool:
 		)
 		return false
 
-	var status: DefenseCharacterStatus = DefenseCharacterStatus.new(characterData)
-	return _BindStatus(machine, status)
+	if machine.characterKey != characterData.characterKey:
+		if not machine.ConfigureCharacter(characterData):
+			return false
+
+	return RegisterCharacter(machine)

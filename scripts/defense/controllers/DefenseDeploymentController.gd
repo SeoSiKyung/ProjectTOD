@@ -143,9 +143,7 @@ func PrepareUnitGroups() -> bool:
 			_totalPopulation,
 		):
 			_RollbackUnitGroups()
-			push_error(
-				"DefenseDeploymentController: UnitGroupStatus 생성에 실패했습니다. cell: " + str(cell)
-			)
+			push_error("DefenseDeploymentController: UnitGroupState 생성에 실패했습니다. cell: " + str(cell))
 			return false
 
 	if not _unitGroupManager.HasAliveUnitGroup():
@@ -165,12 +163,32 @@ func BindPreparedUnits() -> bool:
 	for cell: Vector2i in cells:
 		var unit: Unit = _deploymentUnitsByCell.get(cell)
 		if unit == null or not _unitGroupManager.BindUnit(cell, unit):
-			push_error(
-				"DefenseDeploymentController: UnitGroupStatus 연결에 실패했습니다. cell: " + str(cell)
-			)
+			push_error("DefenseDeploymentController: UnitGroupState 연결에 실패했습니다. cell: " + str(cell))
 			return false
 
 	return true
+
+
+func ClearUnitBonuses() -> void:
+	for cell: Vector2i in _deploymentUnitsByCell:
+		var unit: Unit = _deploymentUnitsByCell[cell]
+		if unit == null:
+			continue
+
+		unit.SetHpCapacityMultiplier(1, true)
+		unit.ClearStatBonuses()
+		unit.ResetVitals()
+
+
+func ApplyUnitBonus(cell: Vector2i, buffData: MercenaryBuffData) -> bool:
+	if buffData == null:
+		return false
+
+	var unit: Unit = _deploymentUnitsByCell.get(cell)
+	if unit == null:
+		return false
+
+	return unit.AddStatBonus(buffData.statType, buffData.flatValue, buffData.ratioValue)
 
 
 func RollbackBattlePreparation() -> void:
@@ -223,10 +241,9 @@ func _ReplaceDeploymentUnit(
 func _ValidateDeploymentUnits(cells: Array[Vector2i]) -> bool:
 	for cell: Vector2i in cells:
 		var unit: Unit = _deploymentUnitsByCell.get(cell)
-		if unit == null or _unitGroupManager.GetUnitGroupStatusByCell(cell) == null:
+		if unit == null or _unitGroupManager.GetUnitGroupStateByCell(cell) == null:
 			push_error(
-				"DefenseDeploymentController: 배치 데이터와 UnitGroupStatus가 일치하지 않습니다. cell: "
-				+ str(cell)
+				"DefenseDeploymentController: 배치 데이터와 UnitGroupState가 일치하지 않습니다. cell: " + str(cell)
 			)
 			return false
 

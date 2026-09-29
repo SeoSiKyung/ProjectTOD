@@ -38,6 +38,11 @@ func _Spawn(characterData: CharacterData, spawnPosition: Vector2) -> Node2D:
 
 		_pool.add_child(object)
 
+	if object is Unit:
+		var unit: Unit = object as Unit
+		if not unit.ConfigureCharacter(characterData):
+			return null
+
 	_ActivateObject(object, spawnPosition)
 	_characterKeyByActiveObject[object] = characterKey
 

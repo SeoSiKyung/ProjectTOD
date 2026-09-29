@@ -16,5 +16,8 @@ func AddTrap(trap: Unit, characterData: CharacterData) -> bool:
 		)
 		return false
 
-	var status: DefenseCharacterStatus = DefenseCharacterStatus.new(characterData)
-	return _BindStatus(trap, status)
+	if trap.characterKey != characterData.characterKey:
+		if not trap.ConfigureCharacter(characterData):
+			return false
+
+	return RegisterCharacter(trap)

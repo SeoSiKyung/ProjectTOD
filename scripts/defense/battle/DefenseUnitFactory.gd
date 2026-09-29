@@ -37,6 +37,10 @@ func Create(characterData: CharacterData, position: Vector2) -> Unit:
 		)
 		return null
 
+	if not unit.ConfigureCharacter(characterData):
+		unit.queue_free()
+		return null
+
 	unit.playerControllable = (characterData.characterType == CharacterData.CharacterType.UNIT)
 
 	_parent.add_child(unit)

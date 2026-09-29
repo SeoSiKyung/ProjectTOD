@@ -544,13 +544,23 @@ func _PrepareBattle() -> bool:
 	if not _deploymentController.PrepareUnitGroups():
 		return false
 
-	if not _cpManager.Initialize(_cp, _startData.cpMaxHp):
+	if not _cpManager.Initialize(_cp, _startData.cpMaxHp, _startData.cpDef, _startData.cpMagicDef):
 		push_error("DefenseSceneManager: 지휘소 초기화에 실패했습니다.")
 		_RollbackBattlePreparation()
 		return false
 
 	if not _unitLifecycle.RegisterUnit(_cp):
 		push_error("DefenseSceneManager: CP Runtime 등록에 실패했습니다.")
+		_RollbackBattlePreparation()
+		return false
+
+	if not _ApplyUnitGroupMercenaryBuffs():
+		push_error("DefenseSceneManager: 부대 용병 버프 적용에 실패했습니다.")
+		_RollbackBattlePreparation()
+		return false
+
+	if not _ApplyCPMercenaryBuffs():
+		push_error("DefenseSceneManager: 지휘소 용병 버프 적용에 실패했습니다.")
 		_RollbackBattlePreparation()
 		return false
 
@@ -569,6 +579,7 @@ func _RollbackBattlePreparation() -> void:
 	if _unitLifecycle.IsManagedUnit(_cp):
 		_unitLifecycle.UnregisterUnit(_cp)
 
+	_deploymentController.ClearUnitBonuses()
 	_deploymentController.RollbackBattlePreparation()
 	_installableDeploymentController.RollbackBattlePreparation()
 
@@ -655,17 +666,61 @@ func _OnMonsterSpawnBatchRequested(spawnPointKey: int, characterKey: int, count:
 #endregion
 
 
+func _ApplyUnitGroupMercenaryBuffs() -> bool:
+	_deploymentController.ClearUnitBonuses()
+
+	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
+	for cell: Vector2i in cells:
+		var mercenaryKey: int = _mercenaryAssignmentManager.GetMercenaryKeyByUnitCell(cell)
+		if mercenaryKey < 0:
+			continue
+
+		var buffDataList: Array[MercenaryBuffData] = GameDataManager.GetMercenaryBuffData(
+			mercenaryKey
+		)
+		for buffData: MercenaryBuffData in buffDataList:
+			if not _deploymentController.ApplyUnitBonus(cell, buffData):
+				return false
+
+	return true
+
+
+func _ApplyCPMercenaryBuffs() -> bool:
+	var mercenaryKey: int = _mercenaryAssignmentManager.GetCPMercenaryKey()
+	if mercenaryKey < 0:
+		return true
+
+	var buffDataList: Array[MercenaryBuffData] = GameDataManager.GetMercenaryBuffData(mercenaryKey)
+	for buffData: MercenaryBuffData in buffDataList:
+		if not _IsCPStatType(buffData.statType):
+			continue
+
+		if not _cpManager.ApplyStatBonus(buffData.statType, buffData.flatValue, buffData.ratioValue):
+			return false
+
+	return true
+
+
+# 임시 방어용.. 추후 CP 스텟 개선 필요
+func _IsCPStatType(type: CharacterStats.Type) -> bool:
+	return (
+		type == CharacterStats.Type.MAX_HP or type == CharacterStats.Type.DEF
+		or type == CharacterStats.Type.MAGIC_DEF
+	)
+
+
 #region Character Lifecycle
 
-func _OnCharacterDied(character: Unit, status: DefenseCharacterStatus) -> void:
-	if _phase != DefensePhase.BATTLE:
+func _OnCharacterDied(character: Unit) -> void:
+	if _phase != DefensePhase.BATTLE or character == null:
 		return
 
-	var characterManager: DefenseCharacterManager = _GetCharacterManager(status.characterType)
+	var characterType: CharacterData.CharacterType = character.characterType
+	var characterManager: DefenseCharacterManager = _GetCharacterManager(characterType)
 	if characterManager == null:
 		return
 
-	if status.characterType == CharacterData.CharacterType.MONSTER:
+	if characterType == CharacterData.CharacterType.MONSTER:
 		if not _RemoveCharacter(character, characterManager, _monsterPoolManager):
 			return
 	else:
@@ -673,7 +728,7 @@ func _OnCharacterDied(character: Unit, status: DefenseCharacterStatus) -> void:
 			return
 
 	if (
-		status.characterType == CharacterData.CharacterType.UNIT
+		characterType == CharacterData.CharacterType.UNIT
 		and not _unitGroupManager.HasAliveUnitGroup()
 	):
 		_pendingDefeat = true
@@ -696,10 +751,8 @@ func _RemoveCharacter(
 		return false
 
 	# 먼저 전투 데이터에서 제거한다. 실패하면 Pool로 보내면 안 된다.
-	if not characterManager.UnbindCharacter(character):
-		push_error(
-			"DefenseSceneManager: Character Status 연결 해제에 실패했습니다. unitId: " + str(character.unitId)
-		)
+	if not characterManager.UnregisterCharacter(character):
+		push_error("DefenseSceneManager: Character 연결 해제에 실패했습니다. unitId: " + str(character.unitId))
 		return false
 
 	# 그 다음 Runtime 제거 + Pool 반환.
@@ -727,10 +780,9 @@ func _CleanupCharacters(
 		var lastIndex: int = characterManager.GetCharacterCount() - 1
 		var character: Unit = characterManager.GetCharacterByIndex(lastIndex)
 
-		if not characterManager.UnbindCharacter(character):
+		if not characterManager.UnregisterCharacter(character):
 			push_error(
-				"DefenseSceneManager: Character Status 연결 해제에 실패했습니다. unitId: "
-				+ str(character.unitId)
+				"DefenseSceneManager: Character 연결 해제에 실패했습니다. unitId: " + str(character.unitId)
 			)
 			break
 

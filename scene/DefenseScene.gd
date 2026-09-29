@@ -189,6 +189,8 @@ func _InitializeStartData() -> void:
 	_startData.population = 100
 
 	_startData.cpMaxHp = 1000
+	_startData.cpDef = 0
+	_startData.cpMagicDef = 0
 
 	_startData.installableCountByCharacterKey[500] = 2
 	_startData.installableCountByCharacterKey[501] = 2

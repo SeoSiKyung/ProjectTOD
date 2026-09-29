@@ -2,7 +2,7 @@ extends Node
 
 # 여기에 Dictionary 추가
 var _characterDataByKey: Dictionary[int, CharacterData] = { }
-var _characterDataByType: Dictionary[int, Array] = { }
+var _characterDataByType: Dictionary[CharacterData.CharacterType, Array] = { }
 var _mercenaryDataByKey: Dictionary[int, MercenaryData] = { }
 var _mercenaryBuffDataByKey: Dictionary[int, Array] = { }
 var _defenseSpawnDataByCycle: Dictionary[int, Array] = { }
@@ -46,7 +46,7 @@ func GetMercenaryData(mercenaryKey: int) -> MercenaryData:
 	return _mercenaryDataByKey.get(mercenaryKey)
 
 
-func GetMercenaryBuffEffectData(mercenaryKey: int) -> Array[MercenaryBuffData]:
+func GetMercenaryBuffData(mercenaryKey: int) -> Array[MercenaryBuffData]:
 	return _mercenaryBuffDataByKey.get(mercenaryKey, [])
 
 
@@ -65,6 +65,7 @@ func _LoadGameData() -> void:
 	_characterDataByType = _BuildCharacterDataByType()
 
 	_mercenaryDataByKey = GameDataLoader.LoadMercenaryData()
+	_mercenaryBuffDataByKey = GameDataLoader.LoadMercenaryBuffData()
 
 	_defenseSpawnDataByCycle = GameDataLoader.LoadDefenseSpawnData()
 
@@ -75,6 +76,12 @@ func _LoadGameData() -> void:
 func _ValidateGameData() -> bool:
 	var isValid: bool = true
 
+	if not GameDataLoader.ValidateMercenaryBuffDataReferences(
+		_mercenaryBuffDataByKey,
+		_mercenaryDataByKey,
+	):
+		isValid = false
+
 	if not GameDataLoader.ValidateDefenseSpawnDataReferences(
 		_defenseSpawnDataByCycle,
 		_characterDataByKey,
@@ -84,8 +91,8 @@ func _ValidateGameData() -> bool:
 	return isValid
 
 
-func _BuildCharacterDataByType() -> Dictionary[int, Array]:
-	var characterDataByType: Dictionary[int, Array] = { }
+func _BuildCharacterDataByType() -> Dictionary[CharacterData.CharacterType, Array]:
+	var characterDataByType: Dictionary[CharacterData.CharacterType, Array] = { }
 	for characterType: CharacterData.CharacterType in CharacterData.CharacterType.COUNT:
 		var characterDataList: Array[CharacterData] = []
 		characterDataByType[characterType] = characterDataList

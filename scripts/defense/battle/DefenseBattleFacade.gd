@@ -36,12 +36,12 @@ func GetUnit(unitId: int) -> Unit:
 	return _unitRuntime.GetUnit(unitId)
 
 
-func AreEnemies(a: CharacterData.CharacterType, b: CharacterData.CharacterType) -> bool:
-	if _IsFriendlyType(a):
-		return b == CharacterData.CharacterType.MONSTER
+func AreEnemies(a: Unit, b: Unit) -> bool:
+	if _IsFriendlyType(a.characterType):
+		return b.characterType == CharacterData.CharacterType.MONSTER
 
-	if a == CharacterData.CharacterType.MONSTER:
-		return _IsFriendlyType(b)
+	if a.characterType == CharacterData.CharacterType.MONSTER:
+		return _IsFriendlyType(b.characterType)
 
 	return false
 
@@ -62,23 +62,15 @@ func GetCharacterByIndex(characterType: CharacterData.CharacterType, index: int)
 	return manager.GetCharacterByIndex(index)
 
 
-func GetCharacterStatus(character: Unit) -> DefenseCharacterStatus:
+func GetAttackMultiplier(character: Unit) -> int:
 	if character == null:
-		return null
+		return 1
 
-	var status: DefenseCharacterStatus = _unitGroupManager.GetStatusByCharacter(character)
-	if status != null:
-		return status
+	var manager: DefenseCharacterManager = _GetCharacterManager(character.characterType)
+	if manager == null:
+		return 1
 
-	status = _machineManager.GetStatusByCharacter(character)
-	if status != null:
-		return status
-
-	status = _trapManager.GetStatusByCharacter(character)
-	if status != null:
-		return status
-
-	return _monsterManager.GetStatusByCharacter(character)
+	return manager.GetAttackMultiplier(character)
 
 
 func GetCP() -> DefenseCP:
@@ -93,25 +85,20 @@ func IsValidTarget(attacker: Unit, target: Unit) -> bool:
 	if not IsManagedUnit(attacker) or not IsManagedUnit(target):
 		return false
 
-	if attacker == target:
-		return false
-
-	var attackerStatus: DefenseCharacterStatus = GetCharacterStatus(attacker)
-	if attackerStatus == null or attackerStatus.IsDead():
+	if attacker == target or not attacker.HasCharacterStats() or attacker.IsDead():
 		return false
 
 	if target == GetCP():
 		var cpStatus: DefenseCPStatus = GetCPStatus()
 		return (
-			attackerStatus.characterType == CharacterData.CharacterType.MONSTER
+			attacker.characterType == CharacterData.CharacterType.MONSTER
 			and cpStatus != null and not cpStatus.IsDestroyed()
 		)
 
-	var targetStatus: DefenseCharacterStatus = GetCharacterStatus(target)
-	if targetStatus == null or targetStatus.IsDead():
+	if not target.HasCharacterStats() or target.IsDead():
 		return false
 
-	return AreEnemies(attackerStatus.characterType, targetStatus.characterType)
+	return AreEnemies(attacker, target)
 
 
 func ApplyDamage(target: Unit, damage: int) -> bool:
@@ -125,11 +112,10 @@ func ApplyDamage(target: Unit, damage: int) -> bool:
 
 		return _cpManager.TakeDamage(damage)
 
-	var status: DefenseCharacterStatus = GetCharacterStatus(target)
-	if status == null or status.IsDead():
+	if not target.HasCharacterStats() or target.IsDead():
 		return false
 
-	var manager: DefenseCharacterManager = _GetCharacterManager(status.characterType)
+	var manager: DefenseCharacterManager = _GetCharacterManager(target.characterType)
 	return manager != null and manager.TakeDamage(target, damage)
 
 

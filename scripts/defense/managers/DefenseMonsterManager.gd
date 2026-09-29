@@ -12,10 +12,12 @@ func AddMonster(monster: Unit, characterData: CharacterData) -> bool:
 
 	if characterData.characterType != CharacterData.CharacterType.MONSTER:
 		push_error(
-			"DefenseMonsterManager: MONSTER 타입이 아닌 캐릭터입니다. key: "
-			+ str(characterData.characterKey)
+			"DefenseMonsterManager: MONSTER 타입이 아닌 캐릭터입니다. key: " + str(characterData.characterKey)
 		)
 		return false
 
-	var status: DefenseMonsterStatus = DefenseMonsterStatus.new(characterData)
-	return _BindStatus(monster, status)
+	if monster.characterKey != characterData.characterKey:
+		if not monster.ConfigureCharacter(characterData):
+			return false
+
+	return RegisterCharacter(monster)

@@ -36,21 +36,16 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			continue
 
 		var characterTypeName: String = row["characterType"].strip_edges().to_upper()
-
 		var characterType: CharacterData.CharacterType
 		match characterTypeName:
 			"UNIT":
 				characterType = CharacterData.CharacterType.UNIT
-
 			"MACHINE":
 				characterType = CharacterData.CharacterType.MACHINE
-
 			"TRAP":
 				characterType = CharacterData.CharacterType.TRAP
-
 			"MONSTER":
 				characterType = CharacterData.CharacterType.MONSTER
-
 			_:
 				push_error("CharacterTable characterType이 올바르지 않습니다. " + context)
 				continue
@@ -123,12 +118,7 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 		if acquisitionRange == INVALID_INT:
 			continue
 
-		var characterData: CharacterData = CharacterData.new(
-			characterKey,
-			characterName,
-			characterType,
-			iconPath,
-			prefabPath,
+		var stats: CharacterStats = CharacterStats.new(
 			maxHp,
 			maxMp,
 			hpRegen,
@@ -143,6 +133,14 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			acquisitionRange,
 		)
 
+		var characterData: CharacterData = CharacterData.new(
+			characterKey,
+			characterName,
+			characterType,
+			iconPath,
+			prefabPath,
+			stats,
+		)
 		characterDataByKey[characterKey] = characterData
 
 	characterDataByKey.make_read_only()
@@ -214,10 +212,6 @@ static func LoadMercenaryBuffData() -> Dictionary[int, Array]:
 		if mercenaryKey == INVALID_INT:
 			continue
 
-		if mercenaryBuffDataByKey.has(mercenaryKey):
-			push_error("MercenaryBuffTable에 중복 mercenaryKey가 있습니다. key: " + str(mercenaryKey))
-			continue
-
 		var context: String = "key: " + str(mercenaryKey)
 
 		var statTypeText: String = row["statType"].strip_edges()
@@ -225,33 +219,41 @@ static func LoadMercenaryBuffData() -> Dictionary[int, Array]:
 			push_error("MercenaryBuffTable statType이 비어있습니다. " + context)
 			continue
 
-		var statType: MercenaryBuffData.StatType
-		match statTypeText:
-			"ATK":
-				statType = MercenaryBuffData.StatType.ATK
-			"DEF":
-				statType = MercenaryBuffData.StatType.DEF
-			"HP":
-				statType = MercenaryBuffData.StatType.HP
+		if not CharacterStats.Type.has(statTypeText):
+			push_error("MercenaryBuffTable statType이 올바르지 않습니다. " + context)
+			continue
 
-		var flatValue: int = _ReadInt(row, "flatValue", 0, "MercenaryBuffTable")
+		var statType: CharacterStats.Type = CharacterStats.Type[statTypeText]
+		if not CharacterStats.IsValidType(statType):
+			push_error("MercenaryBuffTable statType이 올바르지 않습니다. " + context)
+			continue
+
+		var flatValue: int = _ReadInt(row, "flatValue", 0, "MercenaryBuffTable", context)
 		if flatValue == INVALID_INT:
 			continue
 
-		var ratioValue: int = _ReadInt(row, "ratioValue", 0, "MercenaryBuffTable")
+		var ratioValue: int = _ReadInt(row, "ratioValue", 0, "MercenaryBuffTable", context)
 		if ratioValue == INVALID_INT:
 			continue
 
 		var mercenaryBuffData: MercenaryBuffData = MercenaryBuffData.new(
+			mercenaryKey,
 			statType,
 			flatValue,
 			ratioValue,
 		)
 
-		mercenaryBuffDataByKey[mercenaryKey] = mercenaryBuffData
+		if not mercenaryBuffDataByKey.has(mercenaryKey):
+			var buffDataList: Array[MercenaryBuffData] = []
+			mercenaryBuffDataByKey[mercenaryKey] = buffDataList
+
+		var buffDataList: Array[MercenaryBuffData] = mercenaryBuffDataByKey[mercenaryKey]
+		buffDataList.append(mercenaryBuffData)
+
+	for mercenaryKey: int in mercenaryBuffDataByKey:
+		mercenaryBuffDataByKey[mercenaryKey].make_read_only()
 
 	mercenaryBuffDataByKey.make_read_only()
-
 	return mercenaryBuffDataByKey
 
 
@@ -324,6 +326,22 @@ static func LoadDefenseSpawnData() -> Dictionary[int, Array]:
 
 #region Validate
 
+static func ValidateMercenaryBuffDataReferences(
+	mercenaryBuffDataByKey: Dictionary[int, Array],
+	mercenaryDataByKey: Dictionary[int, MercenaryData],
+) -> bool:
+	var isValid: bool = true
+
+	for mercenaryKey: int in mercenaryBuffDataByKey:
+		if mercenaryDataByKey.has(mercenaryKey):
+			continue
+
+		push_error("MercenaryBuffTable에 존재하지 않는 mercenaryKey가 있습니다. key: " + str(mercenaryKey))
+		isValid = false
+
+	return isValid
+
+
 static func ValidateDefenseSpawnDataReferences(
 	spawnDataByCycle: Dictionary[int, Array],
 	characterDataByKey: Dictionary[int, CharacterData],
@@ -332,7 +350,6 @@ static func ValidateDefenseSpawnDataReferences(
 
 	for cycle: int in spawnDataByCycle:
 		var spawnDataList: Array[DefenseSpawnData] = spawnDataByCycle[cycle]
-
 		for spawnData: DefenseSpawnData in spawnDataList:
 			var characterData: CharacterData = characterDataByKey.get(spawnData.characterKey)
 			if characterData == null:
@@ -396,10 +413,8 @@ static func _ReadBool(
 	match text:
 		"1":
 			return true
-
 		"0":
 			return false
-
 		_:
 			var message: String = ("%s %s는 1/0이어야 합니다." % [tableName, fieldName])
 

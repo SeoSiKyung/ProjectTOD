@@ -1,21 +1,31 @@
 class_name DefenseCharacterManager
 extends RefCounted
 
-signal CharacterDied(character: Unit, status: DefenseCharacterStatus)
+signal CharacterDied(character: Unit)
 
-var _statusByCharacter: Dictionary[Unit, DefenseCharacterStatus] = { }
 var _characters: Array[Unit] = []
 var _characterIndexByCharacter: Dictionary[Unit, int] = { }
 
 
 func Clear() -> void:
-	_statusByCharacter.clear()
 	_characters.clear()
 	_characterIndexByCharacter.clear()
 
 
-func UnbindCharacter(character: Unit) -> bool:
-	if not _statusByCharacter.has(character):
+func RegisterCharacter(character: Unit) -> bool:
+	if character == null or not character.HasCharacterStats():
+		return false
+
+	if _characterIndexByCharacter.has(character):
+		return false
+
+	_characterIndexByCharacter[character] = _characters.size()
+	_characters.append(character)
+	return true
+
+
+func UnregisterCharacter(character: Unit) -> bool:
+	if not _characterIndexByCharacter.has(character):
 		return false
 
 	var index: int = _characterIndexByCharacter.get(character, -1)
@@ -24,22 +34,18 @@ func UnbindCharacter(character: Unit) -> bool:
 		return false
 
 	var lastIndex: int = _characters.size() - 1
-
 	if index != lastIndex:
 		var lastCharacter: Unit = _characters[lastIndex]
-
 		_characters[index] = lastCharacter
 		_characterIndexByCharacter[lastCharacter] = index
 
 	_characters.pop_back()
 	_characterIndexByCharacter.erase(character)
-	_statusByCharacter.erase(character)
-
 	return true
 
 
-func GetStatusByCharacter(character: Unit) -> DefenseCharacterStatus:
-	return _statusByCharacter.get(character)
+func HasCharacter(character: Unit) -> bool:
+	return character != null and _characterIndexByCharacter.has(character)
 
 
 func GetCharacterCount() -> int:
@@ -54,30 +60,16 @@ func GetActiveCount() -> int:
 	return _characters.size()
 
 
+func GetAttackMultiplier(_character: Unit) -> int:
+	return 1
+
+
 func TakeDamage(character: Unit, damage: int) -> bool:
-	var status: DefenseCharacterStatus = GetStatusByCharacter(character)
-	if status == null or status.IsDead():
+	if not HasCharacter(character) or character.IsDead():
 		return false
 
-	status.TakeDamage(damage)
-	if status.IsDead():
-		CharacterDied.emit(character, status)
-
-	return true
-
-
-func _BindStatus(character: Unit, status: DefenseCharacterStatus) -> bool:
-	if character == null or status == null:
-		return false
-
-	if _statusByCharacter.has(character):
-		return false
-
-	character.moveSpeed = status.moveSpeed
-
-	_statusByCharacter[character] = status
-
-	_characterIndexByCharacter[character] = _characters.size()
-	_characters.append(character)
+	character.TakeDamage(damage)
+	if character.IsDead():
+		CharacterDied.emit(character)
 
 	return true

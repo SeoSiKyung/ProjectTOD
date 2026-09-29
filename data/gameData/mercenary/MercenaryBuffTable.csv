@@ -1,10 +1,10 @@
  mercenaryKey , statType , flatValue , ratioValue 
 1, ATK ,10,100
 1, DEF ,5,0
-1, HP ,20,50
+1,MAX_HP,20,50
 2, ATK ,20,50
 2,DEF,0,0
-2, HP ,10,0
+2,MAX_HP,10,0
 3,ATK,0,0
 3, DEF ,15,100
-3, HP ,30,0
+3,MAX_HP,30,0

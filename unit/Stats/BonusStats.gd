@@ -6,25 +6,36 @@ var _flat: PackedInt32Array = PackedInt32Array()
 
 
 func _init() -> void:
-	_ratio.resize(UnitStatType.COUNT)
-	_flat.resize(UnitStatType.COUNT)
+	_ratio.resize(CharacterStats.Type.COUNT)
+	_flat.resize(CharacterStats.Type.COUNT)
+	Clear()
 
 
-func GetBonus(type: int, base: int) -> int:
+func GetBonus(type: CharacterStats.Type, base: int) -> int:
+	if not CharacterStats.IsValidType(type):
+		return 0
+
 	return Math.ApplyRatio(base, _ratio[type]) + _flat[type]
 
 
-func AddItem(item: int) -> void:
-	pass
+func AddBonus(type: CharacterStats.Type, flatValue: int, ratioValue: int) -> bool:
+	if not CharacterStats.IsValidType(type):
+		return false
+
+	_ratio[type] += ratioValue
+	_flat[type] += flatValue
+	return true
 
 
-func AddBuff(buff: int) -> void:
-	pass
+func RemoveBonus(type: CharacterStats.Type, flatValue: int, ratioValue: int) -> bool:
+	if not CharacterStats.IsValidType(type):
+		return false
+
+	_ratio[type] -= ratioValue
+	_flat[type] -= flatValue
+	return true
 
 
-func RemoveItem(item: int) -> void:
-	pass
-
-
-func RemoveBuff(buff: int) -> void:
-	pass
+func Clear() -> void:
+	_ratio.fill(0)
+	_flat.fill(0)

@@ -7,12 +7,12 @@ var _cp: DefenseCP
 var _status: DefenseCPStatus
 
 
-func Initialize(cp: DefenseCP, maxHp: int) -> bool:
-	if maxHp <= 0:
+func Initialize(cp: DefenseCP, maxHp: int, defense: int, magicDefense: int) -> bool:
+	if maxHp <= 0 or defense < 0 or magicDefense < 0:
 		return false
 
 	_cp = cp
-	_status = DefenseCPStatus.new(maxHp)
+	_status = DefenseCPStatus.new(maxHp, defense, magicDefense)
 	return true
 
 
@@ -26,6 +26,13 @@ func TakeDamage(damage: int) -> bool:
 		CPDestroyed.emit()
 
 	return true
+
+
+func ApplyStatBonus(type: CharacterStats.Type, flatValue: int, ratioValue: int) -> bool:
+	if _status == null:
+		return false
+
+	return _status.AddStatBonus(type, flatValue, ratioValue)
 
 
 func GetCP() -> DefenseCP:

@@ -169,19 +169,21 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.Cha
 		_HandleMissingTarget(character, characterType)
 		return
 
-	var status: DefenseCharacterStatus = _battleContext.GetCharacterStatus(character)
-	if status == null:
+	if not character.HasCharacterStats() or character.IsDead():
 		return
+
+	var acquisitionRange: int = character.GetStat(CharacterStats.Type.ACQUISITION_RANGE)
+	var attackRange: int = character.GetStat(CharacterStats.Type.ATK_RANGE)
 
 	if (
 		_IsFriendlyStaticCombatType(characterType)
-		and not IsWithinRange(character, target, status.acquisitionRange)
+		and not IsWithinRange(character, target, acquisitionRange)
 	):
 		ClearTarget(character)
 		_ReturnUnitToIdle(character)
 		return
 
-	if IsWithinRange(character, target, status.atkRange):
+	if IsWithinRange(character, target, attackRange):
 		_EnterAttack(character, target, characterType)
 		return
 
@@ -282,11 +284,10 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 
 
 func _FindNearestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
-	var attackerStatus: DefenseCharacterStatus = _battleContext.GetCharacterStatus(attacker)
-	if attackerStatus == null or attackerStatus.IsDead():
+	if attacker == null or not attacker.HasCharacterStats() or attacker.IsDead():
 		return null
 
-	var acquisitionRange: int = attackerStatus.acquisitionRange
+	var acquisitionRange: int = attacker.GetStat(CharacterStats.Type.ACQUISITION_RANGE)
 	if not _battleContext.IsManagedUnit(attacker) or acquisitionRange < 0:
 		return null
 
