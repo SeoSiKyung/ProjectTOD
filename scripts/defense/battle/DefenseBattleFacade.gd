@@ -62,17 +62,6 @@ func GetCharacterByIndex(characterType: CharacterData.CharacterType, index: int)
 	return manager.GetCharacterByIndex(index)
 
 
-func GetAttackMultiplier(character: Unit) -> int:
-	if character == null:
-		return 1
-
-	var manager: DefenseCharacterManager = _GetCharacterManager(character.characterType)
-	if manager == null:
-		return 1
-
-	return manager.GetAttackMultiplier(character)
-
-
 func GetCP() -> DefenseCP:
 	return _cpManager.GetCP()
 

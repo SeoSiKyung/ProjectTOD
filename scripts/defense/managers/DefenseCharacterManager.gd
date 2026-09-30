@@ -60,10 +60,6 @@ func GetActiveCount() -> int:
 	return _characters.size()
 
 
-func GetAttackMultiplier(_character: Unit) -> int:
-	return 1
-
-
 func TakeDamage(character: Unit, damage: int) -> bool:
 	if not HasCharacter(character) or character.IsDead():
 		return false

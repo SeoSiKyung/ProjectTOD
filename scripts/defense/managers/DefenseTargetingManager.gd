@@ -119,21 +119,27 @@ func IssueChaseGroupTarget(attackers: Array[Unit], target: Unit) -> bool:
 	return true
 
 
-func IssueChaseGroupsToCP(monsters: Array[Unit]) -> void:
-	var cp: DefenseCP = _battleContext.GetCP()
-	if cp == null or monsters.is_empty():
+# 몬스터 스폰 시 CHASE_COMMAND_GROUP_SIZE 씩 묶어서 cp 또는 부대를 추격
+func IssueDefaultChaseTargets(monsters: Array[Unit]) -> void:
+	if monsters.is_empty():
 		return
 
-	var startIndex: int = 0
-	while startIndex < monsters.size():
-		var endIndex: int = mini(startIndex + CHASE_COMMAND_GROUP_SIZE, monsters.size())
-		var group: Array[Unit] = []
+	var cp: DefenseCP = _battleContext.GetCP()
+	if cp != null and _battleContext.IsValidTarget(monsters[0], cp):
+		var startIndex: int = 0
+		while startIndex < monsters.size():
+			var endIndex: int = mini(startIndex + CHASE_COMMAND_GROUP_SIZE, monsters.size())
+			var group: Array[Unit] = []
+			for index: int in range(startIndex, endIndex):
+				group.append(monsters[index])
 
-		for index: int in range(startIndex, endIndex):
-			group.append(monsters[index])
+			IssueChaseGroupTarget(group, cp)
+			startIndex = endIndex
 
-		IssueChaseGroupTarget(group, cp)
-		startIndex = endIndex
+		return
+
+	for monster: Unit in monsters:
+		_IssueDefaultMonsterChase(monster)
 
 
 func IsWithinRange(attacker: Unit, target: Unit, range: int) -> bool:
@@ -203,12 +209,89 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.Cha
 func _HandleMissingTarget(character: Unit, characterType: CharacterData.CharacterType) -> void:
 	match characterType:
 		CharacterData.CharacterType.MONSTER:
-			_IssueChaseTarget(character, _battleContext.GetCP())
+			_IssueDefaultMonsterChase(character)
 
 		CharacterData.CharacterType.UNIT, \
 				CharacterData.CharacterType.MACHINE, \
 				CharacterData.CharacterType.TRAP:
 			_ReturnUnitToIdle(character)
+
+
+func _GetDefaultMonsterTarget(monster: Unit) -> Unit:
+	if monster == null:
+		return null
+
+	var cp: DefenseCP = _battleContext.GetCP()
+	if cp != null and _battleContext.IsValidTarget(monster, cp):
+		return cp
+
+	return _FindNearestUnitGroup(monster)
+
+
+func _FindNearestUnitGroup(monster: Unit) -> Unit:
+	if monster == null or not _battleContext.IsManagedUnit(monster):
+		return null
+
+	var unitGroupCount: int = _battleContext.GetCharacterCount(CharacterData.CharacterType.UNIT)
+
+	var nearestUnitGroup: Unit = null
+	var nearestDistanceSquared: float = INF
+	var nearestUnitId: int = -1
+
+	for index: int in unitGroupCount:
+		var unitGroup: Unit = _battleContext.GetCharacterByIndex(
+			CharacterData.CharacterType.UNIT,
+			index,
+		)
+		if not _battleContext.IsValidTarget(monster, unitGroup):
+			continue
+
+		var distanceSquared: float = _GetFootprintDistanceSquared(monster.unitId, unitGroup.unitId)
+		if (
+			nearestUnitGroup == null or distanceSquared < nearestDistanceSquared
+			or (
+				is_equal_approx(distanceSquared, nearestDistanceSquared)
+				and unitGroup.unitId < nearestUnitId
+			)
+		):
+			nearestUnitGroup = unitGroup
+			nearestDistanceSquared = distanceSquared
+			nearestUnitId = unitGroup.unitId
+
+	return nearestUnitGroup
+
+
+func _IssueDefaultMonsterChase(monster: Unit) -> bool:
+	var target: Unit = _GetDefaultMonsterTarget(monster)
+	if target == null:
+		return false
+
+	return _IssueChaseTarget(monster, target)
+
+
+func _IssueChaseTarget(attacker: Unit, target: Unit) -> bool:
+	if not _battleContext.IsValidTarget(attacker, target):
+		return false
+
+	var units: Array[Unit] = [attacker]
+	var commandId: int = _unitRuntime.IssueMoveCommand(units, target.global_position)
+	if commandId < 0:
+		return false
+
+	if attacker.fsm == null:
+		_unitRuntime.StopUnit(attacker.unitId)
+		return false
+
+	if not attacker.fsm.RequestChase(target):
+		_unitRuntime.StopUnit(attacker.unitId)
+		return false
+
+	if not SetTarget(attacker, target):
+		_unitRuntime.StopUnit(attacker.unitId)
+		attacker.fsm.RequestIdle()
+		return false
+
+	return true
 
 
 func _ReturnUnitToIdle(unit: Unit) -> void:
@@ -273,12 +356,14 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 			continue
 
 		var currentTarget: Unit = GetTarget(character)
-		if not _ShouldAcquireTarget(characterType, currentTarget):
+		if not _ShouldAcquireTarget(character, characterType, currentTarget):
 			continue
 
 		var newTarget: Unit = _FindNearestEnemyInAcquisitionRange(character)
-		if newTarget != null:
-			_SetAcquiredTarget(character, newTarget, characterType)
+		if newTarget == null or newTarget == currentTarget:
+			continue
+
+		_SetAcquiredTarget(character, newTarget, characterType)
 
 	return cursor
 
@@ -328,10 +413,17 @@ func _FindNearestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
 	return nearestTarget
 
 
-func _ShouldAcquireTarget(characterType: CharacterData.CharacterType, currentTarget: Unit) -> bool:
+func _ShouldAcquireTarget(
+	character: Unit,
+	characterType: CharacterData.CharacterType,
+	currentTarget: Unit,
+) -> bool:
 	match characterType:
 		CharacterData.CharacterType.MONSTER:
-			return currentTarget == _battleContext.GetCP()
+			if character.fsm != null and character.fsm.currentState == UnitFSM.State.ATTACK:
+				return false
+
+			return _IsMonsterDefaultTarget(currentTarget)
 
 		CharacterData.CharacterType.UNIT, \
 				CharacterData.CharacterType.MACHINE, \
@@ -339,6 +431,16 @@ func _ShouldAcquireTarget(characterType: CharacterData.CharacterType, currentTar
 			return currentTarget == null
 
 	return false
+
+
+func _IsMonsterDefaultTarget(target: Unit) -> bool:
+	if target == null:
+		return false
+
+	if target == _battleContext.GetCP():
+		return true
+
+	return target.characterType == CharacterData.CharacterType.UNIT
 
 
 func _SetAcquiredTarget(
@@ -351,9 +453,9 @@ func _SetAcquiredTarget(
 			if _IssueChaseTarget(character, target):
 				return
 
-			if not _IssueChaseTarget(character, _battleContext.GetCP()):
+			if not _IssueDefaultMonsterChase(character):
 				push_warning(
-					"DefenseTargetingManager: Monster 타겟 전환 및 CP 복귀에 실패했습니다. unitId: "
+					"DefenseTargetingManager: Monster 기본 타겟 복귀에 실패했습니다. unitId: "
 					+ str(character.unitId)
 				)
 
@@ -361,31 +463,6 @@ func _SetAcquiredTarget(
 				CharacterData.CharacterType.MACHINE, \
 				CharacterData.CharacterType.TRAP:
 			SetTarget(character, target)
-
-
-func _IssueChaseTarget(attacker: Unit, target: Unit) -> bool:
-	if not _battleContext.IsValidTarget(attacker, target):
-		return false
-
-	var units: Array[Unit] = [attacker]
-	var commandId: int = _unitRuntime.IssueMoveCommand(units, target.global_position)
-	if commandId < 0:
-		return false
-
-	if attacker.fsm == null:
-		_unitRuntime.StopUnit(attacker.unitId)
-		return false
-
-	if not attacker.fsm.RequestChase(target):
-		_unitRuntime.StopUnit(attacker.unitId)
-		return false
-
-	if not SetTarget(attacker, target):
-		_unitRuntime.StopUnit(attacker.unitId)
-		attacker.fsm.RequestIdle()
-		return false
-
-	return true
 
 
 func _FindCandidateUnitIds(attacker: Unit, range: int, resultBuffer: PackedInt32Array) -> int:

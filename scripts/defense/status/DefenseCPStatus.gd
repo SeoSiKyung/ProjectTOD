@@ -53,9 +53,9 @@ func _RefreshStats(preserveCurrentHp: bool) -> void:
 	)
 
 	if preserveCurrentHp:
-		var hpCapacityDelta: int = newMaxHp - maxHp
+		var hpRecovery: int = maxi(newMaxHp - maxHp, 0)
 		maxHp = newMaxHp
-		currentHp = clampi(currentHp + hpCapacityDelta, 0, maxHp)
+		currentHp = clampi(currentHp + hpRecovery, 0, maxHp)
 	else:
 		maxHp = newMaxHp
 		currentHp = newMaxHp

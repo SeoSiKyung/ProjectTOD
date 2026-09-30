@@ -1,8 +1,10 @@
 class_name DefenseUnitGroupManager
 extends DefenseCharacterManager
 
-var _unitGroupStateByCell: Dictionary[Vector2i, DefenseUnitGroupState] = { }
-var _unitGroupStateByCharacter: Dictionary[Unit, DefenseUnitGroupState] = { }
+var _preparedPopulationByCell: Dictionary[Vector2i, int] = { }
+var _unitGroupByCell: Dictionary[Vector2i, DefenseUnitGroup] = { }
+var _cellByUnitGroup: Dictionary[DefenseUnitGroup, Vector2i] = { }
+var _totalRecruitedPopulation: int = 0
 
 
 func AddUnitGroup(
@@ -11,160 +13,161 @@ func AddUnitGroup(
 	recruitRatio: int,
 	totalPopulation: int,
 ) -> bool:
-	if _unitGroupStateByCell.has(cell) or characterData == null:
+	if _preparedPopulationByCell.has(cell) or characterData == null:
 		return false
-
-	var state: DefenseUnitGroupState = _CreateUnitGroupState(
-		characterData,
-		recruitRatio,
-		totalPopulation,
-	)
-	if state == null:
-		return false
-
-	_unitGroupStateByCell[cell] = state
-	return true
-
-
-func Clear() -> void:
-	for character: Unit in _unitGroupStateByCharacter:
-		_DisconnectMaxHpStatChanged(character)
-
-	super.Clear()
-	_unitGroupStateByCell.clear()
-	_unitGroupStateByCharacter.clear()
-
-
-func BindUnit(cell: Vector2i, unit: Unit) -> bool:
-	var state: DefenseUnitGroupState = _unitGroupStateByCell.get(cell)
-	if state == null or unit == null:
-		return false
-
-	if unit.characterType != CharacterData.CharacterType.UNIT:
-		return false
-
-	if not RegisterCharacter(unit):
-		return false
-
-	if not state.BindUnit(unit):
-		super.UnregisterCharacter(unit)
-		return false
-
-	_unitGroupStateByCharacter[unit] = state
-	unit.MaxHpStatChanged.connect(_OnMaxHpStatChanged.bind(unit))
-	return true
-
-
-func UnregisterCharacter(character: Unit) -> bool:
-	if not HasCharacter(character):
-		return false
-
-	_DisconnectMaxHpStatChanged(character)
-
-	if not super.UnregisterCharacter(character):
-		return false
-
-	_unitGroupStateByCharacter.erase(character)
-	return true
-
-
-func TakeDamage(character: Unit, damage: int) -> bool:
-	var state: DefenseUnitGroupState = _unitGroupStateByCharacter.get(character)
-	if state == null or character == null or character.IsDead():
-		return false
-
-	character.TakeDamage(damage)
-	state.UpdateAfterDamage(character)
-
-	if character.IsDead():
-		CharacterDied.emit(character)
-
-	return true
-
-
-func GetAttackMultiplier(character: Unit) -> int:
-	var state: DefenseUnitGroupState = _unitGroupStateByCharacter.get(character)
-	if state == null:
-		return 1
-
-	return maxi(state.survivingPopulation, 0)
-
-
-func HasAliveUnitGroup() -> bool:
-	for cell: Vector2i in _unitGroupStateByCell:
-		var state: DefenseUnitGroupState = _unitGroupStateByCell[cell]
-		if not state.IsDead():
-			return true
-
-	return false
-
-
-func GetUnitGroupStateByCell(cell: Vector2i) -> DefenseUnitGroupState:
-	return _unitGroupStateByCell.get(cell)
-
-
-func GetRecruitedPopulation() -> int:
-	var population: int = 0
-	for cell: Vector2i in _unitGroupStateByCell:
-		var state: DefenseUnitGroupState = _unitGroupStateByCell[cell]
-		population += state.recruitedPopulation
-
-	return population
-
-
-func GetSurvivingPopulation() -> int:
-	var population: int = 0
-	for cell: Vector2i in _unitGroupStateByCell:
-		var state: DefenseUnitGroupState = _unitGroupStateByCell[cell]
-		population += state.survivingPopulation
-
-	return population
-
-
-func GetDeadPopulation() -> int:
-	var population: int = 0
-	for cell: Vector2i in _unitGroupStateByCell:
-		var state: DefenseUnitGroupState = _unitGroupStateByCell[cell]
-		population += state.GetDeadPopulation()
-
-	return population
-
-
-func _CreateUnitGroupState(
-	characterData: CharacterData,
-	recruitRatio: int,
-	totalPopulation: int,
-) -> DefenseUnitGroupState:
-	var recruitedPopulation: int = Math.ApplyRatio(totalPopulation, recruitRatio)
-	if recruitedPopulation <= 0:
-		return null
 
 	if characterData.characterType != CharacterData.CharacterType.UNIT:
 		push_error(
 			"DefenseUnitGroupManager: UNIT 타입이 아닌 캐릭터가 배치되었습니다. key: "
 			+ str(characterData.characterKey)
 		)
-		return null
+		return false
 
-	return DefenseUnitGroupState.new(recruitedPopulation)
+	var recruitedPopulation: int = Math.ApplyRatio(totalPopulation, recruitRatio)
+	if recruitedPopulation <= 0:
+		return false
 
-
-func _OnMaxHpStatChanged(_maxHpStat: int, character: Unit) -> void:
-	var state: DefenseUnitGroupState = _unitGroupStateByCharacter.get(character)
-	if state == null:
-		return
-
-	var wasDead: bool = state.IsDead()
-	state.UpdateAfterDamage(character)
-
-	if not wasDead and character.IsDead():
-		CharacterDied.emit(character)
+	_preparedPopulationByCell[cell] = recruitedPopulation
+	_totalRecruitedPopulation += recruitedPopulation
+	return true
 
 
-func _DisconnectMaxHpStatChanged(character: Unit) -> void:
-	if character == null:
-		return
+func Clear() -> void:
+	super.Clear()
+	_preparedPopulationByCell.clear()
+	_unitGroupByCell.clear()
+	_cellByUnitGroup.clear()
+	_totalRecruitedPopulation = 0
 
-	var callback: Callable = _OnMaxHpStatChanged.bind(character)
-	if character.MaxHpStatChanged.is_connected(callback):
-		character.MaxHpStatChanged.disconnect(callback)
+
+func BindUnit(cell: Vector2i, unit: Unit) -> bool:
+	if not _preparedPopulationByCell.has(cell) or _unitGroupByCell.has(cell):
+		return false
+
+	if not unit is DefenseUnitGroup:
+		push_error("DefenseUnitGroupManager: DefenseUnitGroup이 아닌 Unit입니다. cell: " + str(cell))
+		return false
+
+	var unitGroup: DefenseUnitGroup = unit as DefenseUnitGroup
+	if unitGroup.characterType != CharacterData.CharacterType.UNIT:
+		return false
+
+	if not RegisterCharacter(unitGroup):
+		return false
+
+	var recruitedPopulation: int = _preparedPopulationByCell[cell]
+	if not unitGroup.InitializePopulation(recruitedPopulation):
+		super.UnregisterCharacter(unitGroup)
+		return false
+
+	_unitGroupByCell[cell] = unitGroup
+	_cellByUnitGroup[unitGroup] = cell
+	return true
+
+
+func UnregisterCharacter(character: Unit) -> bool:
+	if not character is DefenseUnitGroup or not HasCharacter(character):
+		return false
+
+	var unitGroup: DefenseUnitGroup = character as DefenseUnitGroup
+	var cell: Vector2i = _cellByUnitGroup.get(unitGroup, Vector2i(-1, -1))
+
+	if not super.UnregisterCharacter(unitGroup):
+		return false
+
+	_cellByUnitGroup.erase(unitGroup)
+	if cell != Vector2i(-1, -1):
+		_unitGroupByCell.erase(cell)
+
+	return true
+
+
+func TakeDamage(character: Unit, damage: int) -> bool:
+	if not character is DefenseUnitGroup or not HasCharacter(character) or character.IsDead():
+		return false
+
+	var unitGroup: DefenseUnitGroup = character as DefenseUnitGroup
+	unitGroup.TakeDamage(damage)
+
+	if unitGroup.IsDead():
+		CharacterDied.emit(unitGroup)
+
+	return true
+
+
+func AddStatBonusToUnitGroup(
+	cell: Vector2i,
+	type: CharacterStats.Type,
+	flatValue: int,
+	ratioValue: int,
+) -> bool:
+	var unitGroup: DefenseUnitGroup = _unitGroupByCell.get(cell)
+	return unitGroup != null and unitGroup.AddStatBonus(type, flatValue, ratioValue)
+
+
+func RemoveStatBonusFromUnitGroup(
+	cell: Vector2i,
+	type: CharacterStats.Type,
+	flatValue: int,
+	ratioValue: int,
+) -> bool:
+	var unitGroup: DefenseUnitGroup = _unitGroupByCell.get(cell)
+	return unitGroup != null and unitGroup.RemoveStatBonus(type, flatValue, ratioValue)
+
+
+func AddStatBonusToAllUnitGroups(
+	type: CharacterStats.Type,
+	flatValue: int,
+	ratioValue: int,
+) -> bool:
+	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+		if not unitGroup.AddStatBonus(type, flatValue, ratioValue):
+			return false
+
+	return true
+
+
+func RemoveStatBonusFromAllUnitGroups(
+	type: CharacterStats.Type,
+	flatValue: int,
+	ratioValue: int,
+) -> bool:
+	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+		if not unitGroup.RemoveStatBonus(type, flatValue, ratioValue):
+			return false
+
+	return true
+
+
+func ClearStatBonuses() -> void:
+	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+		unitGroup.ClearStatBonuses()
+
+
+func ResetVitals() -> void:
+	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+		unitGroup.ResetVitals()
+
+
+func HasPreparedUnitGroup(cell: Vector2i) -> bool:
+	return _preparedPopulationByCell.has(cell)
+
+
+func GetUnitGroupByCell(cell: Vector2i) -> DefenseUnitGroup:
+	return _unitGroupByCell.get(cell)
+
+
+func GetRecruitedPopulation() -> int:
+	return _totalRecruitedPopulation
+
+
+func GetSurvivingPopulation() -> int:
+	var population: int = 0
+	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+		population += unitGroup.GetSurvivingPopulation()
+
+	return population
+
+
+func GetDeadPopulation() -> int:
+	return _totalRecruitedPopulation - GetSurvivingPopulation()

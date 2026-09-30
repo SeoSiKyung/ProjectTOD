@@ -6,7 +6,6 @@ class_name Unit
 @export var playerControllable: bool = true
 
 signal MoveSpeedChanged(moveSpeed: int)
-signal MaxHpStatChanged(maxHpStat: int)
 @export var moveSpeed: int = 96:
 	set(value):
 		if value < 0:
@@ -32,7 +31,6 @@ var currentMp: int = 0
 
 var _bonusStats: BonusStats = BonusStats.new()
 var _finalStats: PackedInt32Array = PackedInt32Array()
-var _hpCapacityMultiplier: int = 1
 var _unitRuntime: UnitRuntime
 
 
@@ -56,7 +54,6 @@ func ConfigureCharacter(characterData: CharacterData) -> bool:
 	_baseStats = characterData.stats
 
 	_bonusStats.Clear()
-	_hpCapacityMultiplier = 1
 	_RebuildFinalStats(true)
 	return true
 
@@ -103,15 +100,6 @@ func ClearStatBonuses() -> void:
 	_RebuildFinalStats(false)
 
 
-func SetHpCapacityMultiplier(multiplier: int, resetCurrentHp: bool = true) -> bool:
-	if _baseStats == null or multiplier <= 0:
-		return false
-
-	_hpCapacityMultiplier = multiplier
-	_RefreshVitalCapacity(resetCurrentHp)
-	return true
-
-
 func ResetVitals() -> void:
 	if _baseStats == null:
 		maxHp = 0
@@ -135,14 +123,24 @@ func IsDead() -> bool:
 
 
 func CalculateDamage(target: Unit) -> int:
-	if target == null or not HasCharacterStats() or not target.HasCharacterStats():
+	if target == null or not target.HasCharacterStats():
+		return 0
+
+	return CalculateDamageAgainstDefense(
+		target.GetStat(CharacterStats.Type.DEF),
+		target.GetStat(CharacterStats.Type.MAGIC_DEF),
+	)
+
+
+func CalculateDamageAgainstDefense(defense: int, magicDefense: int) -> int:
+	if not HasCharacterStats():
 		return 0
 
 	return Math.CalculateDamage(
 		GetStat(CharacterStats.Type.ATK),
-		target.GetStat(CharacterStats.Type.DEF),
+		defense,
 		GetStat(CharacterStats.Type.MAGIC_ATK),
-		target.GetStat(CharacterStats.Type.MAGIC_DEF),
+		magicDefense,
 	)
 
 
@@ -200,7 +198,6 @@ func ResetForReuse() -> void:
 
 	if _baseStats != null:
 		_bonusStats.Clear()
-		_hpCapacityMultiplier = 1
 		_RebuildFinalStats(true)
 
 	if fsm != null:
@@ -212,8 +209,6 @@ func _RebuildFinalStats(resetVitals: bool) -> void:
 		_finalStats.fill(0)
 		return
 
-	var previousMaxHpStat: int = _finalStats[CharacterStats.Type.MAX_HP]
-
 	for type: CharacterStats.Type in range(CharacterStats.Type.COUNT):
 		var baseStat: int = _baseStats.Get(type)
 		_finalStats[type] = baseStat + _bonusStats.GetBonus(type, baseStat)
@@ -221,27 +216,44 @@ func _RebuildFinalStats(resetVitals: bool) -> void:
 	moveSpeed = maxi(GetStat(CharacterStats.Type.MOVE_SPEED), 0)
 	_RefreshVitalCapacity(resetVitals)
 
-	var maxHpStat: int = GetStat(CharacterStats.Type.MAX_HP)
-	if previousMaxHpStat != maxHpStat:
-		MaxHpStatChanged.emit(maxHpStat)
-
 
 func _RefreshVitalCapacity(resetVitals: bool) -> void:
-	var newMaxHp: int = maxi(GetStat(CharacterStats.Type.MAX_HP) * _hpCapacityMultiplier, 0)
-	var newMaxMp: int = maxi(GetStat(CharacterStats.Type.MAX_MP), 0)
+	var newMaxHp: int = _CalculateMaxHp()
+	var newMaxMp: int = _CalculateMaxMp()
 
 	if resetVitals:
 		maxHp = newMaxHp
 		currentHp = newMaxHp
 		maxMp = newMaxMp
 		currentMp = newMaxMp
+		_OnVitalCapacityRefreshed(true)
 		return
 
-	var hpCapacityDelta: int = newMaxHp - maxHp
-	var mpCapacityDelta: int = newMaxMp - maxMp
-	var wasDead: bool = currentHp <= 0
+	var hpRecovery: int = _CalculateHpRecoveryOnCapacityIncrease(maxHp, newMaxHp)
+	var mpRecovery: int = _CalculateMpRecoveryOnCapacityIncrease(maxMp, newMaxMp)
 
 	maxHp = newMaxHp
 	maxMp = newMaxMp
-	currentHp = 0 if wasDead else clampi(currentHp + hpCapacityDelta, 0, maxHp)
-	currentMp = clampi(currentMp + mpCapacityDelta, 0, maxMp)
+	currentHp = clampi(currentHp + hpRecovery, 0, maxHp)
+	currentMp = clampi(currentMp + mpRecovery, 0, maxMp)
+	_OnVitalCapacityRefreshed(false)
+
+
+func _CalculateMaxHp() -> int:
+	return maxi(GetStat(CharacterStats.Type.MAX_HP), 0)
+
+
+func _CalculateMaxMp() -> int:
+	return maxi(GetStat(CharacterStats.Type.MAX_MP), 0)
+
+
+func _CalculateHpRecoveryOnCapacityIncrease(previousMaxHp: int, newMaxHp: int) -> int:
+	return maxi(newMaxHp - previousMaxHp, 0)
+
+
+func _CalculateMpRecoveryOnCapacityIncrease(previousMaxMp: int, newMaxMp: int) -> int:
+	return maxi(newMaxMp - previousMaxMp, 0)
+
+
+func _OnVitalCapacityRefreshed(_resetVitals: bool) -> void:
+	pass

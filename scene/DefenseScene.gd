@@ -259,10 +259,10 @@ func _InitializeMercenaryButtons() -> bool:
 			push_error("DefenseScene: MercenaryData가 없습니다. key: " + str(mercenaryKey))
 			return false
 
-		var button: DefenseMercenaryButton = (DEFENSE_MERCENARY_BUTTON_SCENE.instantiate())
+		var button: DefenseMercenaryButton = DEFENSE_MERCENARY_BUTTON_SCENE.instantiate()
 		button.button_group = _characterButtonGroup
 		_characterButtonContainer.add_child(button)
-		button.Initialize(mercenaryData)
+		button.Initialize(mercenaryData, GameDataManager.GetMercenaryBuffData(mercenaryKey))
 		button.pressed.connect(_OnMercenaryButtonPressed.bind(mercenaryKey))
 
 		_mercenaryButtonByKey[mercenaryKey] = button

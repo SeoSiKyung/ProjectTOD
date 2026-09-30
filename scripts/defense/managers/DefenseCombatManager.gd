@@ -174,9 +174,9 @@ func _CalculateDamage(attacker: Unit, target: Unit) -> int:
 	if attacker == null or not attacker.HasCharacterStats() or attacker.IsDead():
 		return -1
 
-	var damagePerAttacker: int
+	var damage: int
 	if target == _battleContext.GetCP():
-		damagePerAttacker = _CalculateCPDamage(attacker)
+		damage = _CalculateCPDamage(attacker)
 	else:
 		if target == null or not target.HasCharacterStats() or target.IsDead():
 			return -1
@@ -184,12 +184,12 @@ func _CalculateDamage(attacker: Unit, target: Unit) -> int:
 		if not _battleContext.AreEnemies(attacker, target):
 			return -1
 
-		damagePerAttacker = attacker.CalculateDamage(target)
+		damage = attacker.CalculateDamage(target)
 
-	if damagePerAttacker < 0:
+	if damage < 0:
 		return -1
 
-	return damagePerAttacker * _battleContext.GetAttackMultiplier(attacker)
+	return damage
 
 
 func _CalculateCPDamage(attacker: Unit) -> int:
@@ -200,12 +200,7 @@ func _CalculateCPDamage(attacker: Unit) -> int:
 	if cpStatus == null or cpStatus.IsDestroyed():
 		return -1
 
-	return Math.CalculateDamage(
-		attacker.GetStat(CharacterStats.Type.ATK),
-		cpStatus.def,
-		attacker.GetStat(CharacterStats.Type.MAGIC_ATK),
-		cpStatus.magicDef,
-	)
+	return attacker.CalculateDamageAgainstDefense(cpStatus.def, cpStatus.magicDef)
 
 
 func _AccumulateDamage(targetId: int, damage: int) -> void:

@@ -206,6 +206,7 @@ static func LoadMercenaryBuffData() -> Dictionary[int, Array]:
 	var rows: Array[Dictionary] = CSVLoader.Load(tablePath)
 
 	var mercenaryBuffDataByKey: Dictionary[int, Array] = { }
+	var usedStatTypesByMercenaryKey: Dictionary[int, Dictionary] = { }
 
 	for row: Dictionary in rows:
 		var mercenaryKey: int = _ReadInt(row, "mercenaryKey", 1, "MercenaryBuffTable")
@@ -227,6 +228,19 @@ static func LoadMercenaryBuffData() -> Dictionary[int, Array]:
 		if not CharacterStats.IsValidType(statType):
 			push_error("MercenaryBuffTable statType이 올바르지 않습니다. " + context)
 			continue
+
+		if not usedStatTypesByMercenaryKey.has(mercenaryKey):
+			usedStatTypesByMercenaryKey[mercenaryKey] = { }
+
+		var usedStatTypes: Dictionary = usedStatTypesByMercenaryKey[mercenaryKey]
+		if usedStatTypes.has(statType):
+			push_error(
+				"MercenaryBuffTable에 같은 용병의 중복 statType이 있습니다. "
+				+ context + ", statType: " + statTypeText
+			)
+			continue
+
+		usedStatTypes[statType] = true
 
 		var flatValue: int = _ReadInt(row, "flatValue", 0, "MercenaryBuffTable", context)
 		if flatValue == INVALID_INT:
