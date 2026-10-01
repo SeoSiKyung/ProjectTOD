@@ -1,0 +1,73 @@
+[gd_scene load_steps=3 format=3 uid="uid://bmgug8ct6metr"]
+
+[ext_resource type="Script" uid="uid://lj07ojouhs7u" path="res://ui/defense/deployment/DefenseCharacterButton.gd" id="1_jbsul"]
+[ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="2_parchment"]
+
+[node name="DefenseCharacterButton" type="Button" unique_id=1756964881]
+custom_minimum_size = Vector2(96, 108)
+offset_right = 96.0
+offset_bottom = 108.0
+theme_type_variation = &"ParchmentCardButton"
+toggle_mode = true
+script = ExtResource("1_jbsul")
+
+[node name="ParchmentFrame" parent="." instance=ExtResource("2_parchment")]
+layout_mode = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1457258286]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1748748198]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="TextureRect" type="TextureRect" parent="MarginContainer/VBoxContainer" unique_id=740431134]
+custom_minimum_size = Vector2(56, 56)
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="MarginContainer/VBoxContainer" unique_id=117066889]
+layout_mode = 2
+theme_type_variation = &"ParchmentCardTitleLabel"
+text = "방패병"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Overlay" type="Control" parent="." unique_id=277597965]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="CountLabel" type="Label" parent="Overlay" unique_id=108191404]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -42.0
+offset_top = 4.0
+offset_right = -6.0
+offset_bottom = 28.0
+grow_horizontal = 0
+offset_transform_enabled = true
+theme_type_variation = &"ParchmentCountLabel"
+text = "x2"
+horizontal_alignment = 2

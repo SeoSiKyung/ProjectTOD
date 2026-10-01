@@ -2,8 +2,7 @@ class_name GameDataLoader
 extends RefCounted
 
 const GAME_DATA_PATH: String = "res://data/gameData"
-const ICON_BASE_PATH: String = "res://picture"
-const PREFAB_BASE_PATH: String = "res://prefabs"
+const ASSET_BASE_PATH: String = "res://assets"
 const INVALID_INT: int = -100
 
 
@@ -52,13 +51,23 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 
 		var resourceName: String = characterTypeName + "_" + str(characterKey)
 		var iconPath: String = (
-			ICON_BASE_PATH
+			ASSET_BASE_PATH
+			.path_join("picture")
 			.path_join("units")
 			.path_join(characterTypeName)
 			.path_join(resourceName + ".png")
 		)
+		var parchmentIconPath: String = (
+			ASSET_BASE_PATH
+			.path_join("picture")
+			.path_join("ui")
+			.path_join("parchment")
+			.path_join(characterTypeName)
+			.path_join(resourceName + ".png")
+		)
 		var prefabPath: String = (
-			PREFAB_BASE_PATH
+			ASSET_BASE_PATH
+			.path_join("prefabs")
 			.path_join("units")
 			.path_join(characterTypeName)
 			.path_join(resourceName + ".tscn")
@@ -138,6 +147,7 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			characterName,
 			characterType,
 			iconPath,
+			parchmentIconPath,
 			prefabPath,
 			stats,
 		)
@@ -155,7 +165,7 @@ static func LoadMercenaryData() -> Dictionary[int, MercenaryData]:
 	var usedCharacterKeys: Dictionary[int, bool] = { }
 
 	for row: Dictionary in rows:
-		var mercenaryKey: int = _ReadInt(row, "mercenaryKey", 1, "MercenaryTable")
+		var mercenaryKey: int = _ReadInt(row, "mercenaryKey", 0, "MercenaryTable")
 		if mercenaryKey == INVALID_INT:
 			continue
 
@@ -187,11 +197,29 @@ static func LoadMercenaryData() -> Dictionary[int, MercenaryData]:
 
 		var isHero: bool = isHeroValue
 
+		var resourceName: String = "MERCENARY_" + str(mercenaryKey)
+		var iconPath: String = (
+			ASSET_BASE_PATH
+			.path_join("picture")
+			.path_join("mercenaries")
+			.path_join(resourceName + ".png")
+		)
+		var parchmentIconPath: String = (
+			ASSET_BASE_PATH
+			.path_join("picture")
+			.path_join("ui")
+			.path_join("parchment")
+			.path_join("MERCENARY")
+			.path_join(resourceName + ".png")
+		)
+
 		var mercenaryData: MercenaryData = MercenaryData.new(
 			mercenaryKey,
 			characterKey,
 			name,
 			isHero,
+			iconPath,
+			parchmentIconPath,
 		)
 
 		mercenaryDataByKey[mercenaryKey] = mercenaryData
@@ -209,7 +237,7 @@ static func LoadMercenaryBuffData() -> Dictionary[int, Array]:
 	var usedStatTypesByMercenaryKey: Dictionary[int, Dictionary] = { }
 
 	for row: Dictionary in rows:
-		var mercenaryKey: int = _ReadInt(row, "mercenaryKey", 1, "MercenaryBuffTable")
+		var mercenaryKey: int = _ReadInt(row, "mercenaryKey", 0, "MercenaryBuffTable")
 		if mercenaryKey == INVALID_INT:
 			continue
 

@@ -13,7 +13,7 @@ signal ContinueRequested
 # Resource
 # =========================================================
 
-const BASIC_BUTTON_SCENE: PackedScene = preload("res://ui/BasicButton.tscn")
+const BASIC_BUTTON_SCENE: PackedScene = preload("res://ui/common/buttons/BasicButton.tscn")
 
 # =========================================================
 # Nodes

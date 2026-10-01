@@ -2,10 +2,10 @@
 
 [ext_resource type="Script" uid="uid://gcin7r7bu4r3" path="res://scene/TycoonScene.gd" id="1_wn7t6"]
 [ext_resource type="PackedScene" uid="uid://nu7m1ynqpi4w" path="res://ui/event/EventPopup.tscn" id="2_l5sn1"]
-[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/BasicButton.tscn" id="3_gc0q3"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="3_gc0q3"]
 [ext_resource type="Script" uid="uid://faenp0ariqf" path="res://ui/event/EventPopup.gd" id="3_wn7t6"]
 
-[ext_resource type="PackedScene" path="res://ui/TycoonHUD.tscn" id="5_hud"]
+[ext_resource type="PackedScene" path="res://ui/tycoon/TycoonHUD.tscn" id="5_hud"]
 
 [node name="TycoonScene" type="Node2D" unique_id=556162371]
 script = ExtResource("1_wn7t6")

@@ -6,10 +6,10 @@ const PANEL_MARGIN: int = 8
 const INVALID_DEPLOYMENT_CELL: Vector2i = Vector2i(-1, -1)
 const CP_CELL: Vector2i = Vector2i(4, 1)
 const DEFENSE_CHARACTER_BUTTON_SCENE: PackedScene = preload(
-	"res://prefabs/buttons/DefenseCharacterButton.tscn"
+	"res://ui/defense/deployment/DefenseCharacterButton.tscn"
 )
 const DEFENSE_MERCENARY_BUTTON_SCENE: PackedScene = preload(
-	"res://prefabs/buttons/DefenseMercenaryButton.tscn"
+	"res://ui/defense/deployment/DefenseMercenaryButton.tscn"
 )
 
 signal DefenseFinished(result: DefenseResult)
@@ -39,7 +39,7 @@ signal DefenseFinished(result: DefenseResult)
 	"RecruitRatio/RecruitRatioSpinBox"
 )
 @onready var _recruitPopulationLabel: Label = _recruitInfo.get_node("RecruitPopulationLabel")
-@onready var _deploymentApplyButton: Button = _recruitContainer.get_node("ApplyButton")
+@onready var _deploymentApplyButton: BasicButton = _recruitContainer.get_node("ApplyButton")
 
 @onready var _deploymentHUDContainer: HBoxContainer = _deploymentUI.get_node(
 	"DeploymentHUD/Margin/HUDContainer"
@@ -197,7 +197,7 @@ func _InitializeStartData() -> void:
 	_startData.installableCountByCharacterKey[750] = 2
 	_startData.installableCountByCharacterKey[751] = 2
 
-	_startData.availableMercenaryKeys = [1, 2, 3]
+	_startData.availableMercenaryKeys = [0, 1, 2]
 
 
 func _InitializeDeploymentGridView() -> void:
@@ -223,7 +223,7 @@ func _InitializeDeploymentSelection() -> bool:
 
 	var firstButton: DefenseCharacterButton = _characterButtonByKey.get(_selectedCharacterKey)
 	if firstButton != null:
-		firstButton.set_pressed_no_signal(true)
+		firstButton.SetSelected(true)
 
 	_ConnectDeploymentSelectionSignals()
 
@@ -238,9 +238,9 @@ func _InitializeCharacterButtons(characterDataList: Array[CharacterData]) -> voi
 
 	for characterData: CharacterData in characterDataList:
 		var characterButton: DefenseCharacterButton = DEFENSE_CHARACTER_BUTTON_SCENE.instantiate()
-		characterButton.button_group = _characterButtonGroup
 		_characterButtonContainer.add_child(characterButton)
 		characterButton.Initialize(characterData)
+		characterButton.button_group = _characterButtonGroup
 		characterButton.pressed.connect(_OnCharacterButtonPressed.bind(characterData.characterKey))
 
 		_characterButtonByKey[characterData.characterKey] = characterButton
@@ -260,19 +260,18 @@ func _InitializeMercenaryButtons() -> bool:
 			return false
 
 		var button: DefenseMercenaryButton = DEFENSE_MERCENARY_BUTTON_SCENE.instantiate()
-		button.button_group = _characterButtonGroup
 		_characterButtonContainer.add_child(button)
 		button.Initialize(mercenaryData, GameDataManager.GetMercenaryBuffData(mercenaryKey))
-		button.pressed.connect(_OnMercenaryButtonPressed.bind(mercenaryKey))
+		button.SetButtonGroup(_characterButtonGroup)
+		button.selected.connect(_OnMercenaryButtonPressed.bind(mercenaryData.mercenaryKey))
 
 		_mercenaryButtonByKey[mercenaryKey] = button
 
 	_selectedMercenaryKey = _startData.availableMercenaryKeys[0]
 
-	var firstButton: DefenseMercenaryButton = (_mercenaryButtonByKey.get(_selectedMercenaryKey))
-
+	var firstButton: DefenseMercenaryButton = _mercenaryButtonByKey.get(_selectedMercenaryKey)
 	if firstButton != null:
-		firstButton.set_pressed_no_signal(true)
+		firstButton.SetSelected(true)
 
 	return true
 
@@ -485,7 +484,7 @@ func _ReloadDeploymentSelection() -> void:
 func _UpdateUnitDeploymentPanel() -> void:
 	var characterButton: DefenseCharacterButton = _characterButtonByKey.get(_selectedCharacterKey)
 	if characterButton != null:
-		characterButton.set_pressed_no_signal(true)
+		characterButton.SetSelected(true)
 
 	var maxRecruitRatio: int = _defenseSceneManager.GetMaxRecruitRatioForCell(
 		_selectedDeploymentCell
@@ -512,14 +511,14 @@ func _UpdateUnitDeploymentApplyButton() -> void:
 	)
 
 	if _selectedRecruitRatio == 0:
-		_deploymentApplyButton.disabled = deployment == null
+		_deploymentApplyButton.SetDisabled(deployment == null)
 		return
 
 	var recruitedPopulation: int = _defenseSceneManager.CalculateRecruitedPopulation(
 		_selectedRecruitRatio
 	)
 
-	_deploymentApplyButton.disabled = recruitedPopulation <= 0
+	_deploymentApplyButton.SetDisabled(recruitedPopulation <= 0)
 
 
 func _UpdateUnitDeploymentSummary() -> void:
@@ -562,12 +561,13 @@ func _BeginInstallableDeploymentUI() -> void:
 	installableDataList.append_array(trapDataList)
 
 	_InitializeCharacterButtons(installableDataList)
+	_UpdateInstallableButtonCounts()
 
 	if not installableDataList.is_empty():
 		_selectedCharacterKey = installableDataList[0].characterKey
 		var firstButton: DefenseCharacterButton = _characterButtonByKey.get(_selectedCharacterKey)
 		if firstButton != null:
-			firstButton.set_pressed_no_signal(true)
+			firstButton.SetSelected(true)
 
 	_selectedDeploymentCell = INVALID_DEPLOYMENT_CELL
 
@@ -582,6 +582,16 @@ func _BeginInstallableDeploymentUI() -> void:
 	_deploymentPanel.visible = false
 
 
+func _UpdateInstallableButtonCounts() -> void:
+	for characterKey: int in _characterButtonByKey:
+		var characterButton: DefenseCharacterButton = _characterButtonByKey.get(characterKey)
+		if characterButton == null:
+			continue
+
+		var remainingCount: int = _defenseSceneManager.GetInstallableRemainingCount(characterKey)
+		characterButton.ShowRemainingCount(remainingCount)
+
+
 func _OnInstallableDeploymentCellClicked(cell: Vector2i) -> void:
 	_selectedDeploymentCell = cell
 	var deployment: DefenseInstallableDeploymentManager.DefenseInstallableDeployment = _defenseSceneManager.GetInstallableDeploymentByCell(
@@ -592,7 +602,7 @@ func _OnInstallableDeploymentCellClicked(cell: Vector2i) -> void:
 
 	var characterButton: DefenseCharacterButton = (_characterButtonByKey.get(_selectedCharacterKey))
 	if characterButton != null:
-		characterButton.set_pressed_no_signal(true)
+		characterButton.SetSelected(true)
 
 	_UpdateInstallableApplyButton()
 	_ShowDeploymentPanel(cell)
@@ -625,6 +635,7 @@ func _ApplyInstallableSelection() -> bool:
 	if not success:
 		return false
 
+	_UpdateInstallableButtonCounts()
 	_UpdateInstallableSummary()
 	return true
 
@@ -636,12 +647,13 @@ func _RemoveInstallableByRightClick(cell: Vector2i) -> void:
 	if _selectedDeploymentCell == cell:
 		_UpdateInstallableApplyButton()
 
+	_UpdateInstallableButtonCounts()
 	_UpdateInstallableSummary()
 
 
 func _UpdateInstallableApplyButton() -> void:
 	if _selectedDeploymentCell == INVALID_DEPLOYMENT_CELL or _selectedCharacterKey < 0:
-		_deploymentApplyButton.disabled = true
+		_deploymentApplyButton.SetDisabled(true)
 		return
 
 	var deployment: DefenseInstallableDeploymentManager.DefenseInstallableDeployment = _defenseSceneManager.GetInstallableDeploymentByCell(
@@ -649,10 +661,10 @@ func _UpdateInstallableApplyButton() -> void:
 	)
 
 	if deployment != null and deployment.characterKey == _selectedCharacterKey:
-		_deploymentApplyButton.disabled = true
+		_deploymentApplyButton.SetDisabled(true)
 		return
 
-	_deploymentApplyButton.disabled = (
+	_deploymentApplyButton.SetDisabled(
 		_defenseSceneManager.GetInstallableRemainingCount(_selectedCharacterKey) <= 0
 	)
 
@@ -708,7 +720,6 @@ func _OnMercenaryTargetClicked(cell: Vector2i) -> void:
 	_selectedDeploymentCell = cell
 
 	var assignedMercenaryKey: int
-
 	if cell == CP_CELL:
 		assignedMercenaryKey = _defenseSceneManager.GetCPMercenaryKey()
 	else:
@@ -719,7 +730,7 @@ func _OnMercenaryTargetClicked(cell: Vector2i) -> void:
 
 		var button: DefenseMercenaryButton = _mercenaryButtonByKey.get(assignedMercenaryKey)
 		if button != null:
-			button.set_pressed_no_signal(true)
+			button.SetSelected(true)
 
 	_UpdateMercenaryApplyButton()
 	_ShowDeploymentPanel(cell)
@@ -796,7 +807,7 @@ func _RefreshMercenaryAssignmentLabels() -> void:
 
 func _UpdateMercenaryApplyButton() -> void:
 	if _selectedDeploymentCell == INVALID_DEPLOYMENT_CELL or _selectedMercenaryKey < 0:
-		_deploymentApplyButton.disabled = true
+		_deploymentApplyButton.SetDisabled(true)
 		return
 
 	var currentMercenaryKey: int
@@ -808,7 +819,7 @@ func _UpdateMercenaryApplyButton() -> void:
 			_selectedDeploymentCell
 		)
 
-	_deploymentApplyButton.disabled = (currentMercenaryKey == _selectedMercenaryKey)
+	_deploymentApplyButton.SetDisabled(currentMercenaryKey == _selectedMercenaryKey)
 
 
 func _UpdateMercenarySummary() -> void:

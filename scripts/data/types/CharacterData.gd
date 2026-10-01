@@ -13,6 +13,7 @@ var characterKey: int
 var characterName: String
 var characterType: CharacterType
 var iconPath: String
+var parchmentIconPath: String
 var prefabPath: String
 var stats: CharacterStats
 
@@ -22,6 +23,7 @@ func _init(
 	pCharacterName: String,
 	pCharacterType: CharacterType,
 	pIconPath: String,
+	pParchmentIconPath: String,
 	pPrefabPath: String,
 	pStats: CharacterStats,
 ) -> void:
@@ -29,5 +31,6 @@ func _init(
 	characterName = pCharacterName
 	characterType = pCharacterType
 	iconPath = pIconPath
+	parchmentIconPath = pParchmentIconPath
 	prefabPath = pPrefabPath
 	stats = pStats

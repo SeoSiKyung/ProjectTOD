@@ -1,0 +1,54 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://dvadnv23bf1fq" path="res://ui/common/parchment/ParchmentFrame.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://62fwrl17byvt" path="res://assets/picture/button/mask.png" id="2_mask"]
+[ext_resource type="Texture2D" uid="uid://bpv85qdm35kc4" path="res://assets/picture/button/texture.png" id="3_texture"]
+[ext_resource type="Texture2D" uid="uid://u3lyvi3spd2i" path="res://assets/picture/button/edge.png" id="4_edge"]
+[ext_resource type="Shader" uid="uid://0v1dvtlqcfhy" path="res://ui/common/parchment/parchment.gdshader" id="5_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_parchment"]
+shader = ExtResource("5_shader")
+shader_parameter/parchment_texture = ExtResource("3_texture")
+
+[node name="ParchmentFrame" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="Paper" type="NinePatchRect" parent="."]
+material = SubResource("ShaderMaterial_parchment")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_mask")
+patch_margin_left = 15
+patch_margin_top = 15
+patch_margin_right = 15
+patch_margin_bottom = 15
+axis_stretch_horizontal = 2
+axis_stretch_vertical = 2
+
+[node name="Border" type="NinePatchRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("4_edge")
+patch_margin_left = 15
+patch_margin_top = 15
+patch_margin_right = 15
+patch_margin_bottom = 15
+axis_stretch_horizontal = 2
+axis_stretch_vertical = 2

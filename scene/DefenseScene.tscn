@@ -1,13 +1,15 @@
 [gd_scene format=3 uid="uid://cj4opnny2kf7v"]
 
 [ext_resource type="Script" uid="uid://bjaevfcc2xfl8" path="res://scene/DefenseScene.gd" id="1_aixx4"]
-[ext_resource type="Texture2D" uid="uid://b0q3fa72fdubk" path="res://picture/defense/DefenseTemp.png" id="1_gg6bu"]
+[ext_resource type="Texture2D" uid="uid://b0q3fa72fdubk" path="res://assets/picture/defense/DefenseTemp.png" id="1_gg6bu"]
 [ext_resource type="Script" uid="uid://bioylird347gy" path="res://scripts/defense/DefenseSceneManager.gd" id="3_f716s"]
 [ext_resource type="Resource" uid="uid://ct7nb5rwp5lkd" path="res://maps/2_navigation.res" id="3_ffq3l"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="3_m8apv"]
 [ext_resource type="Script" uid="uid://blgbhtt23abdo" path="res://scripts/defense/DefenseDeploymentGridView.gd" id="5_to5m3"]
-[ext_resource type="PackedScene" uid="uid://dqdotall8h6j8" path="res://prefabs/units/CP.tscn" id="6_fns1k"]
+[ext_resource type="PackedScene" uid="uid://dqdotall8h6j8" path="res://assets/prefabs/units/CP.tscn" id="6_fns1k"]
 [ext_resource type="Script" uid="uid://d2t3mpohidf45" path="res://scripts/defense/DefenseDeploymentInfoView.gd" id="7_f716s"]
+[ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="8_parchment"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="9_basic_button"]
 
 [node name="DefenseScene" type="Node2D" unique_id=745379328 node_paths=PackedStringArray("_deploymentUI", "_battleHUD", "_resultUI")]
 script = ExtResource("1_aixx4")
@@ -115,13 +117,18 @@ visible = false
 layout_mode = 0
 offset_right = 291.0
 offset_bottom = 192.0
+theme_type_variation = &"ParchmentPanel"
+
+[node name="ParchmentFrame" parent="CanvasLayer/DeploymentUI/DeploymentPanel" unique_id=1367247117 instance=ExtResource("8_parchment")]
+layout_mode = 2
 
 [node name="Margin" type="MarginContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel" unique_id=1598864454]
 layout_mode = 2
-theme_override_constants/margin_left = 8
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 8
-theme_override_constants/margin_bottom = 8
+mouse_filter = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
 
 [node name="RecruitContainer" type="VBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin" unique_id=626978669]
 layout_mode = 2
@@ -153,9 +160,11 @@ layout_mode = 2
 text = "징집 인구: 10명"
 horizontal_alignment = 2
 
-[node name="ApplyButton" type="Button" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer" unique_id=95337210]
+[node name="ApplyButton" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer" unique_id=170960375 instance=ExtResource("9_basic_button")]
+custom_minimum_size = Vector2(160, 60)
 layout_mode = 2
-text = "확정"
+textKey = "확정"
+maxFontSize = 24
 
 [node name="BattleHUD" type="PanelContainer" parent="CanvasLayer" unique_id=1787820532]
 visible = false

@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://c78lbdk1cx2lx"]
+
+[ext_resource type="PackedScene" uid="uid://dmtwwqwhhf1qk" path="res://assets/prefabs/units/Unit.tscn" id="1_gu1we"]
+[ext_resource type="Texture2D" uid="uid://bcru6ojbrat02" path="res://assets/picture/units/TRAP/TRAP_750.png" id="2_88ixg"]
+
+[node name="Unit" unique_id=470747039 instance=ExtResource("1_gu1we")]
+
+[node name="Sprite2D" parent="." index="1" unique_id=617625335]
+texture = ExtResource("2_88ixg")

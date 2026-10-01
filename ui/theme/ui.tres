@@ -1,0 +1,156 @@
+[gd_resource type="Theme" format=3 uid="uid://3uwmj20fyh5t"]
+
+[ext_resource type="FontVariation" uid="uid://jylcne16aphh" path="res://ui/theme/fonts/Hahmlet_variation.tres" id="1_cv0mn"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_disabled"]
+bg_color = Color(0.078431375, 0.078431375, 0.078431375, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.16862746, 0.16862746, 0.16862746, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_focus"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.84705883, 0.84705883, 0.84705883, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_hover"]
+bg_color = Color(0.13333334, 0.13333334, 0.13333334, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.40784314, 0.40784314, 0.40784314, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_hover_pressed"]
+bg_color = Color(0.1882353, 0.1882353, 0.1882353, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9411765, 0.9411765, 0.9411765, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_normal"]
+bg_color = Color(0.09411765, 0.09411765, 0.09411765, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22745098, 0.22745098, 0.22745098, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_pressed"]
+bg_color = Color(0.16078432, 0.16078432, 0.16078432, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.84705883, 0.84705883, 0.84705883, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_transparent"]
+
+[resource]
+default_font = ExtResource("1_cv0mn")
+default_font_size = 20
+Button/colors/font_color = Color(0.9490196, 0.9490196, 0.9490196, 1)
+Button/colors/font_disabled_color = Color(0.46666667, 0.46666667, 0.46666667, 1)
+Button/colors/font_focus_color = Color(0.9490196, 0.9490196, 0.9490196, 1)
+Button/colors/font_hover_color = Color(0.9490196, 0.9490196, 0.9490196, 1)
+Button/colors/font_hover_pressed_color = Color(0.9490196, 0.9490196, 0.9490196, 1)
+Button/colors/font_pressed_color = Color(0.9490196, 0.9490196, 0.9490196, 1)
+Button/font_sizes/font_size = 20
+Button/styles/disabled = SubResource("StyleBoxFlat_button_disabled")
+Button/styles/focus = SubResource("StyleBoxFlat_button_focus")
+Button/styles/hover = SubResource("StyleBoxFlat_button_hover")
+Button/styles/hover_pressed = SubResource("StyleBoxFlat_button_hover_pressed")
+Button/styles/normal = SubResource("StyleBoxFlat_button_normal")
+Button/styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+CaptionLabel/base_type = &"Label"
+CaptionLabel/colors/font_color = Color(0.72156864, 0.72156864, 0.72156864, 1)
+CaptionLabel/font_sizes/font_size = 14
+CardTitleLabel/base_type = &"Label"
+CardTitleLabel/font_sizes/font_size = 22
+HeadingLabel/base_type = &"Label"
+HeadingLabel/font_sizes/font_size = 24
+HeroCardTitleLabel/base_type = &"Label"
+HeroCardTitleLabel/colors/font_color = Color(0.8392157, 0.7019608, 0.41568628, 1)
+HeroCardTitleLabel/font_sizes/font_size = 22
+Label/colors/font_color = Color(0.9490196, 0.9490196, 0.9490196, 1)
+ParchmentActionButton/base_type = &"Button"
+ParchmentActionButton/colors/font_color = Color(0.19215687, 0.11372549, 0, 1)
+ParchmentActionButton/colors/font_disabled_color = Color(0.3529412, 0.28627452, 0.18039216, 1)
+ParchmentActionButton/colors/font_focus_color = Color(0.19215687, 0.11372549, 0, 1)
+ParchmentActionButton/colors/font_hover_color = Color(0.2901961, 0.20392157, 0.047058824, 1)
+ParchmentActionButton/colors/font_hover_pressed_color = Color(0.11372549, 0.0627451, 0, 1)
+ParchmentActionButton/colors/font_pressed_color = Color(0.11372549, 0.0627451, 0, 1)
+ParchmentActionButton/styles/disabled = SubResource("StyleBoxEmpty_transparent")
+ParchmentActionButton/styles/focus = SubResource("StyleBoxEmpty_transparent")
+ParchmentActionButton/styles/hover = SubResource("StyleBoxEmpty_transparent")
+ParchmentActionButton/styles/hover_pressed = SubResource("StyleBoxEmpty_transparent")
+ParchmentActionButton/styles/normal = SubResource("StyleBoxEmpty_transparent")
+ParchmentActionButton/styles/pressed = SubResource("StyleBoxEmpty_transparent")
+ParchmentCardButton/base_type = &"Button"
+ParchmentCardButton/styles/disabled = SubResource("StyleBoxEmpty_transparent")
+ParchmentCardButton/styles/focus = SubResource("StyleBoxEmpty_transparent")
+ParchmentCardButton/styles/hover = SubResource("StyleBoxEmpty_transparent")
+ParchmentCardButton/styles/hover_pressed = SubResource("StyleBoxEmpty_transparent")
+ParchmentCardButton/styles/normal = SubResource("StyleBoxEmpty_transparent")
+ParchmentCardButton/styles/pressed = SubResource("StyleBoxEmpty_transparent")
+ParchmentCardTitleLabel/base_type = &"Label"
+ParchmentCardTitleLabel/colors/font_color = Color(0.19607843, 0.105882354, 0.043137256, 1)
+ParchmentCardTitleLabel/font_sizes/font_size = 18
+ParchmentCaptionLabel/base_type = &"Label"
+ParchmentCaptionLabel/colors/font_color = Color(0.32156864, 0.22745098, 0.13333334, 1)
+ParchmentCaptionLabel/font_sizes/font_size = 14
+ParchmentHeroCardTitleLabel/base_type = &"Label"
+ParchmentHeroCardTitleLabel/colors/font_color = Color(0.40784314, 0.23529412, 0.05490196, 1)
+ParchmentHeroCardTitleLabel/font_sizes/font_size = 22
+ParchmentLargeCardTitleLabel/base_type = &"Label"
+ParchmentLargeCardTitleLabel/colors/font_color = Color(0.19607843, 0.105882354, 0.043137256, 1)
+ParchmentLargeCardTitleLabel/font_sizes/font_size = 22
+ParchmentCountLabel/base_type = &"Label"
+ParchmentCountLabel/colors/font_color = Color(0.19607843, 0.105882354, 0.043137256, 1)
+ParchmentCountLabel/font_sizes/font_size = 18
+ParchmentLabel/base_type = &"Label"
+ParchmentLabel/colors/font_color = Color(0.22745098, 0.12941177, 0.05882353, 1)
+ParchmentSmallLabel/base_type = &"Label"
+ParchmentSmallLabel/colors/font_color = Color(0.22745098, 0.12941177, 0.05882353, 1)
+ParchmentSmallLabel/font_sizes/font_size = 16
+ParchmentPanel/base_type = &"PanelContainer"
+ParchmentPanel/styles/panel = SubResource("StyleBoxEmpty_transparent")
+SelectableCardButton/base_type = &"Button"
+SelectableCardButton/styles/hover = SubResource("StyleBoxFlat_button_hover")
+SelectableCardButton/styles/hover_pressed = SubResource("StyleBoxFlat_button_hover_pressed")
+SelectableCardButton/styles/normal = SubResource("StyleBoxFlat_button_normal")
+SelectableCardButton/styles/pressed = SubResource("StyleBoxFlat_button_pressed")
+SmallLabel/base_type = &"Label"
+SmallLabel/font_sizes/font_size = 16
+TitleLabel/base_type = &"Label"
+TitleLabel/font_sizes/font_size = 32
