@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://62fwrl17byvt"
-path="res://.godot/imported/mask.png-b7b18059514b3c9d671c414cdc3848dc.ctex"
+uid="uid://u3lyvi3spd2i"
+path="res://.godot/imported/edge.png-21b5937e77399f13109e35459e9582a8.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/picture/button/mask.png"
-dest_files=["res://.godot/imported/mask.png-b7b18059514b3c9d671c414cdc3848dc.ctex"]
+source_file="res://assets/picture/ui/parchment/common/edge.png"
+dest_files=["res://.godot/imported/edge.png-21b5937e77399f13109e35459e9582a8.ctex"]
 
 [params]
 

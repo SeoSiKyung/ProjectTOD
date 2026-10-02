@@ -8,8 +8,7 @@
 [ext_resource type="Script" uid="uid://blgbhtt23abdo" path="res://scripts/defense/DefenseDeploymentGridView.gd" id="5_to5m3"]
 [ext_resource type="PackedScene" uid="uid://dqdotall8h6j8" path="res://assets/prefabs/units/CP.tscn" id="6_fns1k"]
 [ext_resource type="Script" uid="uid://d2t3mpohidf45" path="res://scripts/defense/DefenseDeploymentInfoView.gd" id="7_f716s"]
-[ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="8_parchment"]
-[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="9_basic_button"]
+[ext_resource type="PackedScene" path="res://ui/defense/deployment/DefenseDeploymentDock.tscn" id="8_deployment_dock"]
 
 [node name="DefenseScene" type="Node2D" unique_id=745379328 node_paths=PackedStringArray("_deploymentUI", "_battleHUD", "_resultUI")]
 script = ExtResource("1_aixx4")
@@ -106,65 +105,19 @@ size_flags_horizontal = 3
 text = "징집률"
 vertical_alignment = 1
 
-[node name="ConfirmButton" type="Button" parent="CanvasLayer/DeploymentUI/DeploymentHUD/Margin/HUDContainer" unique_id=1173458760]
-custom_minimum_size = Vector2(140, 44)
-layout_mode = 2
-theme_override_colors/font_color = Color(0, 1, 0, 1)
-text = "배치 확정"
-
-[node name="DeploymentPanel" type="PanelContainer" parent="CanvasLayer/DeploymentUI" unique_id=1087225553]
-visible = false
-layout_mode = 0
-offset_right = 291.0
-offset_bottom = 192.0
-theme_type_variation = &"ParchmentPanel"
-
-[node name="ParchmentFrame" parent="CanvasLayer/DeploymentUI/DeploymentPanel" unique_id=1367247117 instance=ExtResource("8_parchment")]
-layout_mode = 2
-
-[node name="Margin" type="MarginContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel" unique_id=1598864454]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 12
-
-[node name="RecruitContainer" type="VBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin" unique_id=626978669]
-layout_mode = 2
-theme_override_constants/separation = 6
-
-[node name="CharacterButtonContainer" type="HBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer" unique_id=119731575]
-layout_mode = 2
-
-[node name="RecruitInfo" type="VBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer" unique_id=1221180301]
-layout_mode = 2
-size_flags_horizontal = 8
-theme_override_constants/separation = 4
-
-[node name="RecruitRatio" type="HBoxContainer" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer/RecruitInfo" unique_id=1387139256]
-layout_mode = 2
-alignment = 2
-
-[node name="RecruitRatioTitle" type="Label" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer/RecruitInfo/RecruitRatio" unique_id=468015328]
-layout_mode = 2
-text = "징집률"
-
-[node name="RecruitRatioSpinBox" type="SpinBox" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer/RecruitInfo/RecruitRatio" unique_id=603133742]
-layout_mode = 2
-max_value = 30.0
-suffix = "%"
-
-[node name="RecruitPopulationLabel" type="Label" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer/RecruitInfo" unique_id=1842847679]
-layout_mode = 2
-text = "징집 인구: 10명"
-horizontal_alignment = 2
-
-[node name="ApplyButton" parent="CanvasLayer/DeploymentUI/DeploymentPanel/Margin/RecruitContainer" unique_id=170960375 instance=ExtResource("9_basic_button")]
-custom_minimum_size = Vector2(160, 60)
-layout_mode = 2
-textKey = "확정"
-maxFontSize = 24
+[node name="DeploymentDock" parent="CanvasLayer/DeploymentUI" instance=ExtResource("8_deployment_dock")]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -236.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
 
 [node name="BattleHUD" type="PanelContainer" parent="CanvasLayer" unique_id=1787820532]
 visible = false

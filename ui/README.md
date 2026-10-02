@@ -30,14 +30,14 @@ ui/
 
 ## 폰트 크기
 
-| 용도 | 크기 | Theme Type Variation |
-| --- | ---: | --- |
-| 큰 제목 | 32 | `TitleLabel` |
-| 섹션 제목 | 24 | `HeadingLabel` |
-| 카드 이름 | 22 | `CardTitleLabel` |
-| 일반 텍스트 | 20 | 기본값 |
-| 작은 정보 / 스탯 | 16 | `SmallLabel` |
-| 헤더 / 보조 정보 | 14 | `CaptionLabel` |
+| 용도             | 크기 | Theme Type Variation |
+| ---------------- | ---: | -------------------- |
+| 큰 제목          |   32 | `TitleLabel`         |
+| 섹션 제목        |   24 | `HeadingLabel`       |
+| 카드 이름        |   22 | `CardTitleLabel`     |
+| 일반 텍스트      |   20 | 기본값               |
+| 작은 정보 / 스탯 |   16 | `SmallLabel`         |
+| 헤더 / 보조 정보 |   14 | `CaptionLabel`       |
 
 주인공 카드 이름은 `HeroCardTitleLabel`을 사용한다.
 
@@ -54,22 +54,9 @@ ui/
 32 = XXL
 ```
 
-## 선택형 카드
-
-선택 가능한 카드형 Button은 `SelectableCardButton` Theme Type Variation을 사용한다.
-
-- 기본: 어두운 배경 + 얇은 테두리
-- Hover: 배경과 테두리를 조금 밝게
-- Selected/Pressed: 밝은 2px 테두리
-- Hero: 선택 상태와 분리하여 이름만 `HeroCardTitleLabel`로 강조
-- Disabled: 전역 `Button` disabled 스타일 사용
-
-`선택됨`과 `주인공`은 서로 다른 의미이므로 같은 강조 색을 사용하지 않는다.
-
 ## Button 구분
 
 - `Button`: 일반적인 게임 UI 액션 버튼. `ui.tres`의 공통 Button 스타일을 따른다.
-- `SelectableCardButton`: 유닛/용병/병기/함정 등 선택형 카드.
 - `BasicButton`: 양피지 비주얼을 사용하는 특수 공용 버튼. 자체 이미지/상태 표현을 유지한다.
 
 ## 양피지 UI
@@ -83,3 +70,17 @@ ui/
 - `ParchmentLabel`, `ParchmentCardTitleLabel`, `ParchmentLargeCardTitleLabel`, `ParchmentHeroCardTitleLabel`, `ParchmentSmallLabel`, `ParchmentCaptionLabel`, `ParchmentCountLabel`: 양피지 위의 짙은 갈색 텍스트 규칙이다.
 
 양피지 카드의 선택 상태는 밝은 황금빛 테두리로 표현한다. 카드의 실제 입력 영역은 투명 Button이 담당하고, 시각 상태는 `ParchmentFrame`이 담당한다.
+
+## 디펜스 배치 UX
+
+디펜스 배치는 셀 옆 팝업 대신 화면 하단의 `DefenseDeploymentDock`을 사용한다.
+
+- 카드 클릭 후 배치 가능한 셀을 좌클릭하면 즉시 배치한다.
+- 카드를 전장 셀까지 드래그해서 놓는 방식도 같은 동작으로 지원한다.
+- 우클릭은 해당 셀의 배치/할당을 회수한다.
+- UNIT 단계에서는 Dock에서 징집 비율과 실제 배치 인구를 함께 설정한다.
+- MACHINE/TRAP은 처음부터 보유 수량이 0이면 카드 자체를 만들지 않는다.
+- 배치 중 잔여 수량이 0이 된 카드는 유지하되 비활성화하고, 회수 시 다시 활성화한다.
+- 선택한 카드가 있을 때 배치 가능한 셀을 강조하고 hover 셀에는 반투명 preview를 표시한다.
+
+드래그는 빠른 보조 입력이며, 모든 배치 기능은 클릭만으로도 수행할 수 있어야 한다.

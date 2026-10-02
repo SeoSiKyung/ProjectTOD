@@ -25,7 +25,7 @@ func CreateStartData(campaign: CampaignState, population: int) -> DefenseStartDa
 	startData.installableCountByCharacterKey[750] = TEMP_SPIKE_TRAP_COUNT
 	startData.installableCountByCharacterKey[751] = TEMP_EXPLOSIVE_TRAP_COUNT
 
-	startData.availableMercenaryKeys = [1, 2, 3]
+	startData.availableMercenaryKeys = [0, 1, 2]
 
 	return startData
 

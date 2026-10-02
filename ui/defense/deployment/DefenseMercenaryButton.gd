@@ -2,17 +2,24 @@ class_name DefenseMercenaryButton
 extends PanelContainer
 
 signal selected
+signal drag_started(mercenaryKey: int, previewTexture: Texture2D)
 
+const DRAG_START_DISTANCE: float = 12.0
 const BUFF_HEADER_COUNT: int = 3
-const STAT_COLUMN_WIDTH: float = 44.0
-const FLAT_COLUMN_WIDTH: float = 44.0
-const RATIO_COLUMN_WIDTH: float = 50.0
+const STAT_COLUMN_WIDTH: float = 38.0
+const FLAT_COLUMN_WIDTH: float = 38.0
+const RATIO_COLUMN_WIDTH: float = 42.0
 
 @onready var _parchmentFrame: ParchmentFrame = $ParchmentFrame
 @onready var _selectButton: Button = $SelectButton
 @onready var _icon: TextureRect = $MarginContainer/VBoxContainer/TextureRect
 @onready var _nameLabel: Label = $MarginContainer/VBoxContainer/NameLabel
 @onready var _buffGrid: GridContainer = $MarginContainer/VBoxContainer/BuffGrid
+@onready var _assignedBadge: PanelContainer = $AssignedBadge
+
+var _mercenaryKey: int = -1
+var _dragStartPosition: Vector2 = Vector2.ZERO
+var _isDragArmed: bool = false
 
 
 func _ready() -> void:
@@ -22,6 +29,7 @@ func _ready() -> void:
 	_selectButton.button_up.connect(_OnButtonUp)
 	_selectButton.toggled.connect(_OnToggled)
 	_selectButton.pressed.connect(_OnSelectButtonPressed)
+	_selectButton.gui_input.connect(_OnSelectButtonGuiInput)
 
 	_parchmentFrame.SetSelected(_selectButton.button_pressed)
 	_parchmentFrame.SetDisabled(_selectButton.disabled)
@@ -43,6 +51,45 @@ func IsSelected() -> bool:
 func SetDisabled(isDisabled: bool) -> void:
 	_selectButton.disabled = isDisabled
 	_parchmentFrame.SetDisabled(isDisabled)
+
+
+func SetAssigned(isAssigned: bool) -> void:
+	_assignedBadge.visible = isAssigned
+
+
+func GetIconTexture() -> Texture2D:
+	return _icon.texture
+
+
+func _OnSelectButtonGuiInput(event: InputEvent) -> void:
+	if _selectButton.disabled:
+		_isDragArmed = false
+		return
+
+	if event is InputEventMouseButton:
+		var mouseEvent: InputEventMouseButton = event
+		if mouseEvent.button_index != MOUSE_BUTTON_LEFT:
+			return
+
+		_isDragArmed = mouseEvent.pressed
+		if mouseEvent.pressed:
+			_dragStartPosition = mouseEvent.position
+		return
+
+	if event is not InputEventMouseMotion or not _isDragArmed:
+		return
+
+	var motionEvent: InputEventMouseMotion = event
+	if (motionEvent.button_mask & MOUSE_BUTTON_MASK_LEFT) == 0:
+		_isDragArmed = false
+		return
+
+	if motionEvent.position.distance_to(_dragStartPosition) < DRAG_START_DISTANCE:
+		return
+
+	_isDragArmed = false
+	SetSelected(true)
+	drag_started.emit(_mercenaryKey, _icon.texture)
 
 
 func _OnMouseEntered() -> void:
@@ -77,6 +124,7 @@ func _OnSelectButtonPressed() -> void:
 
 
 func Initialize(mercenaryData: MercenaryData, buffDataList: Array[MercenaryBuffData]) -> void:
+	_mercenaryKey = mercenaryData.mercenaryKey
 	_icon.texture = _LoadIcon(mercenaryData.parchmentIconPath)
 
 	if mercenaryData.isHero:
@@ -84,7 +132,7 @@ func Initialize(mercenaryData: MercenaryData, buffDataList: Array[MercenaryBuffD
 		_nameLabel.theme_type_variation = &"ParchmentHeroCardTitleLabel"
 	else:
 		_nameLabel.text = mercenaryData.name
-		_nameLabel.theme_type_variation = &"ParchmentLargeCardTitleLabel"
+		_nameLabel.theme_type_variation = &"ParchmentCardTitleLabel"
 
 	_ClearBuffRows()
 
@@ -156,7 +204,7 @@ func _CreateBuffLabel(text: String, alignment: HorizontalAlignment, minWidth: fl
 	label.text = text
 	label.horizontal_alignment = alignment
 	label.custom_minimum_size.x = minWidth
-	label.theme_type_variation = &"ParchmentSmallLabel"
+	label.theme_type_variation = &"ParchmentCaptionLabel"
 
 	return label
 

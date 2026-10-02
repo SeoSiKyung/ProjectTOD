@@ -1,0 +1,115 @@
+[gd_scene format=3 uid="uid://ktst54qcostj"]
+
+[ext_resource type="Script" uid="uid://dxeofkdwkwrsr" path="res://ui/defense/deployment/DefenseDeploymentDock.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="2_parchment"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="3_basic_button"]
+
+[node name="DefenseDeploymentDock" type="PanelContainer" unique_id=1474966823]
+custom_minimum_size = Vector2(0, 212)
+theme_type_variation = &"ParchmentPanel"
+script = ExtResource("1_script")
+
+[node name="ParchmentFrame" type="Control" parent="." unique_id=782696565]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Visual" parent="ParchmentFrame" unique_id=276229018 instance=ExtResource("2_parchment")]
+layout_mode = 1
+
+[node name="Margin" type="MarginContainer" parent="ParchmentFrame" unique_id=1679247728]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="DockRow" type="HBoxContainer" parent="ParchmentFrame/Margin" unique_id=1477262058]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="ButtonScroll" type="ScrollContainer" parent="ParchmentFrame/Margin/DockRow" unique_id=671927713]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+vertical_scroll_mode = 0
+
+[node name="ButtonContainer" type="HBoxContainer" parent="ParchmentFrame/Margin/DockRow/ButtonScroll" unique_id=85428600]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="InfoColumn" type="VBoxContainer" parent="ParchmentFrame/Margin/DockRow" unique_id=1756824830]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="UnitControls" type="VBoxContainer" parent="ParchmentFrame/Margin/DockRow/InfoColumn" unique_id=436903791]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="ParchmentFrame/Margin/DockRow/InfoColumn/UnitControls" unique_id=1171239053]
+layout_mode = 2
+theme_type_variation = &"ParchmentCardTitleLabel"
+text = "배치 병력"
+
+[node name="RecruitRatio" type="HBoxContainer" parent="ParchmentFrame/Margin/DockRow/InfoColumn/UnitControls" unique_id=658654835]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="RecruitRatioSpinBox" type="SpinBox" parent="ParchmentFrame/Margin/DockRow/InfoColumn/UnitControls/RecruitRatio" unique_id=56955055]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+max_value = 30.0
+suffix = "%"
+
+[node name="RecruitRatioSlider" type="HSlider" parent="ParchmentFrame/Margin/DockRow/InfoColumn/UnitControls/RecruitRatio" unique_id=153265854]
+custom_minimum_size = Vector2(190, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 30.0
+
+[node name="RecruitPopulationLabel" type="Label" parent="ParchmentFrame/Margin/DockRow/InfoColumn/UnitControls" unique_id=777887476]
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "배치 인구: 0명"
+
+[node name="HintLabel" type="Label" parent="ParchmentFrame/Margin/DockRow/InfoColumn" unique_id=908838586]
+layout_mode = 2
+theme_type_variation = &"ParchmentHintLabel"
+text = "카드를 선택한 뒤 배치할 셀을 클릭하거나 드래그하세요."
+horizontal_alignment = 2
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="StatusLabel" type="Label" parent="ParchmentFrame/Margin/DockRow/InfoColumn" unique_id=1889475515]
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+horizontal_alignment = 2
+autowrap_mode = 3
+
+[node name="ActionColumn" type="VBoxContainer" parent="ParchmentFrame/Margin/DockRow" unique_id=1796708758]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BackButton" parent="ParchmentFrame/Margin/DockRow/ActionColumn" unique_id=592075297 instance=ExtResource("3_basic_button")]
+custom_minimum_size = Vector2(150, 68)
+layout_mode = 2
+size_flags_vertical = 4
+textKey = "이전 단계"
+maxFontSize = 24
+
+[node name="ConfirmButton" parent="ParchmentFrame/Margin/DockRow/ActionColumn" unique_id=2024899572 instance=ExtResource("3_basic_button")]
+custom_minimum_size = Vector2(150, 68)
+layout_mode = 2
+size_flags_vertical = 4
+textKey = "배치 확정"
+maxFontSize = 24

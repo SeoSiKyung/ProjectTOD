@@ -477,6 +477,18 @@ func GetDeadPopulation() -> int:
 func CalculateRecruitedPopulation(recruitRatio: int) -> int:
 	return _deploymentController.CalculateRecruitedPopulation(recruitRatio)
 
+
+func ReturnToPreviousDeploymentPhase() -> bool:
+	match _phase:
+		DefensePhase.INSTALLABLE_DEPLOYMENT:
+			_phase = DefensePhase.UNIT_DEPLOYMENT
+			return true
+		DefensePhase.MERCENARY_ASSIGNMENT:
+			_phase = DefensePhase.INSTALLABLE_DEPLOYMENT
+			return true
+		_:
+			return false
+
 #endregion
 
 
@@ -497,7 +509,14 @@ func RemoveDeployment(cell: Vector2i) -> bool:
 	if _phase != DefensePhase.UNIT_DEPLOYMENT:
 		return false
 
-	return _deploymentController.RemoveDeployment(cell)
+	if not _deploymentController.RemoveDeployment(cell):
+		return false
+
+	var mercenaryKey: int = _mercenaryAssignmentManager.GetMercenaryKeyByUnitCell(cell)
+	if mercenaryKey >= 0:
+		_mercenaryAssignmentManager.Unassign(mercenaryKey)
+
+	return true
 
 
 func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:

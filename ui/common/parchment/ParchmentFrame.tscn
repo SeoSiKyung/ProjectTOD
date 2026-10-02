@@ -1,9 +1,9 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" uid="uid://dvadnv23bf1fq" path="res://ui/common/parchment/ParchmentFrame.gd" id="1_script"]
-[ext_resource type="Texture2D" uid="uid://62fwrl17byvt" path="res://assets/picture/button/mask.png" id="2_mask"]
-[ext_resource type="Texture2D" uid="uid://bpv85qdm35kc4" path="res://assets/picture/button/texture.png" id="3_texture"]
-[ext_resource type="Texture2D" uid="uid://u3lyvi3spd2i" path="res://assets/picture/button/edge.png" id="4_edge"]
+[ext_resource type="Texture2D" uid="uid://62fwrl17byvt" path="res://assets/picture/ui/parchment/common/mask.png" id="2_mask"]
+[ext_resource type="Texture2D" uid="uid://bpv85qdm35kc4" path="res://assets/picture/ui/parchment/common/texture.png" id="3_texture"]
+[ext_resource type="Texture2D" uid="uid://u3lyvi3spd2i" path="res://assets/picture/ui/parchment/common/edge.png" id="4_edge"]
 [ext_resource type="Shader" uid="uid://0v1dvtlqcfhy" path="res://ui/common/parchment/parchment.gdshader" id="5_shader"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_parchment"]

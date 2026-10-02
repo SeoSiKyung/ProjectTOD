@@ -39,6 +39,10 @@ func SetPressed(isPressed: bool) -> void:
 
 func SetDisabled(isDisabled: bool) -> void:
 	_isDisabled = isDisabled
+	if isDisabled:
+		_isHovered = false
+		_isPressed = false
+
 	_RefreshVisual()
 
 
