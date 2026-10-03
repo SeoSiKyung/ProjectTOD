@@ -40,8 +40,7 @@ func SetButtonGroup(buttonGroup: ButtonGroup) -> void:
 
 
 func SetSelected(isSelected: bool) -> void:
-	_selectButton.set_pressed_no_signal(isSelected)
-	_parchmentFrame.SetSelected(isSelected)
+	_selectButton.button_pressed = isSelected
 
 
 func IsSelected() -> bool:

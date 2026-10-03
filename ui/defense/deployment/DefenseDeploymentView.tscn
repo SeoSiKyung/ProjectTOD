@@ -1,0 +1,53 @@
+[gd_scene format=3 uid="uid://c4v37s61d9g4j"]
+
+[ext_resource type="Script" uid="uid://bqvj1p6y0r4uf" path="res://ui/defense/deployment/DefenseDeploymentView.gd" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://ktst54qcostj" path="res://ui/defense/deployment/DefenseDeploymentDock.tscn" id="2_deployment_dock"]
+
+[node name="DefenseDeploymentView" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="DeploymentHUD" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 72.0
+grow_horizontal = 2
+
+[node name="Margin" type="MarginContainer" parent="DeploymentHUD"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="HUDContainer" type="HBoxContainer" parent="DeploymentHUD/Margin"]
+layout_mode = 2
+
+[node name="RecruitSummaryLabel" type="Label" parent="DeploymentHUD/Margin/HUDContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "징집률"
+vertical_alignment = 1
+
+[node name="DeploymentDock" parent="." instance=ExtResource("2_deployment_dock")]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -236.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0

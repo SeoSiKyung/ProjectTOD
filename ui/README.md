@@ -19,6 +19,7 @@ ui/
 
 - `common`: Defense, Tycoon 같은 게임 도메인 데이터를 몰라도 재사용할 수 있는 UI만 둔다.
 - 도메인 데이터를 직접 사용하는 UI는 해당 도메인 폴더에 둔다.
+- 디펜스 화면 UI는 `DefenseDeploymentView`, `DefenseBattleHUDView`, `DefenseResultView`처럼 화면 단위 `Control` View로 분리하고, `DefenseScene`은 게임 흐름과 배치 규칙 조율에 집중한다.
 - 이미지 에셋은 `res://assets/picture/`에 두고, UI 전용 이미지는 `res://assets/picture/ui/` 아래에서 관리한다.
 
 ## Theme 책임

@@ -1,0 +1,61 @@
+[gd_scene format=3 uid="uid://ccm1vqltrhqal"]
+
+[ext_resource type="Script" uid="uid://dwg32st6pjbt6" path="res://ui/defense/result/DefenseResultView.gd" id="1_script"]
+
+[node name="DefenseResultView" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+offset_left = 700.0
+offset_top = 300.0
+offset_right = 1100.0
+offset_bottom = 708.0
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="ResultContainer" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="ResultLabel" type="Label" parent="Margin/ResultContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "승리"
+horizontal_alignment = 1
+
+[node name="ElapsedTime" type="Label" parent="Margin/ResultContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="CPStatus" type="Label" parent="Margin/ResultContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="RecruitedPopulation" type="Label" parent="Margin/ResultContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="SurvivingPopulation" type="Label" parent="Margin/ResultContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="DeadPopulation" type="Label" parent="Margin/ResultContainer"]
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="ConfirmButton" type="Button" parent="Margin/ResultContainer"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "확인"

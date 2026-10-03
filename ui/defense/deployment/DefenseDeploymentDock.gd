@@ -12,7 +12,7 @@ signal confirm_pressed
 @onready var _recruitPopulationLabel: Label = $ParchmentFrame/Margin/DockRow/InfoColumn/UnitControls/RecruitPopulationLabel
 @onready var _hintLabel: Label = $ParchmentFrame/Margin/DockRow/InfoColumn/HintLabel
 @onready var _statusLabel: Label = $ParchmentFrame/Margin/DockRow/InfoColumn/StatusLabel
-@onready var _backButton: BasicButton = $ParchmentFrame/Margin/DockRow/ActionColumn/BackButton
+@onready var _backButton: BasicButton = $ParchmentFrame/Margin/DockRow/ActionColumn/BackSlot/BackButton
 @onready var _confirmButton: BasicButton = $ParchmentFrame/Margin/DockRow/ActionColumn/ConfirmButton
 
 

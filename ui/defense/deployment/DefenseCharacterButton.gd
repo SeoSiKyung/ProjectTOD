@@ -42,8 +42,7 @@ func HideRemainingCount() -> void:
 
 
 func SetSelected(isSelected: bool) -> void:
-	set_pressed_no_signal(isSelected)
-	_parchmentFrame.SetSelected(isSelected)
+	button_pressed = isSelected
 
 
 func SetDisabled(isDisabled: bool) -> void:

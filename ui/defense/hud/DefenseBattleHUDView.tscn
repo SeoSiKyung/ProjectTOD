@@ -1,0 +1,99 @@
+[gd_scene format=3 uid="uid://d1jn5c1rulh83"]
+
+[ext_resource type="Script" uid="uid://brj3k5wkt2gpk" path="res://ui/defense/hud/DefenseBattleHUDView.gd" id="1_script"]
+
+[node name="DefenseBattleHUDView" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_script")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -268.0
+offset_bottom = 288.0
+grow_horizontal = 0
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="BattleHUDContainer" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+
+[node name="BattleHeader" type="HBoxContainer" parent="Margin/BattleHUDContainer"]
+layout_mode = 2
+
+[node name="ElapsedTime" type="Label" parent="Margin/BattleHUDContainer/BattleHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "00:00"
+
+[node name="PauseButton" type="Button" parent="Margin/BattleHUDContainer/BattleHeader"]
+custom_minimum_size = Vector2(100, 36)
+layout_mode = 2
+text = "일시 정지"
+
+[node name="CPHUD" type="VBoxContainer" parent="Margin/BattleHUDContainer"]
+layout_mode = 2
+
+[node name="CPLabel" type="Label" parent="Margin/BattleHUDContainer/CPHUD"]
+layout_mode = 2
+text = "지휘소"
+
+[node name="Hp" type="HBoxContainer" parent="Margin/BattleHUDContainer/CPHUD"]
+layout_mode = 2
+
+[node name="HpLabel" type="Label" parent="Margin/BattleHUDContainer/CPHUD/Hp"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="HpBar" type="ProgressBar" parent="Margin/BattleHUDContainer/CPHUD/Hp"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="Mp" type="HBoxContainer" parent="Margin/BattleHUDContainer/CPHUD"]
+layout_mode = 2
+
+[node name="MpLabel" type="Label" parent="Margin/BattleHUDContainer/CPHUD/Mp"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="MpBar" type="ProgressBar" parent="Margin/BattleHUDContainer/CPHUD/Mp"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
+[node name="Population" type="HBoxContainer" parent="Margin/BattleHUDContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="PopulationTitle" type="Label" parent="Margin/BattleHUDContainer/Population"]
+layout_mode = 2
+text = "병력"
+vertical_alignment = 1
+
+[node name="RecruitedPopulation" type="Label" parent="Margin/BattleHUDContainer/Population"]
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="SurvivingPopulation" type="Label" parent="Margin/BattleHUDContainer/Population"]
+layout_mode = 2
+vertical_alignment = 1
+
+[node name="DeadPopulation" type="Label" parent="Margin/BattleHUDContainer/Population"]
+layout_mode = 2
+vertical_alignment = 1

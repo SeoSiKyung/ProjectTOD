@@ -46,10 +46,11 @@ size_flags_vertical = 3
 theme_override_constants/separation = 8
 
 [node name="InfoColumn" type="VBoxContainer" parent="ParchmentFrame/Margin/DockRow" unique_id=1756824830]
-custom_minimum_size = Vector2(280, 0)
+custom_minimum_size = Vector2(360, 0)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 8
+alignment = 1
 
 [node name="UnitControls" type="VBoxContainer" parent="ParchmentFrame/Margin/DockRow/InfoColumn" unique_id=436903791]
 layout_mode = 2
@@ -99,10 +100,22 @@ autowrap_mode = 3
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 theme_override_constants/separation = 8
+alignment = 1
 
-[node name="BackButton" parent="ParchmentFrame/Margin/DockRow/ActionColumn" unique_id=592075297 instance=ExtResource("3_basic_button")]
-custom_minimum_size = Vector2(150, 68)
+[node name="BackSlot" type="Control" parent="ParchmentFrame/Margin/DockRow/ActionColumn" unique_id=128303249]
+custom_minimum_size = Vector2(0, 68)
 layout_mode = 2
+
+[node name="BackButton" parent="ParchmentFrame/Margin/DockRow/ActionColumn/BackSlot" unique_id=592075297 instance=ExtResource("3_basic_button")]
+custom_minimum_size = Vector2(150, 68)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 0.0
+offset_bottom = 0.0
+grow_horizontal = 2
+grow_vertical = 2
 size_flags_vertical = 4
 textKey = "이전 단계"
 maxFontSize = 24
