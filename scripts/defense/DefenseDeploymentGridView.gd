@@ -1,12 +1,12 @@
 class_name DefenseDeploymentGridView
 extends Node2D
 
-const GRID_COLOR: Color = Color(0.58, 0.34, 0.12, 0.26)
-const PLACEABLE_FILL_COLOR: Color = Color(0.1, 0.75, 0.25, 0.08)
-const PLACEABLE_BORDER_COLOR: Color = Color(0.1, 0.8, 0.25, 0.52)
-const HOVER_FILL_COLOR: Color = Color(0.0, 1.0, 0.0, 0.18)
-const HOVER_BORDER_COLOR: Color = Color(0.0, 1.0, 0.0, 0.92)
-const FOCUS_FILL_COLOR: Color = Color(1.0, 0.72, 0.15, 0.12)
+const GRID_COLOR: Color = Color(0.58, 0.34, 0.12, 0.28)
+const PLACEABLE_FILL_COLOR: Color = Color(0.72, 0.58, 0.22, 0.10)
+const PLACEABLE_BORDER_COLOR: Color = Color(0.84, 0.68, 0.30, 0.66)
+const HOVER_FILL_COLOR: Color = Color(0.94, 0.72, 0.22, 0.18)
+const HOVER_BORDER_COLOR: Color = Color(0.98, 0.78, 0.30, 0.96)
+const FOCUS_FILL_COLOR: Color = Color(0.55, 0.28, 0.08, 0.16)
 const FOCUS_BORDER_COLOR: Color = Color(1.0, 0.72, 0.15, 1.0)
 const PREVIEW_ALPHA: float = 0.58
 const PREVIEW_MARGIN: float = 18.0

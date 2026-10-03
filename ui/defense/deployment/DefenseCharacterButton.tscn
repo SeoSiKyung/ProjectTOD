@@ -1,13 +1,20 @@
-[gd_scene load_steps=3 format=3 uid="uid://bmgug8ct6metr"]
+[gd_scene load_steps=4 format=3 uid="uid://bmgug8ct6metr"]
 
 [ext_resource type="Script" uid="uid://lj07ojouhs7u" path="res://ui/defense/deployment/DefenseCharacterButton.gd" id="1_jbsul"]
 [ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="2_parchment"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_card_button"]
 
 [node name="DefenseCharacterButton" type="Button" unique_id=1756964881]
 custom_minimum_size = Vector2(96, 108)
 offset_right = 96.0
 offset_bottom = 108.0
-theme_type_variation = &"ParchmentCardButton"
+theme_override_styles/normal = SubResource("StyleBoxEmpty_card_button")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_card_button")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_card_button")
+theme_override_styles/hover_pressed = SubResource("StyleBoxEmpty_card_button")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_card_button")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_card_button")
 toggle_mode = true
 script = ExtResource("1_jbsul")
 
@@ -42,7 +49,8 @@ stretch_mode = 5
 
 [node name="Label" type="Label" parent="MarginContainer/VBoxContainer" unique_id=117066889]
 layout_mode = 2
-theme_type_variation = &"ParchmentCardTitleLabel"
+theme_type_variation = &"ParchmentLabel"
+theme_override_font_sizes/font_size = 18
 text = "방패병"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -68,6 +76,7 @@ offset_right = -6.0
 offset_bottom = 28.0
 grow_horizontal = 0
 offset_transform_enabled = true
-theme_type_variation = &"ParchmentCountLabel"
+theme_type_variation = &"ParchmentLabel"
+theme_override_font_sizes/font_size = 18
 text = "x2"
 horizontal_alignment = 2

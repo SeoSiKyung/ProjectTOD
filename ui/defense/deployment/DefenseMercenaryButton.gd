@@ -15,7 +15,7 @@ const RATIO_COLUMN_WIDTH: float = 42.0
 @onready var _icon: TextureRect = $MarginContainer/VBoxContainer/TextureRect
 @onready var _nameLabel: Label = $MarginContainer/VBoxContainer/NameLabel
 @onready var _buffGrid: GridContainer = $MarginContainer/VBoxContainer/BuffGrid
-@onready var _assignedBadge: PanelContainer = $AssignedBadge
+@onready var _assignedBadge: ParchmentBadge = $AssignedBadge
 
 var _mercenaryKey: int = -1
 var _dragStartPosition: Vector2 = Vector2.ZERO
@@ -126,12 +126,20 @@ func Initialize(mercenaryData: MercenaryData, buffDataList: Array[MercenaryBuffD
 	_mercenaryKey = mercenaryData.mercenaryKey
 	_icon.texture = _LoadIcon(mercenaryData.parchmentIconPath)
 
+	_nameLabel.theme_type_variation = &"ParchmentLabel"
+	_nameLabel.add_theme_font_size_override("font_size", 18)
+	_nameLabel.remove_theme_color_override("font_color")
+
 	if mercenaryData.isHero:
 		_nameLabel.text = "★ " + mercenaryData.name
-		_nameLabel.theme_type_variation = &"ParchmentHeroCardTitleLabel"
+		_nameLabel.theme_type_variation = &"ParchmentTitleLabel"
+		_nameLabel.add_theme_font_size_override("font_size", 20)
+		_nameLabel.add_theme_color_override(
+			"font_color",
+			Color(0.40784314, 0.23529412, 0.05490196, 1),
+		)
 	else:
 		_nameLabel.text = mercenaryData.name
-		_nameLabel.theme_type_variation = &"ParchmentCardTitleLabel"
 
 	_ClearBuffRows()
 
@@ -203,7 +211,8 @@ func _CreateBuffLabel(text: String, alignment: HorizontalAlignment, minWidth: fl
 	label.text = text
 	label.horizontal_alignment = alignment
 	label.custom_minimum_size.x = minWidth
-	label.theme_type_variation = &"ParchmentCaptionLabel"
+	label.theme_type_variation = &"ParchmentSmallLabel"
+	label.add_theme_font_size_override("font_size", 14)
 
 	return label
 

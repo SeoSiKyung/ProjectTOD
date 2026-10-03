@@ -20,7 +20,9 @@ const DEFENSE_MERCENARY_BUTTON_SCENE: PackedScene = preload(
 
 @onready var _deploymentDock: DefenseDeploymentDock = $DeploymentDock
 @onready var _selectionButtonContainer: HBoxContainer = _deploymentDock.GetButtonContainer()
-@onready var _recruitSummaryLabel: Label = $DeploymentHUD/Margin/HUDContainer/RecruitSummaryLabel
+@onready var _phaseLabel: Label = $DeploymentHUD/HUDContainer/PhaseLabel
+@onready var _recruitSummaryLabel: Label = $DeploymentHUD/HUDContainer/RecruitSummaryLabel
+@onready var _stepLabel: Label = $DeploymentHUD/HUDContainer/StepLabel
 
 var _characterButtonGroup: ButtonGroup = ButtonGroup.new()
 var _characterButtonByKey: Dictionary[int, DefenseCharacterButton] = { }
@@ -65,17 +67,20 @@ func _input(event: InputEvent) -> void:
 
 
 func ConfigureUnitPhase(maxRecruitPercent: int, recruitPercent: int) -> void:
+	_SetPhaseHeader("병력 배치", "1 / 3")
 	_ConfigureDock(true, false, "다음: 병기/함정", "병과 선택 → 병력 설정 → 셀 클릭/드래그\n우클릭: 회수")
 	_deploymentDock.SetRecruitRatioMax(maxRecruitPercent)
 	_deploymentDock.SetRecruitRatioValue(recruitPercent)
 
 
 func ConfigureInstallablePhase() -> void:
+	_SetPhaseHeader("병기 · 함정 배치", "2 / 3")
 	_ConfigureDock(false, true, "다음: 용병", "병기/함정 선택 → 셀 클릭/드래그\n우클릭: 회수")
 	_deploymentDock.SetConfirmDisabled(false)
 
 
 func ConfigureMercenaryPhase() -> void:
+	_SetPhaseHeader("용병 배치", "3 / 3")
 	_ConfigureDock(false, true, "전투 시작", "용병 선택 → 부대/지휘소 클릭/드래그\n우클릭: 배치 해제")
 
 
@@ -110,6 +115,7 @@ func UpdateInstallableInfo(machineCount: int, trapCount: int) -> void:
 func UpdateMercenaryInfo(heroAssigned: bool, cpAssigned: bool, canConfirm: bool) -> void:
 	var heroText: String = "완료" if heroAssigned else "미배치"
 	var cpText: String = "완료" if cpAssigned else "미배치"
+	_recruitSummaryLabel.text = "주인공: %s    지휘소: %s" % [heroText, cpText]
 	_deploymentDock.SetStatusText("주인공 %s    지휘소 %s" % [heroText, cpText])
 	_deploymentDock.SetConfirmDisabled(not canConfirm)
 
@@ -291,6 +297,11 @@ func HideView() -> void:
 
 func ShowView() -> void:
 	visible = true
+
+
+func _SetPhaseHeader(title: String, stepText: String) -> void:
+	_phaseLabel.text = title
+	_stepLabel.text = stepText
 
 
 func _ConfigureDock(

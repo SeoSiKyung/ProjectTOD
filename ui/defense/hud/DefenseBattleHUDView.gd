@@ -3,9 +3,9 @@ extends Control
 
 signal pause_pressed
 
-@onready var _battleHUDContainer: VBoxContainer = $Margin/BattleHUDContainer
+@onready var _battleHUDContainer: VBoxContainer = $HUDPanel/BattleHUDContainer
 @onready var _elapsedTime: Label = _battleHUDContainer.get_node("BattleHeader/ElapsedTime")
-@onready var _pauseButton: Button = _battleHUDContainer.get_node("BattleHeader/PauseButton")
+@onready var _pauseButton: BasicButton = _battleHUDContainer.get_node("BattleHeader/PauseButton")
 
 @onready var _cpHUD: VBoxContainer = _battleHUDContainer.get_node("CPHUD")
 @onready var _cpHp: HBoxContainer = _cpHUD.get_node("Hp")
@@ -16,9 +16,9 @@ signal pause_pressed
 @onready var _cpMpBar: ProgressBar = _cpMp.get_node("MpBar")
 
 @onready var _population: HBoxContainer = _battleHUDContainer.get_node("Population")
-@onready var _recruitedPopulation: Label = _population.get_node("RecruitedPopulation")
-@onready var _survivingPopulation: Label = _population.get_node("SurvivingPopulation")
-@onready var _deadPopulation: Label = _population.get_node("DeadPopulation")
+@onready var _recruitedPopulation: Label = _population.get_node("Recruited/Value")
+@onready var _survivingPopulation: Label = _population.get_node("Surviving/Value")
+@onready var _deadPopulation: Label = _population.get_node("Dead/Value")
 
 var _displayedBattleTimeSeconds: int = -1
 
@@ -48,11 +48,11 @@ func HideBattle() -> void:
 
 
 func SetPaused(isPaused: bool) -> void:
-	_pauseButton.text = "계속" if isPaused else "일시정지"
+	_pauseButton.textKey = "계속" if isPaused else "일시정지"
 
 
 func SetPauseDisabled(isDisabled: bool) -> void:
-	_pauseButton.disabled = isDisabled
+	_pauseButton.SetDisabled(isDisabled)
 
 
 func UpdateBattleTime(elapsedTimeMs: int) -> void:
@@ -74,7 +74,7 @@ func UpdateCP(currentHp: int, maxHp: int, currentMp: int, maxMp: int) -> void:
 
 		_cpHpBar.max_value = maxHp
 		_cpHpBar.value = currentHp
-		_cpHpLabel.text = "HP %d / %d" % [currentHp, maxHp]
+		_cpHpLabel.text = "%d / %d" % [currentHp, maxHp]
 
 	if maxMp <= 0:
 		_cpMp.visible = false
@@ -91,7 +91,7 @@ func UpdateCP(currentHp: int, maxHp: int, currentMp: int, maxMp: int) -> void:
 
 	_cpMpBar.max_value = maxMp
 	_cpMpBar.value = currentMp
-	_cpMpLabel.text = "MP %d / %d" % [currentMp, maxMp]
+	_cpMpLabel.text = "%d / %d" % [currentMp, maxMp]
 
 
 func UpdatePopulation(
@@ -110,9 +110,9 @@ func UpdatePopulation(
 	_displayedSurvivingPopulation = survivingPopulation
 	_displayedDeadPopulation = deadPopulation
 
-	_recruitedPopulation.text = "징집: %d명" % recruitedPopulation
-	_survivingPopulation.text = "생존: %d명" % survivingPopulation
-	_deadPopulation.text = "사망: %d명" % deadPopulation
+	_recruitedPopulation.text = "%d명" % recruitedPopulation
+	_survivingPopulation.text = "%d명" % survivingPopulation
+	_deadPopulation.text = "%d명" % deadPopulation
 
 
 func _ResetDisplayCache() -> void:

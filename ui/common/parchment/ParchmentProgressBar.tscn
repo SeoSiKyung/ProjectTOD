@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://dk6t3xam1p8r2"]
+
+[ext_resource type="Script" uid="uid://b7v4n2c8r5t1p" path="res://ui/common/parchment/ParchmentProgressBar.gd" id="1_script"]
+
+[node name="ParchmentProgressBar" type="ProgressBar"]
+custom_minimum_size = Vector2(160, 22)
+show_percentage = false
+script = ExtResource("1_script")

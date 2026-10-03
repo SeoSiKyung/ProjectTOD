@@ -8,7 +8,8 @@
 ui/
 ├─ theme/                 # 전역 Theme, ThemeManager, 폰트
 ├─ common/                # 특정 게임 도메인을 모르는 공용 UI
-│  └─ buttons/
+│  ├─ buttons/
+│  └─ parchment/          # 양피지 프레임/배지/게이지 같은 조립식 부품
 ├─ defense/
 │  ├─ deployment/         # 유닛/병기/함정/용병 배치 UI
 │  ├─ hud/                # 디펜스 전투 HUD
@@ -19,28 +20,42 @@ ui/
 
 - `common`: Defense, Tycoon 같은 게임 도메인 데이터를 몰라도 재사용할 수 있는 UI만 둔다.
 - 도메인 데이터를 직접 사용하는 UI는 해당 도메인 폴더에 둔다.
-- 디펜스 화면 UI는 `DefenseDeploymentView`, `DefenseBattleHUDView`, `DefenseResultView`처럼 화면 단위 `Control` View로 분리하고, `DefenseScene`은 게임 흐름과 배치 규칙 조율에 집중한다.
+- 디펜스 화면 UI는 `DefenseDeploymentView`, `DefenseBattleHUDView`, `DefenseResultView`처럼 화면 단위 `Control` View로 분리한다.
 - 이미지 에셋은 `res://assets/picture/`에 두고, UI 전용 이미지는 `res://assets/picture/ui/` 아래에서 관리한다.
 
 ## Theme 책임
 
+`ui.tres`는 모든 컴포넌트의 세부 디자인을 모아두는 카탈로그가 아니다. 전역 폰트와 정말 반복되는 기본 텍스트 규칙만 관리한다.
+
+현재 양피지 계열 Theme Type Variation은 다음 세 가지를 기본으로 한다.
+
+```text
+ParchmentTitleLabel  # 큰 제목/섹션 제목
+ParchmentLabel       # 일반 본문/값
+ParchmentSmallLabel  # 보조 설명/작은 스탯
+```
+
+카드 이름, 영웅 이름, 카운트, 힌트처럼 특정 컴포넌트에서만 필요한 차이는 새 Theme Type을 만들지 않고 해당 `.tscn` 또는 `.gd`에서 font size/color override로 표현한다.
+
 - `theme/ThemeManager.gd`: 언어 변경과 언어별 전역 폰트 전환만 담당한다.
-- `theme/ui.tres`: 공통 폰트 크기, 텍스트 색, Button 상태 스타일, Theme Type Variation을 관리한다.
-- 개별 `.tscn`: 화면 배치, 컴포넌트 크기, 화면 특유의 margin을 담당한다.
-- 개별 `.gd`: 상태와 데이터 처리에 집중하고 공통 색상/폰트 크기를 하드코딩하지 않는다.
+- `theme/ui.tres`: 전역 폰트, 기본 Button/Label, 최소한의 공통 텍스트 variation을 담당한다.
+- 공용 컴포넌트 `.tscn`: 양피지 프레임, 버튼, 배지, 게이지의 실제 시각 구조를 담당한다.
+- 화면별 `.tscn`: 화면 배치와 화면 특유의 margin/spacing을 담당한다.
+- 화면별 `.gd`: 상태와 데이터 갱신을 담당한다.
 
-## 폰트 크기
+## 조립식 양피지 컴포넌트
 
-| 용도             | 크기 | Theme Type Variation |
-| ---------------- | ---: | -------------------- |
-| 큰 제목          |   32 | `TitleLabel`         |
-| 섹션 제목        |   24 | `HeadingLabel`       |
-| 카드 이름        |   22 | `CardTitleLabel`     |
-| 일반 텍스트      |   20 | 기본값               |
-| 작은 정보 / 스탯 |   16 | `SmallLabel`         |
-| 헤더 / 보조 정보 |   14 | `CaptionLabel`       |
+양피지 UI는 Theme Type을 계속 추가하는 대신 아래 공용 씬을 조립해서 만든다.
 
-주인공 카드 이름은 `HeroCardTitleLabel`을 사용한다.
+- `ParchmentFrame.tscn`: 버튼/카드처럼 상태 표현이 필요한 곳에서 쓰는 저수준 양피지 비주얼이다.
+- `ParchmentPanel`: `class_name`으로 등록된 공용 Container 타입이다. 노드 추가 창에서 바로 생성할 수 있고, 양피지 비주얼과 콘텐츠 안전 마진을 자동으로 제공한다.
+- `BasicButton.tscn`: `ParchmentFrame` 위에 투명 Button을 얹은 공용 액션 버튼이다.
+- `ParchmentBadge.tscn`: 작은 상태/태그 표시용 배지다.
+- `ParchmentProgressBar.tscn`: 전투 HUD 등의 HP/MP 게이지용 공용 진행 바다.
+
+새 UI를 만들 때 `BattleHUDPauseButton`, `MercenaryStatusLabel` 같은 전용 Theme Type을 추가하지 않는다. 구조가 필요한 경우 공용 컴포넌트를 만들고, 단순한 크기/색 차이는 해당 컴포넌트에서 override한다.
+
+일반적인 양피지 패널은 `ParchmentPanel` 노드를 추가하고 그 바로 아래에 `VBoxContainer`, `HBoxContainer` 같은 콘텐츠 루트 하나를 넣는다. 기본 안전 마진은 좌우 16, 상하 14이며, 화면 특성에 따라 `contentMarginLeft/Top/Right/Bottom`만 Inspector에서 override한다. `Editable Children`이나 별도 `MarginContainer`는 필요하지 않다.
 
 ## 간격
 
@@ -55,22 +70,15 @@ ui/
 32 = XXL
 ```
 
-## Button 구분
+## 디펜스 UI 디자인
 
-- `Button`: 일반적인 게임 UI 액션 버튼. `ui.tres`의 공통 Button 스타일을 따른다.
-- `BasicButton`: 양피지 비주얼을 사용하는 특수 공용 버튼. 자체 이미지/상태 표현을 유지한다.
+디펜스 UI는 따뜻한 베이지 양피지, 짙은 갈색 글자/테두리, 선택 상태의 황금빛 강조를 공통 디자인 언어로 사용한다.
 
-## 양피지 UI
-
-중세풍 양피지 비주얼은 `ui/common/parchment/ParchmentFrame.tscn`을 공통 기반으로 사용한다.
-
-- `ParchmentFrame`: 양피지 질감, 갈색 테두리, hover/pressed/selected/disabled 상태 표현을 담당한다.
-- `BasicButton`: `ParchmentFrame` 위에 실제 입력 Button을 얹은 공용 액션 버튼이다.
-- `ParchmentCardButton`: 양피지 카드 위에서 사용하는 투명 선택 Button Theme Variation이다.
-- `ParchmentPanel`: `ParchmentFrame`을 배경으로 사용하는 PanelContainer의 기본 패널을 투명하게 만든다.
-- `ParchmentLabel`, `ParchmentCardTitleLabel`, `ParchmentLargeCardTitleLabel`, `ParchmentHeroCardTitleLabel`, `ParchmentSmallLabel`, `ParchmentCaptionLabel`, `ParchmentCountLabel`: 양피지 위의 짙은 갈색 텍스트 규칙이다.
-
-양피지 카드의 선택 상태는 밝은 황금빛 테두리로 표현한다. 카드의 실제 입력 영역은 투명 Button이 담당하고, 시각 상태는 `ParchmentFrame`이 담당한다.
+- 배치 상단 HUD: 현재 배치 단계, 핵심 요약, `1 / 3` 단계 표시를 보여준다.
+- 배치 하단 Dock: 선택 카드, 단계별 설정/안내, 이전/확정 액션을 한 양피지 패널에 배치한다.
+- 전투 HUD: 양피지 패널 안에서 시간, 일시정지, 지휘소 HP/MP, 병력 현황을 보여준다.
+- 결과 화면: 화면을 어둡게 덮고 중앙 양피지 결과 패널을 표시한다.
+- 월드 배치 Grid: 네온색 대신 금빛/갈색 계열 강조를 사용하고, 배치 인구 라벨에는 외곽선을 넣어 맵 위 가독성을 확보한다.
 
 ## 디펜스 배치 UX
 

@@ -1,6 +1,8 @@
 [gd_scene format=3 uid="uid://ccm1vqltrhqal"]
 
 [ext_resource type="Script" uid="uid://dwg32st6pjbt6" path="res://ui/defense/result/DefenseResultView.gd" id="1_script"]
+[ext_resource type="Script" path="res://ui/common/parchment/ParchmentPanel.gd" id="2_parchment_panel"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="3_button"]
 
 [node name="DefenseResultView" type="Control"]
 visible = false
@@ -10,52 +12,135 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
+mouse_filter = 0
 script = ExtResource("1_script")
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="Dim" type="ColorRect" parent="."]
 layout_mode = 1
-offset_left = 700.0
-offset_top = 300.0
-offset_right = 1100.0
-offset_bottom = 708.0
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 20
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.035, 0.025, 0.018, 0.58)
 
-[node name="ResultContainer" type="VBoxContainer" parent="Margin"]
+[node name="ResultPanel" type="Container" parent="."]
+layout_mode = 1
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -310.0
+offset_top = -250.0
+offset_right = 310.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_parchment_panel")
+contentMarginLeft = 34
+contentMarginTop = 28
+contentMarginRight = 34
+contentMarginBottom = 28
+
+[node name="ResultContainer" type="VBoxContainer" parent="ResultPanel"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 alignment = 1
 
-[node name="ResultLabel" type="Label" parent="Margin/ResultContainer"]
+[node name="Caption" type="Label" parent="ResultPanel/ResultContainer"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 28
+theme_type_variation = &"ParchmentSmallLabel"
+text = "전투 결과"
+horizontal_alignment = 1
+
+[node name="ResultLabel" type="Label" parent="ResultPanel/ResultContainer"]
+layout_mode = 2
+theme_type_variation = &"ParchmentTitleLabel"
+theme_override_font_sizes/font_size = 40
 text = "승리"
 horizontal_alignment = 1
 
-[node name="ElapsedTime" type="Label" parent="Margin/ResultContainer"]
+[node name="HeaderDivider" type="ColorRect" parent="ResultPanel/ResultContainer"]
+custom_minimum_size = Vector2(0, 1)
 layout_mode = 2
-horizontal_alignment = 1
+mouse_filter = 2
+color = Color(0.32156864, 0.22745098, 0.13333334, 0.34)
 
-[node name="CPStatus" type="Label" parent="Margin/ResultContainer"]
+[node name="Stats" type="GridContainer" parent="ResultPanel/ResultContainer"]
 layout_mode = 2
-horizontal_alignment = 1
+theme_override_constants/h_separation = 28
+theme_override_constants/v_separation = 9
+columns = 2
 
-[node name="RecruitedPopulation" type="Label" parent="Margin/ResultContainer"]
+[node name="ElapsedTitle" type="Label" parent="ResultPanel/ResultContainer/Stats"]
 layout_mode = 2
-horizontal_alignment = 1
+theme_type_variation = &"ParchmentSmallLabel"
+text = "전투 시간"
 
-[node name="SurvivingPopulation" type="Label" parent="Margin/ResultContainer"]
+[node name="ElapsedTime" type="Label" parent="ResultPanel/ResultContainer/Stats"]
 layout_mode = 2
-horizontal_alignment = 1
+size_flags_horizontal = 3
+theme_type_variation = &"ParchmentLabel"
+horizontal_alignment = 2
 
-[node name="DeadPopulation" type="Label" parent="Margin/ResultContainer"]
+[node name="CPTitle" type="Label" parent="ResultPanel/ResultContainer/Stats"]
 layout_mode = 2
-horizontal_alignment = 1
+theme_type_variation = &"ParchmentSmallLabel"
+text = "지휘소"
 
-[node name="ConfirmButton" type="Button" parent="Margin/ResultContainer"]
-custom_minimum_size = Vector2(0, 40)
+[node name="CPStatus" type="Label" parent="ResultPanel/ResultContainer/Stats"]
 layout_mode = 2
-text = "확인"
+size_flags_horizontal = 3
+theme_type_variation = &"ParchmentLabel"
+horizontal_alignment = 2
+
+[node name="RecruitedTitle" type="Label" parent="ResultPanel/ResultContainer/Stats"]
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "징집 인구"
+
+[node name="RecruitedPopulation" type="Label" parent="ResultPanel/ResultContainer/Stats"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ParchmentLabel"
+horizontal_alignment = 2
+
+[node name="SurvivingTitle" type="Label" parent="ResultPanel/ResultContainer/Stats"]
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "생존 인구"
+
+[node name="SurvivingPopulation" type="Label" parent="ResultPanel/ResultContainer/Stats"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ParchmentLabel"
+theme_override_colors/font_color = Color(0.25, 0.38, 0.13, 1)
+horizontal_alignment = 2
+
+[node name="DeadTitle" type="Label" parent="ResultPanel/ResultContainer/Stats"]
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "사망 인구"
+
+[node name="DeadPopulation" type="Label" parent="ResultPanel/ResultContainer/Stats"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"ParchmentLabel"
+theme_override_colors/font_color = Color(0.48, 0.16, 0.11, 1)
+horizontal_alignment = 2
+
+[node name="FooterDivider" type="ColorRect" parent="ResultPanel/ResultContainer"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+mouse_filter = 2
+color = Color(0.32156864, 0.22745098, 0.13333334, 0.24)
+
+[node name="ConfirmCenter" type="CenterContainer" parent="ResultPanel/ResultContainer"]
+layout_mode = 2
+
+[node name="ConfirmButton" parent="ResultPanel/ResultContainer/ConfirmCenter" instance=ExtResource("3_button")]
+custom_minimum_size = Vector2(180, 60)
+layout_mode = 2
+textKey = "확인"
+maxFontSize = 24

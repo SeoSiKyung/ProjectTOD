@@ -1,8 +1,10 @@
-[gd_scene format=3 uid="uid://bnpnyy5pnwxco"]
+[gd_scene load_steps=5 format=3 uid="uid://bnpnyy5pnwxco"]
 
 [ext_resource type="Theme" uid="uid://3uwmj20fyh5t" path="res://ui/theme/ui.tres" id="1_theme"]
 [ext_resource type="Script" uid="uid://d37r3kmlxhmns" path="res://ui/common/buttons/BasicButton.gd" id="2_script"]
 [ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="3_parchment"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_button"]
 
 [node name="BasicButton" type="Control" unique_id=592075297]
 custom_minimum_size = Vector2(160, 70)
@@ -23,6 +25,17 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_type_variation = &"ParchmentActionButton"
+theme_override_colors/font_color = Color(0.19215687, 0.11372549, 0, 1)
+theme_override_colors/font_disabled_color = Color(0.3529412, 0.28627452, 0.18039216, 1)
+theme_override_colors/font_focus_color = Color(0.19215687, 0.11372549, 0, 1)
+theme_override_colors/font_hover_color = Color(0.2901961, 0.20392157, 0.047058824, 1)
+theme_override_colors/font_hover_pressed_color = Color(0.11372549, 0.0627451, 0, 1)
+theme_override_colors/font_pressed_color = Color(0.11372549, 0.0627451, 0, 1)
 theme_override_font_sizes/font_size = 32
+theme_override_styles/normal = SubResource("StyleBoxEmpty_button")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_button")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_button")
+theme_override_styles/hover_pressed = SubResource("StyleBoxEmpty_button")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_button")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_button")
 flat = true

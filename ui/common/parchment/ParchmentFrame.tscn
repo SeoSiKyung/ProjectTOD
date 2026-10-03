@@ -1,4 +1,4 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://bmagowpmvi43p"]
 
 [ext_resource type="Script" uid="uid://dvadnv23bf1fq" path="res://ui/common/parchment/ParchmentFrame.gd" id="1_script"]
 [ext_resource type="Texture2D" uid="uid://62fwrl17byvt" path="res://assets/picture/ui/parchment/common/mask.png" id="2_mask"]
@@ -10,7 +10,7 @@
 shader = ExtResource("5_shader")
 shader_parameter/parchment_texture = ExtResource("3_texture")
 
-[node name="ParchmentFrame" type="Control"]
+[node name="ParchmentFrame" type="Control" unique_id=174521786]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -20,7 +20,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_script")
 
-[node name="Paper" type="NinePatchRect" parent="."]
+[node name="Paper" type="NinePatchRect" parent="." unique_id=1576287430]
 material = SubResource("ShaderMaterial_parchment")
 layout_mode = 1
 anchors_preset = 15
@@ -37,7 +37,7 @@ patch_margin_bottom = 15
 axis_stretch_horizontal = 2
 axis_stretch_vertical = 2
 
-[node name="Border" type="NinePatchRect" parent="."]
+[node name="Border" type="NinePatchRect" parent="." unique_id=1089930178]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

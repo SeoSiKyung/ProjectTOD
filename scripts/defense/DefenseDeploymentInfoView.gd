@@ -81,6 +81,10 @@ func _CreateRatioLabel(cell: Vector2i) -> Label:
 	label.size = Vector2(_grid.cellSize, 30.0)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.z_index = 10
+	label.add_theme_font_size_override("font_size", 20)
+	label.add_theme_color_override("font_color", Color(0.96, 0.84, 0.56, 1.0))
+	label.add_theme_color_override("font_outline_color", Color(0.12, 0.07, 0.03, 0.95))
+	label.add_theme_constant_override("outline_size", 5)
 
 	add_child(label)
 

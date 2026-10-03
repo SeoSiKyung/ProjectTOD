@@ -42,6 +42,7 @@ stretch_mode = 5
 [node name="NameLabel" type="Label" parent="Margin/VBoxContainer" unique_id=1934410955]
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
+theme_override_font_sizes/font_size = 14
 text = "이름"
 horizontal_alignment = 1
 vertical_alignment = 1

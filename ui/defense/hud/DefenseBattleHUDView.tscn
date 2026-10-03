@@ -1,6 +1,9 @@
 [gd_scene format=3 uid="uid://d1jn5c1rulh83"]
 
 [ext_resource type="Script" uid="uid://brj3k5wkt2gpk" path="res://ui/defense/hud/DefenseBattleHUDView.gd" id="1_script"]
+[ext_resource type="Script" path="res://ui/common/parchment/ParchmentPanel.gd" id="2_parchment_panel"]
+[ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="3_button"]
+[ext_resource type="PackedScene" uid="uid://dk6t3w9m1p8r2" path="res://ui/common/parchment/ParchmentProgressBar.tscn" id="4_progress"]
 
 [node name="DefenseBattleHUDView" type="Control"]
 visible = false
@@ -13,87 +16,181 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_script")
 
-[node name="Margin" type="MarginContainer" parent="."]
+[node name="HUDPanel" type="Container" parent="."]
 layout_mode = 1
-anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -268.0
-offset_bottom = 288.0
+offset_left = -430.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 326.0
 grow_horizontal = 0
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 12
+mouse_filter = 2
+script = ExtResource("2_parchment_panel")
 
-[node name="BattleHUDContainer" type="VBoxContainer" parent="Margin"]
+[node name="BattleHUDContainer" type="VBoxContainer" parent="HUDPanel"]
 layout_mode = 2
+theme_override_constants/separation = 9
 
-[node name="BattleHeader" type="HBoxContainer" parent="Margin/BattleHUDContainer"]
+[node name="BattleHeader" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer"]
 layout_mode = 2
+theme_override_constants/separation = 10
 
-[node name="ElapsedTime" type="Label" parent="Margin/BattleHUDContainer/BattleHeader"]
+[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/BattleHeader"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_type_variation = &"ParchmentTitleLabel"
+text = "전투 현황"
+vertical_alignment = 1
+
+[node name="ElapsedTime" type="Label" parent="HUDPanel/BattleHUDContainer/BattleHeader"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_type_variation = &"ParchmentTitleLabel"
+theme_override_font_sizes/font_size = 21
 text = "00:00"
+horizontal_alignment = 2
+vertical_alignment = 1
 
-[node name="PauseButton" type="Button" parent="Margin/BattleHUDContainer/BattleHeader"]
-custom_minimum_size = Vector2(100, 36)
+[node name="PauseButton" parent="HUDPanel/BattleHUDContainer/BattleHeader" instance=ExtResource("3_button")]
+custom_minimum_size = Vector2(108, 46)
 layout_mode = 2
-text = "일시 정지"
+textKey = "일시정지"
+maxFontSize = 18
+minFontSize = 14
+horizontalPadding = 14.0
 
-[node name="CPHUD" type="VBoxContainer" parent="Margin/BattleHUDContainer"]
+[node name="HeaderDivider" type="ColorRect" parent="HUDPanel/BattleHUDContainer"]
+custom_minimum_size = Vector2(0, 1)
 layout_mode = 2
+mouse_filter = 2
+color = Color(0.32156864, 0.22745098, 0.13333334, 0.3)
 
-[node name="CPLabel" type="Label" parent="Margin/BattleHUDContainer/CPHUD"]
+[node name="CPHUD" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer"]
 layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CPLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD"]
+layout_mode = 2
+theme_type_variation = &"ParchmentTitleLabel"
+theme_override_font_sizes/font_size = 19
 text = "지휘소"
 
-[node name="Hp" type="HBoxContainer" parent="Margin/BattleHUDContainer/CPHUD"]
+[node name="Hp" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer/CPHUD"]
 layout_mode = 2
+theme_override_constants/separation = 8
 
-[node name="HpLabel" type="Label" parent="Margin/BattleHUDContainer/CPHUD/Hp"]
-custom_minimum_size = Vector2(100, 0)
+[node name="Name" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp"]
+custom_minimum_size = Vector2(28, 0)
 layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "HP"
 vertical_alignment = 1
 
-[node name="HpBar" type="ProgressBar" parent="Margin/BattleHUDContainer/CPHUD/Hp"]
-custom_minimum_size = Vector2(0, 24)
+[node name="HpBar" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp" instance=ExtResource("4_progress")]
 layout_mode = 2
 size_flags_horizontal = 3
-show_percentage = false
+fillColor = Color(0.55, 0.18, 0.11, 1)
 
-[node name="Mp" type="HBoxContainer" parent="Margin/BattleHUDContainer/CPHUD"]
+[node name="HpLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp"]
+custom_minimum_size = Vector2(92, 0)
 layout_mode = 2
-
-[node name="MpLabel" type="Label" parent="Margin/BattleHUDContainer/CPHUD/Mp"]
-custom_minimum_size = Vector2(100, 0)
-layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="MpBar" type="ProgressBar" parent="Margin/BattleHUDContainer/CPHUD/Mp"]
-custom_minimum_size = Vector2(0, 24)
+[node name="Mp" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer/CPHUD"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Name" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp"]
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "MP"
+vertical_alignment = 1
+
+[node name="MpBar" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp" instance=ExtResource("4_progress")]
 layout_mode = 2
 size_flags_horizontal = 3
-show_percentage = false
+fillColor = Color(0.18, 0.34, 0.52, 1)
 
-[node name="Population" type="HBoxContainer" parent="Margin/BattleHUDContainer"]
+[node name="MpLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp"]
+custom_minimum_size = Vector2(92, 0)
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_type_variation = &"ParchmentSmallLabel"
+horizontal_alignment = 2
+vertical_alignment = 1
 
-[node name="PopulationTitle" type="Label" parent="Margin/BattleHUDContainer/Population"]
+[node name="PopulationDivider" type="ColorRect" parent="HUDPanel/BattleHUDContainer"]
+custom_minimum_size = Vector2(0, 1)
 layout_mode = 2
+mouse_filter = 2
+color = Color(0.32156864, 0.22745098, 0.13333334, 0.3)
+
+[node name="PopulationTitle" type="Label" parent="HUDPanel/BattleHUDContainer"]
+layout_mode = 2
+theme_type_variation = &"ParchmentTitleLabel"
+theme_override_font_sizes/font_size = 19
 text = "병력"
-vertical_alignment = 1
 
-[node name="RecruitedPopulation" type="Label" parent="Margin/BattleHUDContainer/Population"]
+[node name="Population" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer"]
 layout_mode = 2
-vertical_alignment = 1
+theme_override_constants/separation = 8
+alignment = 1
 
-[node name="SurvivingPopulation" type="Label" parent="Margin/BattleHUDContainer/Population"]
+[node name="Recruited" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population"]
 layout_mode = 2
-vertical_alignment = 1
+size_flags_horizontal = 3
+alignment = 1
 
-[node name="DeadPopulation" type="Label" parent="Margin/BattleHUDContainer/Population"]
+[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Recruited"]
 layout_mode = 2
-vertical_alignment = 1
+theme_type_variation = &"ParchmentSmallLabel"
+text = "징집"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Recruited"]
+layout_mode = 2
+theme_type_variation = &"ParchmentTitleLabel"
+theme_override_font_sizes/font_size = 20
+text = "0명"
+horizontal_alignment = 1
+
+[node name="Surviving" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Surviving"]
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "생존"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Surviving"]
+layout_mode = 2
+theme_type_variation = &"ParchmentTitleLabel"
+theme_override_colors/font_color = Color(0.25, 0.38, 0.13, 1)
+theme_override_font_sizes/font_size = 20
+text = "0명"
+horizontal_alignment = 1
+
+[node name="Dead" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Dead"]
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "사망"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Dead"]
+layout_mode = 2
+theme_type_variation = &"ParchmentTitleLabel"
+theme_override_colors/font_color = Color(0.48, 0.16, 0.11, 1)
+theme_override_font_sizes/font_size = 20
+text = "0명"
+horizontal_alignment = 1

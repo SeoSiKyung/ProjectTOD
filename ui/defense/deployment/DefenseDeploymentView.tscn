@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bqvj1p6y0r4uf" path="res://ui/defense/deployment/DefenseDeploymentView.gd" id="1_script"]
 [ext_resource type="PackedScene" uid="uid://ktst54qcostj" path="res://ui/defense/deployment/DefenseDeploymentDock.tscn" id="2_deployment_dock"]
+[ext_resource type="Script" path="res://ui/common/parchment/ParchmentPanel.gd" id="3_parchment_panel"]
 
 [node name="DefenseDeploymentView" type="Control"]
 layout_mode = 3
@@ -13,30 +14,52 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_script")
 
-[node name="DeploymentHUD" type="PanelContainer" parent="."]
+[node name="DeploymentHUD" type="Container" parent="."]
 layout_mode = 1
-anchors_preset = -1
-anchor_right = 1.0
-offset_left = 16.0
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -560.0
 offset_top = 16.0
-offset_right = -16.0
-offset_bottom = 72.0
+offset_right = 560.0
+offset_bottom = 84.0
 grow_horizontal = 2
+mouse_filter = 2
+script = ExtResource("3_parchment_panel")
+contentMarginLeft = 18
+contentMarginTop = 10
+contentMarginRight = 18
+contentMarginBottom = 10
 
-[node name="Margin" type="MarginContainer" parent="DeploymentHUD"]
+[node name="HUDContainer" type="HBoxContainer" parent="DeploymentHUD"]
 layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 8
+theme_override_constants/separation = 16
 
-[node name="HUDContainer" type="HBoxContainer" parent="DeploymentHUD/Margin"]
+[node name="PhaseLabel" type="Label" parent="DeploymentHUD/HUDContainer"]
+custom_minimum_size = Vector2(210, 0)
 layout_mode = 2
+theme_type_variation = &"ParchmentTitleLabel"
+text = "병력 배치"
+vertical_alignment = 1
 
-[node name="RecruitSummaryLabel" type="Label" parent="DeploymentHUD/Margin/HUDContainer"]
+[node name="Divider" type="ColorRect" parent="DeploymentHUD/HUDContainer"]
+custom_minimum_size = Vector2(1, 0)
+layout_mode = 2
+mouse_filter = 2
+color = Color(0.32156864, 0.22745098, 0.13333334, 0.32)
+
+[node name="RecruitSummaryLabel" type="Label" parent="DeploymentHUD/HUDContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_type_variation = &"ParchmentLabel"
 text = "징집률"
+vertical_alignment = 1
+
+[node name="StepLabel" type="Label" parent="DeploymentHUD/HUDContainer"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "1 / 3"
+horizontal_alignment = 2
 vertical_alignment = 1
 
 [node name="DeploymentDock" parent="." instance=ExtResource("2_deployment_dock")]
