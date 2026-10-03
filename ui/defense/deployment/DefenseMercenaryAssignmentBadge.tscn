@@ -1,0 +1,47 @@
+[gd_scene format=3 uid="uid://ckrl14ubt2xsh"]
+
+[ext_resource type="Script" uid="uid://f5xm8doep61a" path="res://ui/defense/deployment/DefenseMercenaryAssignmentBadge.gd" id="1_o3uj1"]
+[ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="2_o3uj1"]
+
+[node name="DefenseMercenaryAssignmentBadge" type="Control" unique_id=58757431]
+custom_minimum_size = Vector2(64, 76)
+layout_mode = 3
+anchors_preset = 0
+mouse_filter = 2
+script = ExtResource("1_o3uj1")
+
+[node name="ParchmentFrame" parent="." unique_id=647266826 instance=ExtResource("2_o3uj1")]
+layout_mode = 1
+
+[node name="Margin" type="MarginContainer" parent="." unique_id=1601384323]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 5
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Margin" unique_id=2073114685]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+alignment = 1
+
+[node name="Portrait" type="TextureRect" parent="Margin/VBoxContainer" unique_id=525833094]
+custom_minimum_size = Vector2(52, 48)
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="NameLabel" type="Label" parent="Margin/VBoxContainer" unique_id=1934410955]
+layout_mode = 2
+theme_type_variation = &"ParchmentSmallLabel"
+text = "이름"
+horizontal_alignment = 1
+vertical_alignment = 1

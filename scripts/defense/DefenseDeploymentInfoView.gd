@@ -1,12 +1,15 @@
 class_name DefenseDeploymentInfoView
 extends Node2D
 
-const PARCHMENT_FRAME_SCENE: PackedScene = preload("res://ui/common/parchment/ParchmentFrame.tscn")
+const MERCENARY_BADGE_SCENE: PackedScene = preload(
+	"res://ui/defense/deployment/DefenseMercenaryAssignmentBadge.tscn"
+)
+const MERCENARY_BADGE_MARGIN: int = 6
 
 var _grid: DefenseDeploymentGrid
 
 var _ratioLabelByCell: Dictionary[Vector2i, Label] = { }
-var _mercenaryBadgeByCell: Dictionary[Vector2i, Control] = { }
+var _mercenaryBadgeByCell: Dictionary[Vector2i, DefenseMercenaryAssignmentBadge] = { }
 
 
 func Initialize(grid: DefenseDeploymentGrid) -> void:
@@ -32,13 +35,12 @@ func RemoveRecruitRatio(cell: Vector2i) -> void:
 
 
 func SetMercenary(cell: Vector2i, mercenaryData: MercenaryData) -> void:
-	var badge: Control = _mercenaryBadgeByCell.get(cell)
+	var badge: DefenseMercenaryAssignmentBadge = _mercenaryBadgeByCell.get(cell)
 	if badge == null:
 		badge = _CreateMercenaryBadge(cell)
 		_mercenaryBadgeByCell[cell] = badge
 
-	var portrait: TextureRect = badge.get_node("Portrait")
-	portrait.texture = load(mercenaryData.iconPath)
+	badge.Initialize(mercenaryData)
 
 
 func Clear() -> void:
@@ -54,10 +56,23 @@ func ClearRatios() -> void:
 
 
 func ClearMercenaries() -> void:
-	for badge: Control in _mercenaryBadgeByCell.values():
+	for badge: DefenseMercenaryAssignmentBadge in _mercenaryBadgeByCell.values():
 		badge.queue_free()
 
 	_mercenaryBadgeByCell.clear()
+
+
+func SetMercenaryHighlight(cell: Vector2i, isHighlighted: bool) -> void:
+	var badge: DefenseMercenaryAssignmentBadge = _mercenaryBadgeByCell.get(cell)
+	if badge == null:
+		return
+
+	badge.SetHighlighted(isHighlighted)
+
+
+func ClearMercenaryHighlights() -> void:
+	for badge: DefenseMercenaryAssignmentBadge in _mercenaryBadgeByCell.values():
+		badge.SetHighlighted(false)
 
 
 func _CreateRatioLabel(cell: Vector2i) -> Label:
@@ -76,37 +91,19 @@ func _CreateRatioLabel(cell: Vector2i) -> Label:
 	return label
 
 
-func _CreateMercenaryBadge(cell: Vector2i) -> Control:
-	var badge: Control = Control.new()
-	badge.name = "MercenaryBadge"
-	badge.custom_minimum_size = Vector2(44.0, 44.0)
-	badge.size = Vector2(44.0, 44.0)
-	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	badge.z_index = 20
+func _CreateMercenaryBadge(cell: Vector2i) -> DefenseMercenaryAssignmentBadge:
+	var badge: DefenseMercenaryAssignmentBadge = MERCENARY_BADGE_SCENE.instantiate()
 
-	var frame: ParchmentFrame = PARCHMENT_FRAME_SCENE.instantiate()
-	frame.name = "Frame"
-	frame.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	frame.SetSelected(true)
-
-	badge.add_child(frame)
-
-	var portrait: TextureRect = TextureRect.new()
-	portrait.name = "Portrait"
-	portrait.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	badge.add_child(portrait)
 	add_child(badge)
 
 	var cellCenter: Vector2 = _grid.CellToWorldCenter(cell)
 	var localCellCenter: Vector2 = to_local(cellCenter)
+
+	var cellTopLeft: Vector2 = (localCellCenter - Vector2.ONE * _grid.cellSize * 0.5)
+
 	badge.position = Vector2(
-		localCellCenter.x - badge.size.x * 0.5,
-		localCellCenter.y - badge.size.y * 0.5,
+		cellTopLeft.x + _grid.cellSize - badge.size.x - MERCENARY_BADGE_MARGIN,
+		cellTopLeft.y + MERCENARY_BADGE_MARGIN,
 	)
 
 	return badge

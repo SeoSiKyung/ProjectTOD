@@ -548,6 +548,8 @@ func _RefreshMercenaryAssignmentLabels() -> void:
 
 
 func _UpdateSelectedMercenaryTargetFocus() -> void:
+	_deploymentInfoView.ClearMercenaryHighlights()
+
 	if _selectedMercenaryKey < 0:
 		_deploymentGridView.ClearFocusedCell()
 		return
@@ -570,6 +572,7 @@ func _UpdateSelectedMercenaryTargetFocus() -> void:
 			return
 
 	_deploymentGridView.SetFocusedCell(targetCell)
+	_deploymentInfoView.SetMercenaryHighlight(targetCell, true)
 
 
 func _UpdateMercenaryButtonStates() -> void:
