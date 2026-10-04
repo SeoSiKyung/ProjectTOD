@@ -1,7 +1,6 @@
 class_name DefenseRuntime
 extends RefCounted
 
-var deploymentManager: DefenseDeploymentManager
 var mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
 
 var unitGroupManager: DefenseUnitGroupManager
@@ -15,8 +14,9 @@ var timeManager: DefenseTimeManager
 var targetingManager: DefenseTargetingManager
 var combatManager: DefenseCombatManager
 
-var monsterPoolManager: DefensePoolManager.MonsterPoolManager
 var unitLifecycle: DefenseUnitLifecycle
+var mercenaryBuffService: DefenseMercenaryBuffService
+var characterRemovalService: DefenseCharacterRemovalService
 
 var deploymentController: DefenseDeploymentController
 var installableDeploymentController: DefenseInstallableDeploymentController

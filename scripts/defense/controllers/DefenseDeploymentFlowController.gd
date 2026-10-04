@@ -160,14 +160,6 @@ func _RemoveCurrentPhaseAtCell(cell: Vector2i) -> void:
 
 	phaseHandler.Remove(cell)
 
-
-func _RefreshPlacementPreview() -> void:
-	var phaseHandler: DefenseDeploymentPhaseHandler = _GetCurrentPhaseHandler()
-	if phaseHandler == null:
-		return
-
-	phaseHandler.RefreshPlacementPreview()
-
 #endregion
 
 

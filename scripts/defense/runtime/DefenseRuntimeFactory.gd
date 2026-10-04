@@ -13,13 +13,11 @@ static func Create(
 	var stageSnapshot: StageSnapshot = unitRuntime.GetStageSnapshot()
 
 	# Deployment / entity state
-	runtime.deploymentManager = DefenseDeploymentManager.new()
+	var deploymentManager: DefenseDeploymentManager = DefenseDeploymentManager.new()
 
 	var installableDeploymentManager: DefenseInstallableDeploymentManager = DefenseInstallableDeploymentManager.new()
 
-	runtime.mercenaryAssignmentManager = DefenseMercenaryAssignmentManager.new(
-		runtime.deploymentManager
-	)
+	runtime.mercenaryAssignmentManager = DefenseMercenaryAssignmentManager.new(deploymentManager)
 
 	runtime.unitGroupManager = DefenseUnitGroupManager.new()
 	runtime.machineManager = DefenseMachineManager.new()
@@ -39,11 +37,28 @@ static func Create(
 
 	var monsterPool: Node2D = pools.get_node("MonsterPool")
 
-	runtime.monsterPoolManager = DefensePoolManager.MonsterPoolManager.new(monsterPool)
+	var monsterPoolManager: DefensePoolManager.MonsterPoolManager = (
+		DefensePoolManager.MonsterPoolManager.new(monsterPool)
+	)
 
 	var unitFactory: DefenseUnitFactory = DefenseUnitFactory.new(friendlyUnits)
 
 	runtime.unitLifecycle = DefenseUnitLifecycle.new(unitRuntime)
+
+	runtime.mercenaryBuffService = DefenseMercenaryBuffService.new(
+		deploymentManager,
+		runtime.mercenaryAssignmentManager,
+		runtime.unitGroupManager,
+	)
+
+	runtime.characterRemovalService = DefenseCharacterRemovalService.new(
+		runtime.unitGroupManager,
+		runtime.machineManager,
+		runtime.trapManager,
+		runtime.monsterManager,
+		monsterPoolManager,
+		runtime.unitLifecycle,
+	)
 
 	var battleContext: DefenseBattleFacade = DefenseBattleFacade.new(
 		unitRuntime,
@@ -60,7 +75,7 @@ static func Create(
 
 	# Controllers
 	runtime.deploymentController = DefenseDeploymentController.new(
-		runtime.deploymentManager,
+		deploymentManager,
 		runtime.unitGroupManager,
 		unitFactory,
 		navigationService,
@@ -69,7 +84,7 @@ static func Create(
 
 	runtime.installableDeploymentController = DefenseInstallableDeploymentController.new(
 		installableDeploymentManager,
-		runtime.deploymentManager,
+		deploymentManager,
 		runtime.machineManager,
 		runtime.trapManager,
 		unitFactory,
@@ -80,7 +95,7 @@ static func Create(
 
 	runtime.spawnController = DefenseSpawnController.new(
 		spawnPositionManager,
-		runtime.monsterPoolManager,
+		monsterPoolManager,
 		runtime.monsterManager,
 		runtime.unitLifecycle,
 	)

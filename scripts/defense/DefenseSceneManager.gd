@@ -36,7 +36,6 @@ var _unitRuntime: UnitRuntime
 
 var _spawnDataList: Array[DefenseSpawnData] = []
 
-var _deploymentManager: DefenseDeploymentManager
 var _mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
 
 var _unitGroupManager: DefenseUnitGroupManager
@@ -49,11 +48,11 @@ var _timeManager: DefenseTimeManager
 var _targetingManager: DefenseTargetingManager
 var _combatManager: DefenseCombatManager
 var _unitLifecycle: DefenseUnitLifecycle
+var _mercenaryBuffService: DefenseMercenaryBuffService
+var _characterRemovalService: DefenseCharacterRemovalService
 var _deploymentController: DefenseDeploymentController
 var _installableDeploymentController: DefenseInstallableDeploymentController
 var _spawnController: DefenseSpawnController
-
-var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
 
 var _pendingDefeat: bool = false
 var _cpDestroyed: bool = false
@@ -165,7 +164,6 @@ func _InitializeRuntime() -> void:
 
 
 func _AssignRuntimeReferences(runtime: DefenseRuntime) -> void:
-	_deploymentManager = runtime.deploymentManager
 	_mercenaryAssignmentManager = runtime.mercenaryAssignmentManager
 
 	_unitGroupManager = runtime.unitGroupManager
@@ -179,8 +177,9 @@ func _AssignRuntimeReferences(runtime: DefenseRuntime) -> void:
 	_targetingManager = runtime.targetingManager
 	_combatManager = runtime.combatManager
 
-	_monsterPoolManager = runtime.monsterPoolManager
 	_unitLifecycle = runtime.unitLifecycle
+	_mercenaryBuffService = runtime.mercenaryBuffService
+	_characterRemovalService = runtime.characterRemovalService
 
 	_deploymentController = runtime.deploymentController
 	_installableDeploymentController = runtime.installableDeploymentController
@@ -220,7 +219,7 @@ func _PrepareBattle() -> bool:
 		_RollbackBattlePreparation()
 		return false
 
-	if not _ApplyMercenaryBuffs():
+	if not _mercenaryBuffService.Apply():
 		push_error("DefenseSceneManager: 용병 버프 적용에 실패했습니다.")
 		_RollbackBattlePreparation()
 		return false
@@ -234,7 +233,7 @@ func _RollbackBattlePreparation() -> void:
 	if _unitLifecycle.IsManagedUnit(_cp):
 		_unitLifecycle.UnregisterUnit(_cp)
 
-	_unitGroupManager.ClearStatBonuses()
+	_mercenaryBuffService.Clear()
 	_unitGroupManager.ResetVitals()
 	_deploymentController.RollbackBattlePreparation()
 	_installableDeploymentController.RollbackBattlePreparation()
@@ -291,7 +290,8 @@ func _FinishDefense(isVictory: bool) -> DefenseResult:
 	set_process(false)
 	set_physics_process(false)
 
-	_CleanupBattle()
+	if not _CleanupBattle():
+		push_error("DefenseSceneManager: 전투 종료 정리가 완전히 완료되지 않았습니다.")
 
 	DefenseFinished.emit(result)
 
@@ -334,20 +334,23 @@ func _CreateResult(isVictory: bool) -> DefenseResult:
 	return result
 
 
-func _CleanupBattle() -> void:
-	_CleanupCharacters(_unitGroupManager)
-	_CleanupCharacters(_machineManager)
-	_CleanupCharacters(_trapManager)
-	_CleanupCharacters(_monsterManager, _monsterPoolManager)
+func _CleanupBattle() -> bool:
+	if not _characterRemovalService.CleanupAll():
+		push_error("DefenseSceneManager: Character 정리에 실패했습니다.")
+		return false
 
 	if _unitLifecycle.IsManagedUnit(_cp):
-		_unitLifecycle.UnregisterUnit(_cp)
+		if not _unitLifecycle.UnregisterUnit(_cp):
+			push_error("DefenseSceneManager: CP Runtime 해제에 실패했습니다.")
+			return false
 
 	_unitGroupManager.Clear()
 	_machineManager.Clear()
 	_trapManager.Clear()
 	_monsterManager.Clear()
 	_cpManager.Clear()
+
+	return true
 
 #endregion
 
@@ -643,82 +646,11 @@ func _IsHeroUnitGroup(character: Unit) -> bool:
 
 
 func _IsHeroAssignedToCP() -> bool:
-	var heroAssignment: DefenseMercenaryAssignmentManager.DefenseMercenaryAssignment = (
-		_mercenaryAssignmentManager.GetHeroAssignment()
-	)
+	var heroAssignment: DefenseMercenaryAssignmentManager.DefenseMercenaryAssignment = _mercenaryAssignmentManager.GetHeroAssignment()
 	if heroAssignment == null:
 		return false
 
 	return heroAssignment.targetType == DefenseMercenaryAssignmentManager.TargetType.CP
-
-#endregion
-
-
-#region Mercenary Buff
-
-func _ApplyMercenaryBuffs() -> bool:
-	_unitGroupManager.ClearStatBonuses()
-
-	if not _ApplyUnitGroupMercenaryBuffs():
-		return false
-
-	return _ApplyCPMercenaryBuffs()
-
-
-func _ApplyUnitGroupMercenaryBuffs() -> bool:
-	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
-	for cell: Vector2i in cells:
-		var mercenaryKey: int = _mercenaryAssignmentManager.GetMercenaryKeyByUnitCell(cell)
-		if mercenaryKey < 0:
-			continue
-
-		var buffDataList: Array[MercenaryBuffData] = GameDataManager.GetMercenaryBuffData(
-			mercenaryKey
-		)
-		for buffData: MercenaryBuffData in buffDataList:
-			if not _unitGroupManager.AddStatBonusToUnitGroup(
-				cell,
-				buffData.statType,
-				buffData.flatValue,
-				buffData.ratioValue,
-			):
-				return false
-
-	return true
-
-
-func _ApplyCPMercenaryBuffs() -> bool:
-	var mercenaryKey: int = _mercenaryAssignmentManager.GetCPMercenaryKey()
-	if mercenaryKey < 0:
-		return true
-
-	var buffDataList: Array[MercenaryBuffData] = GameDataManager.GetMercenaryBuffData(mercenaryKey)
-	for buffData: MercenaryBuffData in buffDataList:
-		if not _unitGroupManager.AddStatBonusToAllUnitGroups(
-			buffData.statType,
-			buffData.flatValue,
-			buffData.ratioValue,
-		):
-			return false
-
-	return true
-
-
-func _RemoveCPMercenaryBuffs() -> bool:
-	var mercenaryKey: int = _mercenaryAssignmentManager.GetCPMercenaryKey()
-	if mercenaryKey < 0:
-		return true
-
-	var buffDataList: Array[MercenaryBuffData] = GameDataManager.GetMercenaryBuffData(mercenaryKey)
-	for buffData: MercenaryBuffData in buffDataList:
-		if not _unitGroupManager.RemoveStatBonusFromAllUnitGroups(
-			buffData.statType,
-			buffData.flatValue,
-			buffData.ratioValue,
-		):
-			return false
-
-	return true
 
 #endregion
 
@@ -739,28 +671,17 @@ func _OnMonsterSpawnBatchRequested(spawnPointKey: int, characterKey: int, count:
 #endregion
 
 
-#region Character Lifecycle
+#region Battle Events
 
 func _OnCharacterDied(character: Unit) -> void:
 	if _phase != DefensePhase.BATTLE or character == null:
 		return
 
-	var characterType: CharacterData.CharacterType = character.characterType
-	var isHeroUnitGroup: bool = _IsHeroUnitGroup(character)
-
-	var characterManager: DefenseCharacterManager = _GetCharacterManager(characterType)
-	if characterManager == null:
-		return
-
-	if characterType == CharacterData.CharacterType.MONSTER:
-		if not _RemoveCharacter(character, characterManager, _monsterPoolManager):
-			return
-	else:
-		if not _RemoveCharacter(character, characterManager):
-			return
-
-	if isHeroUnitGroup:
+	if _IsHeroUnitGroup(character):
 		_pendingDefeat = true
+
+	if not _characterRemovalService.Remove(character):
+		return
 
 
 func _OnCPDestroyed() -> void:
@@ -772,89 +693,16 @@ func _OnCPDestroyed() -> void:
 
 	_cpDestroyed = true
 
-	if not _RemoveCPMercenaryBuffs():
+	if not _mercenaryBuffService.RemoveCPBuffs():
 		push_error("DefenseSceneManager: 지휘소 용병 버프 제거에 실패했습니다.")
 
 	if _IsHeroAssignedToCP():
 		_pendingDefeat = true
 
-
-func _RemoveCharacter(
-	character: Unit,
-	characterManager: DefenseCharacterManager,
-	poolManager: DefensePoolManager = null,
-) -> bool:
-	if character == null:
-		return false
-
-	# 먼저 전투 데이터에서 제거한다. 실패하면 Pool로 보내면 안 된다.
-	if not characterManager.UnregisterCharacter(character):
-		push_error("DefenseSceneManager: Character 연결 해제에 실패했습니다. unitId: " + str(character.unitId))
-		return false
-
-	# 그 다음 Runtime 제거 + Pool 반환.
-	if poolManager != null:
-		if not _unitLifecycle.ReturnToPool(character, poolManager):
-			push_error(
-				"DefenseSceneManager: Character Pool 반환에 실패했습니다. unitId: " + str(character.unitId)
-			)
-			return false
-	else:
-		if not _unitLifecycle.DestroyUnit(character):
-			push_error(
-				"DefenseSceneManager: Character 제거에 실패했습니다. unitId: " + str(character.unitId)
-			)
-			return false
-
-	return true
-
-
-func _CleanupCharacters(
-	characterManager: DefenseCharacterManager,
-	poolManager: DefensePoolManager = null,
-) -> void:
-	while characterManager.GetCharacterCount() > 0:
-		var lastIndex: int = characterManager.GetCharacterCount() - 1
-		var character: Unit = characterManager.GetCharacterByIndex(lastIndex)
-
-		if not characterManager.UnregisterCharacter(character):
-			push_error(
-				"DefenseSceneManager: Character 연결 해제에 실패했습니다. unitId: " + str(character.unitId)
-			)
-			break
-
-		var removed: bool
-		if poolManager != null:
-			removed = _unitLifecycle.ReturnToPool(character, poolManager)
-		else:
-			removed = _unitLifecycle.DestroyUnit(character)
-
-		if not removed:
-			push_error(
-				"DefenseSceneManager: Character 정리에 실패했습니다. unitId: " + str(character.unitId)
-			)
-			break
 #endregion
 
 
 #region Helper
-
-func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
-	match characterType:
-		CharacterData.CharacterType.UNIT:
-			return _unitGroupManager
-
-		CharacterData.CharacterType.MACHINE:
-			return _machineManager
-
-		CharacterData.CharacterType.TRAP:
-			return _trapManager
-
-		CharacterData.CharacterType.MONSTER:
-			return _monsterManager
-
-	return null
-
 
 func _CalculateAttackBufferCapacity() -> int:
 	if _startData == null:
