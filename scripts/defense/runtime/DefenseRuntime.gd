@@ -1,0 +1,23 @@
+class_name DefenseRuntime
+extends RefCounted
+
+var deploymentManager: DefenseDeploymentManager
+var mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
+
+var unitGroupManager: DefenseUnitGroupManager
+var machineManager: DefenseMachineManager
+var trapManager: DefenseTrapManager
+var monsterManager: DefenseMonsterManager
+
+var cpManager: DefenseCPManager
+var spawnManager: DefenseSpawnManager
+var timeManager: DefenseTimeManager
+var targetingManager: DefenseTargetingManager
+var combatManager: DefenseCombatManager
+
+var monsterPoolManager: DefensePoolManager.MonsterPoolManager
+var unitLifecycle: DefenseUnitLifecycle
+
+var deploymentController: DefenseDeploymentController
+var installableDeploymentController: DefenseInstallableDeploymentController
+var spawnController: DefenseSpawnController

@@ -33,12 +33,10 @@ var initialUnitCapacity: int = StageSnapshot.DEFAULT_SLOT_CAPACITY
 
 var _navigationService: NavigationService
 var _unitRuntime: UnitRuntime
-var _battleContext: DefenseBattleFacade
 
 var _spawnDataList: Array[DefenseSpawnData] = []
 
 var _deploymentManager: DefenseDeploymentManager
-var _installableDeploymentManager: DefenseInstallableDeploymentManager
 var _mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
 
 var _unitGroupManager: DefenseUnitGroupManager
@@ -47,7 +45,6 @@ var _trapManager: DefenseTrapManager
 var _monsterManager: DefenseMonsterManager
 var _cpManager: DefenseCPManager
 var _spawnManager: DefenseSpawnManager
-var _spawnPositionManager: DefenseSpawnPositionManager
 var _timeManager: DefenseTimeManager
 var _targetingManager: DefenseTargetingManager
 var _combatManager: DefenseCombatManager
@@ -57,7 +54,6 @@ var _installableDeploymentController: DefenseInstallableDeploymentController
 var _spawnController: DefenseSpawnController
 
 var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
-var _unitFactory: DefenseUnitFactory
 
 var _pendingDefeat: bool = false
 var _cpDestroyed: bool = false
@@ -78,7 +74,7 @@ func _ready() -> void:
 	if not _unitRuntime.Initialize(_navigationService, initialUnitCapacity):
 		return
 
-	_InitializeManagers()
+	_InitializeRuntime()
 
 
 func Initialize(startData: DefenseStartData) -> bool:
@@ -155,81 +151,51 @@ func _InitializeNavigation() -> bool:
 	return true
 
 
-func _InitializeManagers() -> void:
-	_deploymentManager = DefenseDeploymentManager.new()
-	_installableDeploymentManager = DefenseInstallableDeploymentManager.new()
-	_mercenaryAssignmentManager = DefenseMercenaryAssignmentManager.new(_deploymentManager)
+func _InitializeRuntime() -> void:
+	var runtime := DefenseRuntimeFactory.Create(
+		_spawnPoints,
+		_pools,
+		_friendlyUnits,
+		_navigationService,
+		_unitRuntime,
+	)
 
-	_unitGroupManager = DefenseUnitGroupManager.new()
+	_AssignRuntimeReferences(runtime)
+	_ConnectRuntimeSignals()
+
+
+func _AssignRuntimeReferences(runtime: DefenseRuntime) -> void:
+	_deploymentManager = runtime.deploymentManager
+	_mercenaryAssignmentManager = runtime.mercenaryAssignmentManager
+
+	_unitGroupManager = runtime.unitGroupManager
+	_machineManager = runtime.machineManager
+	_trapManager = runtime.trapManager
+	_monsterManager = runtime.monsterManager
+
+	_cpManager = runtime.cpManager
+	_spawnManager = runtime.spawnManager
+	_timeManager = runtime.timeManager
+	_targetingManager = runtime.targetingManager
+	_combatManager = runtime.combatManager
+
+	_monsterPoolManager = runtime.monsterPoolManager
+	_unitLifecycle = runtime.unitLifecycle
+
+	_deploymentController = runtime.deploymentController
+	_installableDeploymentController = runtime.installableDeploymentController
+	_spawnController = runtime.spawnController
+
+
+func _ConnectRuntimeSignals() -> void:
 	_unitGroupManager.CharacterDied.connect(_OnCharacterDied)
-
-	_machineManager = DefenseMachineManager.new()
 	_machineManager.CharacterDied.connect(_OnCharacterDied)
-
-	_trapManager = DefenseTrapManager.new()
 	_trapManager.CharacterDied.connect(_OnCharacterDied)
-
-	_monsterManager = DefenseMonsterManager.new()
 	_monsterManager.CharacterDied.connect(_OnCharacterDied)
 
-	_cpManager = DefenseCPManager.new()
 	_cpManager.CPDestroyed.connect(_OnCPDestroyed)
 
-	_spawnManager = DefenseSpawnManager.new()
 	_spawnManager.MonsterSpawnBatchRequested.connect(_OnMonsterSpawnBatchRequested)
-
-	_spawnPositionManager = DefenseSpawnPositionManager.new(
-		_spawnPoints,
-		_navigationService,
-		_unitRuntime.GetStageSnapshot(),
-	)
-
-	_timeManager = DefenseTimeManager.new()
-
-	var monsterPool: Node2D = _pools.get_node("MonsterPool")
-	_monsterPoolManager = DefensePoolManager.MonsterPoolManager.new(monsterPool)
-
-	_unitFactory = DefenseUnitFactory.new(_friendlyUnits)
-
-	_unitLifecycle = DefenseUnitLifecycle.new(_unitRuntime)
-
-	_battleContext = DefenseBattleFacade.new(
-		_unitRuntime,
-		_unitGroupManager,
-		_machineManager,
-		_trapManager,
-		_monsterManager,
-		_cpManager,
-	)
-	_targetingManager = DefenseTargetingManager.new(_battleContext, _unitRuntime)
-	_unitLifecycle.UnitUnregistered.connect(_targetingManager.RemoveUnit)
-	_combatManager = DefenseCombatManager.new(_battleContext)
-
-	_deploymentController = DefenseDeploymentController.new(
-		_deploymentManager,
-		_unitGroupManager,
-		_unitFactory,
-		_navigationService,
-		_unitLifecycle,
-	)
-	_installableDeploymentController = DefenseInstallableDeploymentController.new(
-		_installableDeploymentManager,
-		_deploymentManager,
-		_machineManager,
-		_trapManager,
-		_unitFactory,
-		_navigationService,
-		_unitLifecycle,
-		_unitRuntime.GetStageSnapshot(),
-	)
-
-	_spawnController = DefenseSpawnController.new(
-		_spawnPositionManager,
-		_monsterPoolManager,
-		_monsterManager,
-		_unitLifecycle,
-	)
-	_spawnController.MonstersSpawned.connect(_targetingManager.IssueDefaultChaseTargets)
 
 
 func _PrepareBattle() -> bool:
