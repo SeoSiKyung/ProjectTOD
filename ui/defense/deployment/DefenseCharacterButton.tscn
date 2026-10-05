@@ -1,53 +1,26 @@
-[gd_scene load_steps=4 format=3 uid="uid://bmgug8ct6metr"]
+[gd_scene format=3 uid="uid://bmgug8ct6metr"]
 
+[ext_resource type="PackedScene" uid="uid://e0wb43ldohmd" path="res://ui/common/parchment/ParchmentSelectableCard.tscn" id="1_0ji8k"]
 [ext_resource type="Script" uid="uid://lj07ojouhs7u" path="res://ui/defense/deployment/DefenseCharacterButton.gd" id="1_jbsul"]
-[ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="2_parchment"]
 
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_card_button"]
-
-[node name="DefenseCharacterButton" type="Button" unique_id=1756964881]
+[node name="DefenseCharacterButton" unique_id=753398938 instance=ExtResource("1_0ji8k")]
 custom_minimum_size = Vector2(96, 108)
-offset_right = 96.0
-offset_bottom = 108.0
-theme_override_styles/normal = SubResource("StyleBoxEmpty_card_button")
-theme_override_styles/hover = SubResource("StyleBoxEmpty_card_button")
-theme_override_styles/pressed = SubResource("StyleBoxEmpty_card_button")
-theme_override_styles/hover_pressed = SubResource("StyleBoxEmpty_card_button")
-theme_override_styles/disabled = SubResource("StyleBoxEmpty_card_button")
-theme_override_styles/focus = SubResource("StyleBoxEmpty_card_button")
-toggle_mode = true
 script = ExtResource("1_jbsul")
 
-[node name="ParchmentFrame" parent="." instance=ExtResource("2_parchment")]
-layout_mode = 1
-
-[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1457258286]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-theme_override_constants/margin_left = 8
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 8
-theme_override_constants/margin_bottom = 8
-
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1748748198]
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentContainer" parent_id_path=PackedInt32Array(1905861446) index="0" unique_id=207213714]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 4
 alignment = 1
 
-[node name="TextureRect" type="TextureRect" parent="MarginContainer/VBoxContainer" unique_id=740431134]
+[node name="TextureRect" type="TextureRect" parent="ContentContainer/VBoxContainer" index="0" unique_id=1962803834]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Label" type="Label" parent="MarginContainer/VBoxContainer" unique_id=117066889]
+[node name="Label" type="Label" parent="ContentContainer/VBoxContainer" index="1" unique_id=859218739]
 layout_mode = 2
 theme_type_variation = &"ParchmentLabel"
 theme_override_font_sizes/font_size = 18
@@ -55,16 +28,11 @@ text = "방패병"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Overlay" type="Control" parent="." unique_id=277597965]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+[node name="Overlay" type="Control" parent="." index="3" unique_id=1189665381]
+layout_mode = 2
 mouse_filter = 2
 
-[node name="CountLabel" type="Label" parent="Overlay" unique_id=108191404]
+[node name="CountLabel" type="Label" parent="Overlay" index="0" unique_id=1151482537]
 visible = false
 layout_mode = 1
 anchors_preset = 1

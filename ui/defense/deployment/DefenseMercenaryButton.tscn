@@ -1,72 +1,46 @@
-[gd_scene load_steps=5 format=3 uid="uid://dbgwa8a4cy7vm"]
+[gd_scene format=3 uid="uid://dbgwa8a4cy7vm"]
 
+[ext_resource type="PackedScene" uid="uid://e0wb43ldohmd" path="res://ui/common/parchment/ParchmentSelectableCard.tscn" id="1_jfvg2"]
 [ext_resource type="Script" uid="uid://s5qqcmtrrbpg" path="res://ui/defense/deployment/DefenseMercenaryButton.gd" id="1_ven0h"]
-[ext_resource type="PackedScene" path="res://ui/common/parchment/ParchmentFrame.tscn" id="2_parchment"]
 [ext_resource type="PackedScene" uid="uid://c5h8m2q7v1n4s" path="res://ui/common/parchment/ParchmentBadge.tscn" id="3_badge"]
 
-[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_transparent"]
-
-[node name="DefenseMercenaryButton" type="PanelContainer" unique_id=124484913]
+[node name="DefenseMercenaryButton" unique_id=753398938 instance=ExtResource("1_jfvg2")]
 custom_minimum_size = Vector2(150, 0)
-offset_right = 150.0
-offset_bottom = 176.0
-theme_override_styles/panel = SubResource("StyleBoxEmpty_transparent")
 script = ExtResource("1_ven0h")
 
-[node name="ParchmentFrame" parent="." unique_id=1234069865 instance=ExtResource("2_parchment")]
-layout_mode = 2
-
-[node name="SelectButton" type="Button" parent="." unique_id=500879030]
-layout_mode = 2
-theme_override_styles/normal = SubResource("StyleBoxEmpty_transparent")
-theme_override_styles/hover = SubResource("StyleBoxEmpty_transparent")
-theme_override_styles/pressed = SubResource("StyleBoxEmpty_transparent")
-theme_override_styles/hover_pressed = SubResource("StyleBoxEmpty_transparent")
-theme_override_styles/disabled = SubResource("StyleBoxEmpty_transparent")
-theme_override_styles/focus = SubResource("StyleBoxEmpty_transparent")
-toggle_mode = true
-
-[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1457258286]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/margin_left = 8
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 8
-theme_override_constants/margin_bottom = 8
-
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1748748198]
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentContainer" parent_id_path=PackedInt32Array(1905861446) index="0" unique_id=1253373640]
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 4
 alignment = 1
 
-[node name="TextureRect" type="TextureRect" parent="MarginContainer/VBoxContainer" unique_id=733487713]
+[node name="TextureRect" type="TextureRect" parent="ContentContainer/VBoxContainer" index="0" unique_id=1672250586]
 custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="NameLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=255627767]
+[node name="NameLabel" type="Label" parent="ContentContainer/VBoxContainer" index="1" unique_id=2010460329]
 layout_mode = 2
 theme_type_variation = &"ParchmentLabel"
 theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
 
-[node name="BuffGrid" type="GridContainer" parent="MarginContainer/VBoxContainer" unique_id=1117258031]
+[node name="BuffGrid" type="GridContainer" parent="ContentContainer/VBoxContainer" index="2" unique_id=626529334]
 layout_mode = 2
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 2
 columns = 3
 
-[node name="StatHeader" type="Label" parent="MarginContainer/VBoxContainer/BuffGrid" unique_id=227554103]
+[node name="StatHeader" type="Label" parent="ContentContainer/VBoxContainer/BuffGrid" index="0" unique_id=670828725]
 custom_minimum_size = Vector2(38, 0)
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
 theme_override_font_sizes/font_size = 14
 text = "스탯"
 
-[node name="FlatHeader" type="Label" parent="MarginContainer/VBoxContainer/BuffGrid" unique_id=754979296]
+[node name="FlatHeader" type="Label" parent="ContentContainer/VBoxContainer/BuffGrid" index="1" unique_id=1284969211]
 custom_minimum_size = Vector2(38, 0)
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
@@ -74,7 +48,7 @@ theme_override_font_sizes/font_size = 14
 text = "고정"
 horizontal_alignment = 2
 
-[node name="RatioHeader" type="Label" parent="MarginContainer/VBoxContainer/BuffGrid" unique_id=555420112]
+[node name="RatioHeader" type="Label" parent="ContentContainer/VBoxContainer/BuffGrid" index="2" unique_id=1484739035]
 custom_minimum_size = Vector2(42, 0)
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
@@ -82,7 +56,7 @@ theme_override_font_sizes/font_size = 14
 text = "%"
 horizontal_alignment = 2
 
-[node name="AssignedBadge" parent="." unique_id=1785092335 instance=ExtResource("3_badge")]
+[node name="AssignedBadge" parent="." index="3" unique_id=520095264 instance=ExtResource("3_badge")]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 8

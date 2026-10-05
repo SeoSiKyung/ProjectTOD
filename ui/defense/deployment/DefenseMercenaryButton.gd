@@ -1,125 +1,25 @@
 class_name DefenseMercenaryButton
-extends PanelContainer
+extends ParchmentSelectableCard
 
-signal selected
 signal drag_started(mercenaryKey: int, previewTexture: Texture2D)
 
-const DRAG_START_DISTANCE: float = 12.0
 const BUFF_HEADER_COUNT: int = 3
 const STAT_COLUMN_WIDTH: float = 38.0
 const FLAT_COLUMN_WIDTH: float = 38.0
 const RATIO_COLUMN_WIDTH: float = 42.0
 
-@onready var _parchmentFrame: ParchmentFrame = $ParchmentFrame
-@onready var _selectButton: Button = $SelectButton
-@onready var _icon: TextureRect = $MarginContainer/VBoxContainer/TextureRect
-@onready var _nameLabel: Label = $MarginContainer/VBoxContainer/NameLabel
-@onready var _buffGrid: GridContainer = $MarginContainer/VBoxContainer/BuffGrid
+@onready var _icon: TextureRect = $ContentContainer/VBoxContainer/TextureRect
+@onready var _nameLabel: Label = $ContentContainer/VBoxContainer/NameLabel
+@onready var _buffGrid: GridContainer = $ContentContainer/VBoxContainer/BuffGrid
 @onready var _assignedBadge: ParchmentBadge = $AssignedBadge
 
 var _mercenaryKey: int = -1
-var _dragStartPosition: Vector2 = Vector2.ZERO
-var _isDragArmed: bool = false
 
 
 func _ready() -> void:
-	_selectButton.mouse_entered.connect(_OnMouseEntered)
-	_selectButton.mouse_exited.connect(_OnMouseExited)
-	_selectButton.button_down.connect(_OnButtonDown)
-	_selectButton.button_up.connect(_OnButtonUp)
-	_selectButton.toggled.connect(_OnToggled)
-	_selectButton.pressed.connect(_OnSelectButtonPressed)
-	_selectButton.gui_input.connect(_OnSelectButtonGuiInput)
+	super._ready()
 
-	_parchmentFrame.SetSelected(_selectButton.button_pressed)
-	_parchmentFrame.SetDisabled(_selectButton.disabled)
-
-
-func SetButtonGroup(buttonGroup: ButtonGroup) -> void:
-	_selectButton.button_group = buttonGroup
-
-
-func SetSelected(isSelected: bool) -> void:
-	_selectButton.button_pressed = isSelected
-
-
-func IsSelected() -> bool:
-	return _selectButton.button_pressed
-
-
-func SetDisabled(isDisabled: bool) -> void:
-	_selectButton.disabled = isDisabled
-	_parchmentFrame.SetDisabled(isDisabled)
-
-
-func SetAssigned(isAssigned: bool) -> void:
-	_assignedBadge.visible = isAssigned
-
-
-func GetIconTexture() -> Texture2D:
-	return _icon.texture
-
-
-func _OnSelectButtonGuiInput(event: InputEvent) -> void:
-	if _selectButton.disabled:
-		_isDragArmed = false
-		return
-
-	if event is InputEventMouseButton:
-		var mouseEvent: InputEventMouseButton = event
-		if mouseEvent.button_index != MOUSE_BUTTON_LEFT:
-			return
-
-		_isDragArmed = mouseEvent.pressed
-		if mouseEvent.pressed:
-			_dragStartPosition = mouseEvent.position
-		return
-
-	if event is not InputEventMouseMotion or not _isDragArmed:
-		return
-
-	var motionEvent: InputEventMouseMotion = event
-	if (motionEvent.button_mask & MOUSE_BUTTON_MASK_LEFT) == 0:
-		_isDragArmed = false
-		return
-
-	if motionEvent.position.distance_to(_dragStartPosition) < DRAG_START_DISTANCE:
-		return
-
-	_isDragArmed = false
-	SetSelected(true)
-	drag_started.emit(_mercenaryKey, _icon.texture)
-
-
-func _OnMouseEntered() -> void:
-	if _selectButton.disabled:
-		return
-
-	_parchmentFrame.SetHovered(true)
-
-
-func _OnMouseExited() -> void:
-	_parchmentFrame.SetHovered(false)
-	_parchmentFrame.SetPressed(false)
-
-
-func _OnButtonDown() -> void:
-	if _selectButton.disabled:
-		return
-
-	_parchmentFrame.SetPressed(true)
-
-
-func _OnButtonUp() -> void:
-	_parchmentFrame.SetPressed(false)
-
-
-func _OnToggled(isPressed: bool) -> void:
-	_parchmentFrame.SetSelected(isPressed)
-
-
-func _OnSelectButtonPressed() -> void:
-	selected.emit()
+	drag_requested.connect(_OnDragRequested)
 
 
 func Initialize(mercenaryData: MercenaryData, buffDataList: Array[MercenaryBuffData]) -> void:
@@ -156,6 +56,18 @@ func Initialize(mercenaryData: MercenaryData, buffDataList: Array[MercenaryBuffD
 
 	if not hasBuff:
 		_AddEmptyBuffRow()
+
+
+func SetAssigned(isAssigned: bool) -> void:
+	_assignedBadge.visible = isAssigned
+
+
+func GetIconTexture() -> Texture2D:
+	return _icon.texture
+
+
+func _OnDragRequested() -> void:
+	drag_started.emit(_mercenaryKey, _icon.texture)
 
 
 func _LoadIcon(iconPath: String) -> Texture2D:

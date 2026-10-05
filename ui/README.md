@@ -49,6 +49,7 @@ ParchmentSmallLabel  # 보조 설명/작은 스탯
 
 - `ParchmentFrame.tscn`: 버튼/카드처럼 상태 표현이 필요한 곳에서 쓰는 저수준 양피지 비주얼이다.
 - `ParchmentPanel`: `class_name`으로 등록된 공용 Container 타입이다. 노드 추가 창에서 바로 생성할 수 있고, 양피지 비주얼과 콘텐츠 안전 마진을 자동으로 제공한다.
+- `ParchmentSelectableCard.tscn`: 선택/비활성화 상태와 클릭·드래그 입력을 공통 처리하는 양피지 카드 기반 씬이다.
 - `BasicButton.tscn`: `ParchmentFrame` 위에 투명 Button을 얹은 공용 액션 버튼이다.
 - `ParchmentBadge.tscn`: 작은 상태/태그 표시용 배지다.
 - `ParchmentProgressBar.tscn`: 전투 HUD 등의 HP/MP 게이지용 공용 진행 바다.

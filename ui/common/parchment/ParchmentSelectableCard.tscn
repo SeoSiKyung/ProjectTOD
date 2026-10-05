@@ -1,0 +1,43 @@
+[gd_scene format=3 uid="uid://e0wb43ldohmd"]
+
+[ext_resource type="PackedScene" uid="uid://bmagowpmvi43p" path="res://ui/common/parchment/ParchmentFrame.tscn" id="1_11js3"]
+[ext_resource type="Script" uid="uid://c7fygvvhuwgs0" path="res://ui/common/parchment/ParchmentSelectableCard.gd" id="1_qpth0"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_qpth0"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_sf0w3"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_f7m2k"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_kju6y"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_dvqm4"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_w6uhs"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_d2a5l"]
+
+[node name="ParchmentSelectableCard" type="PanelContainer" unique_id=753398938]
+theme_override_styles/panel = SubResource("StyleBoxEmpty_qpth0")
+script = ExtResource("1_qpth0")
+
+[node name="ParchmentFrame" parent="." unique_id=174521786 instance=ExtResource("1_11js3")]
+layout_mode = 2
+
+[node name="SelectButton" type="Button" parent="." unique_id=926455335]
+layout_mode = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_sf0w3")
+theme_override_styles/pressed = SubResource("StyleBoxEmpty_f7m2k")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_kju6y")
+theme_override_styles/hover_pressed = SubResource("StyleBoxEmpty_dvqm4")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_w6uhs")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_d2a5l")
+toggle_mode = true
+
+[node name="ContentContainer" type="MarginContainer" parent="." unique_id=1905861446]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8

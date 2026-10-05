@@ -133,8 +133,8 @@ func SetCharacterButtons(
 		var characterButton: DefenseCharacterButton = DEFENSE_CHARACTER_BUTTON_SCENE.instantiate()
 		_selectionButtonContainer.add_child(characterButton)
 		characterButton.Initialize(characterData)
-		characterButton.button_group = _characterButtonGroup
-		characterButton.pressed.connect(_OnCharacterButtonPressed.bind(characterData.characterKey))
+		characterButton.SetButtonGroup(_characterButtonGroup)
+		characterButton.selected.connect(_OnCharacterButtonPressed.bind(characterData.characterKey))
 		characterButton.drag_started.connect(_OnCharacterDragStarted)
 
 		_characterButtonByKey[characterData.characterKey] = characterButton
