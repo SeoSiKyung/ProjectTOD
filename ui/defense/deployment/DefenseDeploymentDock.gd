@@ -18,45 +18,10 @@ signal confirm_pressed
 
 
 func _ready() -> void:
-	_StyleRecruitRatioInput()
 	_recruitRatioSpinBox.value_changed.connect(_OnRecruitRatioSpinBoxChanged)
 	_recruitRatioSlider.value_changed.connect(_OnRecruitRatioSliderChanged)
 	_backButton.pressed.connect(_OnBackPressed)
 	_confirmButton.pressed.connect(_OnConfirmPressed)
-
-
-func _StyleRecruitRatioInput() -> void:
-	var lineEdit: LineEdit = _recruitRatioSpinBox.get_line_edit()
-	lineEdit.add_theme_color_override("font_color", Color(0.22745098, 0.12941177, 0.05882353, 1.0))
-	lineEdit.add_theme_color_override("caret_color", Color(0.32156864, 0.22745098, 0.13333334, 1.0))
-	lineEdit.add_theme_font_size_override("font_size", 18)
-
-	var normalStyle: StyleBoxFlat = StyleBoxFlat.new()
-	normalStyle.bg_color = Color(0.82, 0.72, 0.54, 0.34)
-	normalStyle.border_color = Color(0.42, 0.29, 0.15, 0.55)
-	normalStyle.border_width_left = 1
-	normalStyle.border_width_top = 1
-	normalStyle.border_width_right = 1
-	normalStyle.border_width_bottom = 1
-	normalStyle.corner_radius_top_left = 3
-	normalStyle.corner_radius_top_right = 3
-	normalStyle.corner_radius_bottom_right = 3
-	normalStyle.corner_radius_bottom_left = 3
-
-	var focusStyle: StyleBoxFlat = StyleBoxFlat.new()
-	focusStyle.bg_color = Color(0.88, 0.78, 0.58, 0.42)
-	focusStyle.border_color = Color(0.72, 0.52, 0.20, 0.88)
-	focusStyle.border_width_left = 2
-	focusStyle.border_width_top = 2
-	focusStyle.border_width_right = 2
-	focusStyle.border_width_bottom = 2
-	focusStyle.corner_radius_top_left = 3
-	focusStyle.corner_radius_top_right = 3
-	focusStyle.corner_radius_bottom_right = 3
-	focusStyle.corner_radius_bottom_left = 3
-
-	lineEdit.add_theme_stylebox_override("normal", normalStyle)
-	lineEdit.add_theme_stylebox_override("focus", focusStyle)
 
 
 func GetButtonContainer() -> HBoxContainer:

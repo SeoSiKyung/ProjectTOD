@@ -1,10 +1,41 @@
 [gd_scene format=3 uid="uid://ktst54qcostj"]
 
 [ext_resource type="Script" uid="uid://dxeofkdwkwrsr" path="res://ui/defense/deployment/DefenseDeploymentDock.gd" id="1_script"]
-[ext_resource type="Script" path="res://ui/common/parchment/ParchmentPanel.gd" id="2_parchment_panel"]
+[ext_resource type="Script" uid="uid://bm64v4nmsuc03" path="res://ui/common/parchment/ParchmentPanel.gd" id="2_parchment_panel"]
 [ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="3_basic_button"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_panel"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_5tjgp"]
+bg_color = Color(0.88, 0.78, 0.58, 0.42)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.72, 0.52, 0.2, 0.88)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_6bkn2"]
+bg_color = Color(0.82, 0.72, 0.54, 0.34)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.29, 0.15, 0.55)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="Theme" id="Theme_3la2n"]
+LineEdit/colors/caret_color = Color(0.32156864, 0.22745098, 0.13333334, 1)
+LineEdit/colors/font_color = Color(0.22745098, 0.12941177, 0.05882353, 1)
+LineEdit/font_sizes/font_size = 18
+LineEdit/styles/focus = SubResource("StyleBoxFlat_5tjgp")
+LineEdit/styles/normal = SubResource("StyleBoxFlat_6bkn2")
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_status"]
 content_margin_left = 8.0
@@ -72,6 +103,7 @@ theme_override_constants/separation = 8
 [node name="RecruitRatioSpinBox" type="SpinBox" parent="ParchmentPanel/DockRow/InfoColumn/UnitControls/RecruitRatio" unique_id=56955055]
 custom_minimum_size = Vector2(96, 0)
 layout_mode = 2
+theme = SubResource("Theme_3la2n")
 max_value = 30.0
 suffix = "%"
 
