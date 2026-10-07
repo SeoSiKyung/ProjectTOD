@@ -1,4 +1,4 @@
-class_name DefenseUnitGroup
+class_name UnitGroup
 extends Unit
 
 var _recruitedPopulation: int = 0

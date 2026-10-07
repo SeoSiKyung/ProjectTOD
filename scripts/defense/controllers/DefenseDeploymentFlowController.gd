@@ -11,7 +11,7 @@ const CP_CELL: Vector2i = Vector2i(4, 1)
 var _defenseSceneManager: DefenseSceneManager
 var _startData: DefenseStartData
 
-var _cp: DefenseCP
+var _cp: CommandPost
 var _deploymentGridView: DefenseDeploymentGridView
 var _deploymentInfoView: DefenseDeploymentInfoView
 var _deploymentView: DefenseDeploymentView
@@ -28,7 +28,7 @@ var _mercenaryAssignmentPhase: DefenseMercenaryAssignmentPhase
 func _init(
 	defenseSceneManager: DefenseSceneManager,
 	startData: DefenseStartData,
-	cp: DefenseCP,
+	cp: CommandPost,
 	deploymentGridView: DefenseDeploymentGridView,
 	deploymentInfoView: DefenseDeploymentInfoView,
 	deploymentView: DefenseDeploymentView,

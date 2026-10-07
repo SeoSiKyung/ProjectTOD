@@ -158,9 +158,7 @@ func BindPreparedUnits() -> bool:
 	for cell: Vector2i in cells:
 		var unit: Unit = _deploymentUnitsByCell.get(cell)
 		if unit == null or not _unitGroupManager.BindUnit(cell, unit):
-			push_error(
-				"DefenseDeploymentController: DefenseUnitGroup 연결에 실패했습니다. cell: " + str(cell)
-			)
+			push_error("DefenseDeploymentController: UnitGroup 연결에 실패했습니다. cell: " + str(cell))
 			return false
 
 	return true

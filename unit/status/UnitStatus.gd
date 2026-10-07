@@ -1,4 +1,4 @@
-class_name DefenseObjectStatus
+class_name UnitStatus
 extends RefCounted
 
 var maxHp: int

@@ -124,7 +124,7 @@ func IssueDefaultChaseTargets(monsters: Array[Unit]) -> void:
 	if monsters.is_empty():
 		return
 
-	var cp: DefenseCP = _battleContext.GetCP()
+	var cp: CommandPost = _battleContext.GetCP()
 	if cp != null and _battleContext.IsValidTarget(monsters[0], cp):
 		var startIndex: int = 0
 		while startIndex < monsters.size():
@@ -221,7 +221,7 @@ func _GetDefaultMonsterTarget(monster: Unit) -> Unit:
 	if monster == null:
 		return null
 
-	var cp: DefenseCP = _battleContext.GetCP()
+	var cp: CommandPost = _battleContext.GetCP()
 	if cp != null and _battleContext.IsValidTarget(monster, cp):
 		return cp
 

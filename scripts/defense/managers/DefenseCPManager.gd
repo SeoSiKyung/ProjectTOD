@@ -3,16 +3,16 @@ extends RefCounted
 
 signal CPDestroyed
 
-var _cp: DefenseCP
-var _status: DefenseCPStatus
+var _cp: CommandPost
+var _status: CommandPostStatus
 
 
-func Initialize(cp: DefenseCP, maxHp: int, defense: int, magicDefense: int) -> bool:
+func Initialize(cp: CommandPost, maxHp: int, defense: int, magicDefense: int) -> bool:
 	if maxHp <= 0 or defense < 0 or magicDefense < 0:
 		return false
 
 	_cp = cp
-	_status = DefenseCPStatus.new(maxHp, defense, magicDefense)
+	_status = CommandPostStatus.new(maxHp, defense, magicDefense)
 	return true
 
 
@@ -35,11 +35,11 @@ func ApplyStatBonus(type: CharacterStats.Type, flatValue: int, ratioValue: int) 
 	return _status.AddStatBonus(type, flatValue, ratioValue)
 
 
-func GetCP() -> DefenseCP:
+func GetCP() -> CommandPost:
 	return _cp
 
 
-func GetStatus() -> DefenseCPStatus:
+func GetStatus() -> CommandPostStatus:
 	return _status
 
 

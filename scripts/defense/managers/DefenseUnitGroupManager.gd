@@ -2,8 +2,8 @@ class_name DefenseUnitGroupManager
 extends DefenseCharacterManager
 
 var _preparedPopulationByCell: Dictionary[Vector2i, int] = { }
-var _unitGroupByCell: Dictionary[Vector2i, DefenseUnitGroup] = { }
-var _cellByUnitGroup: Dictionary[DefenseUnitGroup, Vector2i] = { }
+var _unitGroupByCell: Dictionary[Vector2i, UnitGroup] = { }
+var _cellByUnitGroup: Dictionary[UnitGroup, Vector2i] = { }
 var _totalRecruitedPopulation: int = 0
 
 
@@ -44,11 +44,11 @@ func BindUnit(cell: Vector2i, unit: Unit) -> bool:
 	if not _preparedPopulationByCell.has(cell) or _unitGroupByCell.has(cell):
 		return false
 
-	if not unit is DefenseUnitGroup:
-		push_error("DefenseUnitGroupManager: DefenseUnitGroup이 아닌 Unit입니다. cell: " + str(cell))
+	if not unit is UnitGroup:
+		push_error("DefenseUnitGroupManager: UnitGroup이 아닌 Unit입니다. cell: " + str(cell))
 		return false
 
-	var unitGroup: DefenseUnitGroup = unit as DefenseUnitGroup
+	var unitGroup: UnitGroup = unit as UnitGroup
 	if unitGroup.characterType != CharacterData.CharacterType.UNIT:
 		return false
 
@@ -66,10 +66,10 @@ func BindUnit(cell: Vector2i, unit: Unit) -> bool:
 
 
 func UnregisterCharacter(character: Unit) -> bool:
-	if not character is DefenseUnitGroup or not HasCharacter(character):
+	if not character is UnitGroup or not HasCharacter(character):
 		return false
 
-	var unitGroup: DefenseUnitGroup = character as DefenseUnitGroup
+	var unitGroup: UnitGroup = character as UnitGroup
 	var cell: Vector2i = _cellByUnitGroup.get(unitGroup, Vector2i(-1, -1))
 
 	if not super.UnregisterCharacter(unitGroup):
@@ -83,10 +83,10 @@ func UnregisterCharacter(character: Unit) -> bool:
 
 
 func TakeDamage(character: Unit, damage: int) -> bool:
-	if not character is DefenseUnitGroup or not HasCharacter(character) or character.IsDead():
+	if not character is UnitGroup or not HasCharacter(character) or character.IsDead():
 		return false
 
-	var unitGroup: DefenseUnitGroup = character as DefenseUnitGroup
+	var unitGroup: UnitGroup = character as UnitGroup
 	unitGroup.TakeDamage(damage)
 
 	if unitGroup.IsDead():
@@ -101,7 +101,7 @@ func AddStatBonusToUnitGroup(
 	flatValue: int,
 	ratioValue: int,
 ) -> bool:
-	var unitGroup: DefenseUnitGroup = _unitGroupByCell.get(cell)
+	var unitGroup: UnitGroup = _unitGroupByCell.get(cell)
 	return unitGroup != null and unitGroup.AddStatBonus(type, flatValue, ratioValue)
 
 
@@ -111,7 +111,7 @@ func RemoveStatBonusFromUnitGroup(
 	flatValue: int,
 	ratioValue: int,
 ) -> bool:
-	var unitGroup: DefenseUnitGroup = _unitGroupByCell.get(cell)
+	var unitGroup: UnitGroup = _unitGroupByCell.get(cell)
 	return unitGroup != null and unitGroup.RemoveStatBonus(type, flatValue, ratioValue)
 
 
@@ -120,7 +120,7 @@ func AddStatBonusToAllUnitGroups(
 	flatValue: int,
 	ratioValue: int,
 ) -> bool:
-	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+	for unitGroup: UnitGroup in _unitGroupByCell.values():
 		if not unitGroup.AddStatBonus(type, flatValue, ratioValue):
 			return false
 
@@ -132,7 +132,7 @@ func RemoveStatBonusFromAllUnitGroups(
 	flatValue: int,
 	ratioValue: int,
 ) -> bool:
-	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+	for unitGroup: UnitGroup in _unitGroupByCell.values():
 		if not unitGroup.RemoveStatBonus(type, flatValue, ratioValue):
 			return false
 
@@ -140,12 +140,12 @@ func RemoveStatBonusFromAllUnitGroups(
 
 
 func ClearStatBonuses() -> void:
-	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+	for unitGroup: UnitGroup in _unitGroupByCell.values():
 		unitGroup.ClearStatBonuses()
 
 
 func ResetVitals() -> void:
-	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+	for unitGroup: UnitGroup in _unitGroupByCell.values():
 		unitGroup.ResetVitals()
 
 
@@ -153,7 +153,7 @@ func HasPreparedUnitGroup(cell: Vector2i) -> bool:
 	return _preparedPopulationByCell.has(cell)
 
 
-func GetUnitGroupByCell(cell: Vector2i) -> DefenseUnitGroup:
+func GetUnitGroupByCell(cell: Vector2i) -> UnitGroup:
 	return _unitGroupByCell.get(cell)
 
 
@@ -163,7 +163,7 @@ func GetRecruitedPopulation() -> int:
 
 func GetSurvivingPopulation() -> int:
 	var population: int = 0
-	for unitGroup: DefenseUnitGroup in _unitGroupByCell.values():
+	for unitGroup: UnitGroup in _unitGroupByCell.values():
 		population += unitGroup.GetSurvivingPopulation()
 
 	return population

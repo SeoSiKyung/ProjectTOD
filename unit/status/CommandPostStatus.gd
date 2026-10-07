@@ -1,5 +1,5 @@
-class_name DefenseCPStatus
-extends DefenseObjectStatus
+class_name CommandPostStatus
+extends UnitStatus
 
 var def: int = 0
 var magicDef: int = 0

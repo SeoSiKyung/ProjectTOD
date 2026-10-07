@@ -3,7 +3,7 @@ extends Node2D
 signal DefenseFinished(result: DefenseResult)
 
 @onready var _defenseSceneManager: DefenseSceneManager = $DefenseSceneManager
-@onready var _cp: DefenseCP = $CP
+@onready var _cp: CommandPost = $CP
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
 @onready var _deploymentInfoView: DefenseDeploymentInfoView = $DeploymentInfoView
 

@@ -62,11 +62,11 @@ func GetCharacterByIndex(characterType: CharacterData.CharacterType, index: int)
 	return manager.GetCharacterByIndex(index)
 
 
-func GetCP() -> DefenseCP:
+func GetCP() -> CommandPost:
 	return _cpManager.GetCP()
 
 
-func GetCPStatus() -> DefenseCPStatus:
+func GetCPStatus() -> CommandPostStatus:
 	return _cpManager.GetStatus()
 
 
@@ -78,7 +78,7 @@ func IsValidTarget(attacker: Unit, target: Unit) -> bool:
 		return false
 
 	if target == GetCP():
-		var cpStatus: DefenseCPStatus = GetCPStatus()
+		var cpStatus: CommandPostStatus = GetCPStatus()
 		return (
 			attacker.characterType == CharacterData.CharacterType.MONSTER
 			and cpStatus != null and not cpStatus.IsDestroyed()
@@ -95,7 +95,7 @@ func ApplyDamage(target: Unit, damage: int) -> bool:
 		return false
 
 	if target == GetCP():
-		var cpStatus: DefenseCPStatus = GetCPStatus()
+		var cpStatus: CommandPostStatus = GetCPStatus()
 		if cpStatus == null or cpStatus.IsDestroyed():
 			return false
 

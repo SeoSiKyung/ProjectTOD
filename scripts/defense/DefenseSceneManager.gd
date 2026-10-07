@@ -18,7 +18,7 @@ enum DefensePhase {
 @export var _spawnPoints: Node2D
 @export var _pools: Node
 @export var _friendlyUnits: Node2D
-@export var _cp: DefenseCP
+@export var _cp: CommandPost
 
 @export_group("Navigation")
 @export var navigationData: NavigationData
@@ -400,7 +400,7 @@ func GetElapsedTimeMs() -> int:
 
 
 func GetCPMaxHp() -> int:
-	var status: DefenseCPStatus = _cpManager.GetStatus()
+	var status: CommandPostStatus = _cpManager.GetStatus()
 	if status == null:
 		return 0
 
@@ -408,7 +408,7 @@ func GetCPMaxHp() -> int:
 
 
 func GetCPCurrentHp() -> int:
-	var status: DefenseCPStatus = _cpManager.GetStatus()
+	var status: CommandPostStatus = _cpManager.GetStatus()
 	if status == null:
 		return 0
 
@@ -416,7 +416,7 @@ func GetCPCurrentHp() -> int:
 
 
 func GetCPMaxMp() -> int:
-	var status: DefenseCPStatus = _cpManager.GetStatus()
+	var status: CommandPostStatus = _cpManager.GetStatus()
 	if status == null:
 		return 0
 
@@ -424,7 +424,7 @@ func GetCPMaxMp() -> int:
 
 
 func GetCPCurrentMp() -> int:
-	var status: DefenseCPStatus = _cpManager.GetStatus()
+	var status: CommandPostStatus = _cpManager.GetStatus()
 	if status == null:
 		return 0
 
@@ -633,7 +633,7 @@ func ConfirmMercenaryAssignment() -> bool:
 
 
 func _IsHeroUnitGroup(character: Unit) -> bool:
-	if not character is DefenseUnitGroup:
+	if not character is UnitGroup:
 		return false
 
 	var heroAssignment: DefenseMercenaryAssignmentManager.DefenseMercenaryAssignment = _mercenaryAssignmentManager.GetHeroAssignment()

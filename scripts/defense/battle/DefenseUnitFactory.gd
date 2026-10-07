@@ -1,9 +1,7 @@
 class_name DefenseUnitFactory
 extends RefCounted
 
-const DEFENSE_UNIT_GROUP_SCRIPT: Script = preload(
-	"res://scripts/defense/objects/DefenseUnitGroup.gd"
-)
+const DEFENSE_UNIT_GROUP_SCRIPT: Script = preload("res://unit/types/UnitGroup.gd")
 
 var _parent: Node2D
 
@@ -43,9 +41,9 @@ func Create(characterData: CharacterData, position: Vector2) -> Unit:
 
 	if characterData.characterType == CharacterData.CharacterType.UNIT:
 		unit.set_script(DEFENSE_UNIT_GROUP_SCRIPT)
-		if not unit is DefenseUnitGroup:
+		if not unit is UnitGroup:
 			push_error(
-				"DefenseUnitFactory: DefenseUnitGroup 스크립트 적용에 실패했습니다. key: "
+				"DefenseUnitFactory: UnitGroup 스크립트 적용에 실패했습니다. key: "
 				+ str(characterData.characterKey)
 			)
 			unit.queue_free()

@@ -196,7 +196,7 @@ func _CalculateCPDamage(attacker: Unit) -> int:
 	if attacker.characterType != CharacterData.CharacterType.MONSTER:
 		return -1
 
-	var cpStatus: DefenseCPStatus = _battleContext.GetCPStatus()
+	var cpStatus: CommandPostStatus = _battleContext.GetCPStatus()
 	if cpStatus == null or cpStatus.IsDestroyed():
 		return -1
 
