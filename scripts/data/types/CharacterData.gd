@@ -6,6 +6,7 @@ enum CharacterType {
 	MACHINE,
 	TRAP,
 	MONSTER,
+	COMMAND_POST,
 	COUNT,
 }
 

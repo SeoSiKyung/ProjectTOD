@@ -66,10 +66,6 @@ func GetCP() -> CommandPost:
 	return _cpManager.GetCP()
 
 
-func GetCPStatus() -> CommandPostStatus:
-	return _cpManager.GetStatus()
-
-
 func IsValidTarget(attacker: Unit, target: Unit) -> bool:
 	if not IsManagedUnit(attacker) or not IsManagedUnit(target):
 		return false
@@ -78,10 +74,9 @@ func IsValidTarget(attacker: Unit, target: Unit) -> bool:
 		return false
 
 	if target == GetCP():
-		var cpStatus: CommandPostStatus = GetCPStatus()
 		return (
 			attacker.characterType == CharacterData.CharacterType.MONSTER
-			and cpStatus != null and not cpStatus.IsDestroyed()
+			and target.HasCharacterStats() and not target.IsDead()
 		)
 
 	if not target.HasCharacterStats() or target.IsDead():
@@ -95,8 +90,7 @@ func ApplyDamage(target: Unit, damage: int) -> bool:
 		return false
 
 	if target == GetCP():
-		var cpStatus: CommandPostStatus = GetCPStatus()
-		if cpStatus == null or cpStatus.IsDestroyed():
+		if not target.HasCharacterStats() or target.IsDead():
 			return false
 
 		return _cpManager.TakeDamage(damage)
@@ -130,4 +124,5 @@ func _IsFriendlyType(characterType: CharacterData.CharacterType) -> bool:
 		characterType == CharacterData.CharacterType.UNIT
 		or characterType == CharacterData.CharacterType.MACHINE
 		or characterType == CharacterData.CharacterType.TRAP
+		or characterType == CharacterData.CharacterType.COMMAND_POST
 	)

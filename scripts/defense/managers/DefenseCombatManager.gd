@@ -174,33 +174,13 @@ func _CalculateDamage(attacker: Unit, target: Unit) -> int:
 	if attacker == null or not attacker.HasCharacterStats() or attacker.IsDead():
 		return -1
 
-	var damage: int
-	if target == _battleContext.GetCP():
-		damage = _CalculateCPDamage(attacker)
-	else:
-		if target == null or not target.HasCharacterStats() or target.IsDead():
-			return -1
-
-		if not _battleContext.AreEnemies(attacker, target):
-			return -1
-
-		damage = attacker.CalculateDamage(target)
-
-	if damage < 0:
+	if target == null or not target.HasCharacterStats() or target.IsDead():
 		return -1
 
-	return damage
-
-
-func _CalculateCPDamage(attacker: Unit) -> int:
-	if attacker.characterType != CharacterData.CharacterType.MONSTER:
+	if not _battleContext.AreEnemies(attacker, target):
 		return -1
 
-	var cpStatus: CommandPostStatus = _battleContext.GetCPStatus()
-	if cpStatus == null or cpStatus.IsDestroyed():
-		return -1
-
-	return attacker.CalculateDamageAgainstDefense(cpStatus.def, cpStatus.magicDef)
+	return attacker.CalculateDamage(target)
 
 
 func _AccumulateDamage(targetId: int, damage: int) -> void:

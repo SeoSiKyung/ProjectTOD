@@ -201,7 +201,16 @@ func _PrepareBattle() -> bool:
 	if not _deploymentController.PrepareUnitGroups():
 		return false
 
-	if not _cpManager.Initialize(_cp, _startData.cpMaxHp, _startData.cpDef, _startData.cpMagicDef):
+	var commandPostData: CharacterData = GameDataManager.GetCharacterData(_startData.commandPostKey)
+	if commandPostData == null:
+		push_error(
+			"DefenseSceneManager: 지휘소 CharacterData를 찾을 수 없습니다. key: "
+			+ str(_startData.commandPostKey)
+		)
+		_RollbackBattlePreparation()
+		return false
+
+	if not _cpManager.Initialize(_cp, commandPostData):
 		push_error("DefenseSceneManager: 지휘소 초기화에 실패했습니다.")
 		_RollbackBattlePreparation()
 		return false
@@ -400,35 +409,35 @@ func GetElapsedTimeMs() -> int:
 
 
 func GetCPMaxHp() -> int:
-	var status: CommandPostStatus = _cpManager.GetStatus()
-	if status == null:
+	var cp: CommandPost = _cpManager.GetCP()
+	if cp == null:
 		return 0
 
-	return status.maxHp
+	return cp.maxHp
 
 
 func GetCPCurrentHp() -> int:
-	var status: CommandPostStatus = _cpManager.GetStatus()
-	if status == null:
+	var cp: CommandPost = _cpManager.GetCP()
+	if cp == null:
 		return 0
 
-	return status.currentHp
+	return cp.currentHp
 
 
 func GetCPMaxMp() -> int:
-	var status: CommandPostStatus = _cpManager.GetStatus()
-	if status == null:
+	var cp: CommandPost = _cpManager.GetCP()
+	if cp == null:
 		return 0
 
-	return status.maxMp
+	return cp.maxMp
 
 
 func GetCPCurrentMp() -> int:
-	var status: CommandPostStatus = _cpManager.GetStatus()
-	if status == null:
+	var cp: CommandPost = _cpManager.GetCP()
+	if cp == null:
 		return 0
 
-	return status.currentMp
+	return cp.currentMp
 
 
 func GetRecruitedPopulation() -> int:

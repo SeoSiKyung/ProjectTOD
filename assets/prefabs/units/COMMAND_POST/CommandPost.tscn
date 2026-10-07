@@ -2,7 +2,7 @@
 
 [ext_resource type="PackedScene" uid="uid://dmtwwqwhhf1qk" path="res://assets/prefabs/units/Unit.tscn" id="1_ssf1c"]
 [ext_resource type="Script" uid="uid://bxv6588yo8x8q" path="res://unit/types/CommandPost.gd" id="2_anple"]
-[ext_resource type="Texture2D" uid="uid://cosiom7bhmu3j" path="res://assets/picture/CommandPost.png" id="3_anple"]
+[ext_resource type="Texture2D" uid="uid://cosiom7bhmu3j" path="res://assets/picture/units/COMMAND_POST/CommandPost.png" id="3_anple"]
 
 [node name="CommandPost" unique_id=470747039 instance=ExtResource("1_ssf1c")]
 script = ExtResource("2_anple")

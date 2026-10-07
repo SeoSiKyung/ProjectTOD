@@ -45,11 +45,17 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 				characterType = CharacterData.CharacterType.TRAP
 			"MONSTER":
 				characterType = CharacterData.CharacterType.MONSTER
+			"COMMAND_POST":
+				characterType = CharacterData.CharacterType.COMMAND_POST
 			_:
 				push_error("CharacterTable characterType이 올바르지 않습니다. " + context)
 				continue
 
-		var resourceName: String = characterTypeName + "_" + str(characterKey)
+		var resourceName: String
+		if characterType == CharacterData.CharacterType.COMMAND_POST:
+			resourceName = "CommandPost"
+		else:
+			resourceName = characterTypeName + "_" + str(characterKey)
 		var iconPath: String = (
 			ASSET_BASE_PATH
 			.path_join("picture")
