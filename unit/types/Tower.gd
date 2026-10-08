@@ -1,4 +1,4 @@
-class_name UnitGroup
+class_name Tower
 extends Unit
 
 var _recruitedPopulation: int = 0

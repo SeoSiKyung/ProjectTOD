@@ -96,7 +96,15 @@ func IssueChaseGroupTarget(attackers: Array[Unit], target: Unit) -> bool:
 	if validAttackers.is_empty():
 		return false
 
-	var commandId: int = _unitRuntime.IssueMoveCommand(validAttackers, target.global_position)
+	var movementPolicy: MovementPolicy = _GetMonsterMovementPolicy(validAttackers[0])
+	if movementPolicy == null:
+		return false
+
+	var destination: Vector2 = movementPolicy.GetDestination(validAttackers[0], target)
+	if not destination.is_finite():
+		return false
+
+	var commandId: int = _unitRuntime.IssueMoveCommand(validAttackers, destination)
 	if commandId < 0:
 		for attacker: Unit in validAttackers:
 			_unitRuntime.StopUnit(attacker.unitId)
@@ -124,16 +132,24 @@ func IssueDefaultChaseTargets(monsters: Array[Unit]) -> void:
 	if monsters.is_empty():
 		return
 
-	var cp: CommandPost = _battleContext.GetCP()
-	if cp != null and _battleContext.IsValidTarget(monsters[0], cp):
+	var sharedTarget: Unit = _GetDefaultMonsterTarget(monsters[0])
+	var canUseSharedTarget: bool = (sharedTarget != null)
+	if canUseSharedTarget:
+		for monster: Unit in monsters:
+			if _GetDefaultMonsterTarget(monster) != sharedTarget:
+				canUseSharedTarget = false
+				break
+
+	if canUseSharedTarget:
 		var startIndex: int = 0
 		while startIndex < monsters.size():
 			var endIndex: int = mini(startIndex + CHASE_COMMAND_GROUP_SIZE, monsters.size())
+
 			var group: Array[Unit] = []
 			for index: int in range(startIndex, endIndex):
 				group.append(monsters[index])
 
-			IssueChaseGroupTarget(group, cp)
+			IssueChaseGroupTarget(group, sharedTarget)
 			startIndex = endIndex
 
 		return
@@ -218,47 +234,111 @@ func _HandleMissingTarget(character: Unit, characterType: CharacterData.Characte
 
 
 func _GetDefaultMonsterTarget(monster: Unit) -> Unit:
-	if monster == null:
-		return null
-
-	var cp: CommandPost = _battleContext.GetCP()
-	if cp != null and _battleContext.IsValidTarget(monster, cp):
-		return cp
-
-	return _FindNearestUnitGroup(monster)
-
-
-func _FindNearestUnitGroup(monster: Unit) -> Unit:
 	if monster == null or not _battleContext.IsManagedUnit(monster):
 		return null
 
-	var unitGroupCount: int = _battleContext.GetCharacterCount(CharacterData.CharacterType.UNIT)
+	var policy: TargetPolicy = _GetMonsterTargetPolicy(monster)
+	if policy == null:
+		return null
 
-	var nearestUnitGroup: Unit = null
-	var nearestDistanceSquared: float = INF
-	var nearestUnitId: int = -1
+	var bestTarget: Unit = null
+	var bestPriority: int = TargetPolicy.INVALID_PRIORITY
+	var bestDistanceSquared: float = INF
+	var bestUnitId: int = -1
 
-	for index: int in unitGroupCount:
-		var unitGroup: Unit = _battleContext.GetCharacterByIndex(
-			CharacterData.CharacterType.UNIT,
-			index,
-		)
-		if not _battleContext.IsValidTarget(monster, unitGroup):
-			continue
+	var cp: CommandPost = _battleContext.GetCP()
+	if cp != null and _battleContext.IsValidTarget(monster, cp):
+		var cpPriority: int = policy.GetPriority(monster, cp, TargetPolicy.SelectionContext.DEFAULT)
+		if cpPriority != TargetPolicy.INVALID_PRIORITY:
+			bestTarget = cp
+			bestPriority = cpPriority
+			bestDistanceSquared = _GetFootprintDistanceSquared(monster.unitId, cp.unitId)
+			bestUnitId = cp.unitId
 
-		var distanceSquared: float = _GetFootprintDistanceSquared(monster.unitId, unitGroup.unitId)
-		if (
-			nearestUnitGroup == null or distanceSquared < nearestDistanceSquared
-			or (
-				is_equal_approx(distanceSquared, nearestDistanceSquared)
-				and unitGroup.unitId < nearestUnitId
+	var candidateTypes: Array[CharacterData.CharacterType] = [
+		CharacterData.CharacterType.UNIT,
+		CharacterData.CharacterType.MACHINE,
+		CharacterData.CharacterType.TRAP,
+	]
+	for characterType: CharacterData.CharacterType in candidateTypes:
+		var characterCount: int = _battleContext.GetCharacterCount(characterType)
+		for index: int in characterCount:
+			var candidate: Unit = _battleContext.GetCharacterByIndex(characterType, index)
+			if not _battleContext.IsValidTarget(monster, candidate):
+				continue
+
+			var priority: int = policy.GetPriority(
+				monster,
+				candidate,
+				TargetPolicy.SelectionContext.DEFAULT,
 			)
-		):
-			nearestUnitGroup = unitGroup
-			nearestDistanceSquared = distanceSquared
-			nearestUnitId = unitGroup.unitId
+			if priority == TargetPolicy.INVALID_PRIORITY:
+				continue
 
-	return nearestUnitGroup
+			var distanceSquared: float = _GetFootprintDistanceSquared(
+				monster.unitId,
+				candidate.unitId,
+			)
+
+			if _IsBetterTarget(
+				priority,
+				distanceSquared,
+				candidate.unitId,
+				bestPriority,
+				bestDistanceSquared,
+				bestUnitId,
+			):
+				bestTarget = candidate
+				bestPriority = priority
+				bestDistanceSquared = distanceSquared
+				bestUnitId = candidate.unitId
+
+	return bestTarget
+
+
+func _GetMonsterTargetPolicy(monster: Unit) -> TargetPolicy:
+	if monster == null:
+		return null
+
+	var ai: MonsterAI = monster.get_node_or_null("MonsterAI") as MonsterAI
+	if ai == null:
+		return null
+
+	return ai.GetTargetPolicy()
+
+
+func _GetMonsterMovementPolicy(monster: Unit) -> MovementPolicy:
+	if monster == null:
+		return null
+
+	var ai: MonsterAI = monster.get_node_or_null("MonsterAI") as MonsterAI
+	if ai == null:
+		return null
+
+	return ai.GetMovementPolicy()
+
+
+func _IsBetterTarget(
+	priority: int,
+	distanceSquared: float,
+	unitId: int,
+	bestPriority: int,
+	bestDistanceSquared: float,
+	bestUnitId: int,
+) -> bool:
+	if priority > bestPriority:
+		return true
+
+	if priority < bestPriority:
+		return false
+
+	if distanceSquared < bestDistanceSquared:
+		return true
+
+	if distanceSquared > bestDistanceSquared:
+		return false
+
+	return bestUnitId < 0 or unitId < bestUnitId
 
 
 func _IssueDefaultMonsterChase(monster: Unit) -> bool:
@@ -273,8 +353,19 @@ func _IssueChaseTarget(attacker: Unit, target: Unit) -> bool:
 	if not _battleContext.IsValidTarget(attacker, target):
 		return false
 
+	var movementPolicy: MovementPolicy = _GetMonsterMovementPolicy(attacker)
+	if movementPolicy == null:
+		push_warning(
+			"DefenseTargetingManager: MovementPolicy가 없습니다. unitId: " + str(attacker.unitId)
+		)
+		return false
+
+	var destination: Vector2 = movementPolicy.GetDestination(attacker, target)
+	if not destination.is_finite():
+		return false
+
 	var units: Array[Unit] = [attacker]
-	var commandId: int = _unitRuntime.IssueMoveCommand(units, target.global_position)
+	var commandId: int = _unitRuntime.IssueMoveCommand(units, destination)
 	if commandId < 0:
 		return false
 
@@ -359,7 +450,11 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 		if not _ShouldAcquireTarget(character, characterType, currentTarget):
 			continue
 
-		var newTarget: Unit = _FindNearestEnemyInAcquisitionRange(character)
+		var targetPolicy: TargetPolicy = null
+		if characterType == CharacterData.CharacterType.MONSTER:
+			targetPolicy = _GetMonsterTargetPolicy(character)
+
+		var newTarget: Unit = _FindBestEnemyInAcquisitionRange(character, targetPolicy)
 		if newTarget == null or newTarget == currentTarget:
 			continue
 
@@ -368,7 +463,7 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 	return cursor
 
 
-func _FindNearestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
+func _FindBestEnemyInAcquisitionRange(attacker: Unit, policy: TargetPolicy = null) -> Unit:
 	if attacker == null or not attacker.HasCharacterStats() or attacker.IsDead():
 		return null
 
@@ -382,9 +477,10 @@ func _FindNearestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
 		_candidateUnitIdBuffer,
 	)
 
-	var nearestTarget: Unit = null
-	var nearestDistanceSquared: float = INF
-	var nearestUnitId: int = -1
+	var bestTarget: Unit = null
+	var bestPriority: int = TargetPolicy.INVALID_PRIORITY
+	var bestDistanceSquared: float = INF
+	var bestUnitId: int = -1
 
 	for index: int in candidateCount:
 		var unitId: int = _candidateUnitIdBuffer[index]
@@ -395,22 +491,34 @@ func _FindNearestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
 		if not _battleContext.IsValidTarget(attacker, candidate):
 			continue
 
-		if candidate == _battleContext.GetCP():
-			continue
+		var priority: int = 0
+		if policy != null:
+			priority = policy.GetPriority(
+				attacker,
+				candidate,
+				TargetPolicy.SelectionContext.ACQUISITION,
+			)
+			if priority == TargetPolicy.INVALID_PRIORITY:
+				continue
 
 		var distanceSquared: float = _GetFootprintDistanceSquared(attacker.unitId, candidate.unitId)
 		if distanceSquared > acquisitionRange * acquisitionRange:
 			continue
 
-		if (
-			nearestTarget == null or distanceSquared < nearestDistanceSquared
-			or (is_equal_approx(distanceSquared, nearestDistanceSquared) and unitId < nearestUnitId)
+		if _IsBetterTarget(
+			priority,
+			distanceSquared,
+			unitId,
+			bestPriority,
+			bestDistanceSquared,
+			bestUnitId,
 		):
-			nearestTarget = candidate
-			nearestDistanceSquared = distanceSquared
-			nearestUnitId = unitId
+			bestTarget = candidate
+			bestPriority = priority
+			bestDistanceSquared = distanceSquared
+			bestUnitId = unitId
 
-	return nearestTarget
+	return bestTarget
 
 
 func _ShouldAcquireTarget(
@@ -423,24 +531,22 @@ func _ShouldAcquireTarget(
 			if character.fsm != null and character.fsm.currentState == UnitFSM.State.ATTACK:
 				return false
 
-			return _IsMonsterDefaultTarget(currentTarget)
+			var policy: TargetPolicy = _GetMonsterTargetPolicy(character)
+			if policy == null or currentTarget == null:
+				return false
 
+			var priority: int = policy.GetPriority(
+				character,
+				currentTarget,
+				TargetPolicy.SelectionContext.DEFAULT,
+			)
+			return priority != TargetPolicy.INVALID_PRIORITY
 		CharacterData.CharacterType.UNIT, \
 				CharacterData.CharacterType.MACHINE, \
 				CharacterData.CharacterType.TRAP:
 			return currentTarget == null
 
 	return false
-
-
-func _IsMonsterDefaultTarget(target: Unit) -> bool:
-	if target == null:
-		return false
-
-	if target == _battleContext.GetCP():
-		return true
-
-	return target.characterType == CharacterData.CharacterType.UNIT
 
 
 func _SetAcquiredTarget(

@@ -1,7 +1,7 @@
 class_name DefenseCharacterRemovalService
 extends RefCounted
 
-var _unitGroupManager: DefenseUnitGroupManager
+var _towerManager: DefenseTowerManager
 var _machineManager: DefenseMachineManager
 var _trapManager: DefenseTrapManager
 var _monsterManager: DefenseMonsterManager
@@ -11,14 +11,14 @@ var _unitLifecycle: DefenseUnitLifecycle
 
 
 func _init(
-	unitGroupManager: DefenseUnitGroupManager,
+	towerManager: DefenseTowerManager,
 	machineManager: DefenseMachineManager,
 	trapManager: DefenseTrapManager,
 	monsterManager: DefenseMonsterManager,
 	monsterPoolManager: DefensePoolManager.MonsterPoolManager,
 	unitLifecycle: DefenseUnitLifecycle,
 ) -> void:
-	_unitGroupManager = unitGroupManager
+	_towerManager = towerManager
 	_machineManager = machineManager
 	_trapManager = trapManager
 	_monsterManager = monsterManager
@@ -44,7 +44,7 @@ func Remove(character: Unit) -> bool:
 
 
 func CleanupAll() -> bool:
-	if not _CleanupManager(_unitGroupManager):
+	if not _CleanupManager(_towerManager):
 		return false
 
 	if not _CleanupManager(_machineManager):
@@ -108,7 +108,7 @@ func _CleanupManager(
 func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
 	match characterType:
 		CharacterData.CharacterType.UNIT:
-			return _unitGroupManager
+			return _towerManager
 		CharacterData.CharacterType.MACHINE:
 			return _machineManager
 		CharacterData.CharacterType.TRAP:

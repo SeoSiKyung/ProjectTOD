@@ -3,30 +3,30 @@ extends RefCounted
 
 var _deploymentManager: DefenseDeploymentManager
 var _mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
-var _unitGroupManager: DefenseUnitGroupManager
+var _towerManager: DefenseTowerManager
 
 
 func _init(
 	deploymentManager: DefenseDeploymentManager,
 	mercenaryAssignmentManager: DefenseMercenaryAssignmentManager,
-	unitGroupManager: DefenseUnitGroupManager,
+	towerManager: DefenseTowerManager,
 ) -> void:
 	_deploymentManager = deploymentManager
 	_mercenaryAssignmentManager = mercenaryAssignmentManager
-	_unitGroupManager = unitGroupManager
+	_towerManager = towerManager
 
 
 func Apply() -> bool:
-	_unitGroupManager.ClearStatBonuses()
+	_towerManager.ClearStatBonuses()
 
-	if not _ApplyUnitGroupBuffs():
+	if not _ApplyTowerBuffs():
 		return false
 
 	return _ApplyCPBuffs()
 
 
 func Clear() -> void:
-	_unitGroupManager.ClearStatBonuses()
+	_towerManager.ClearStatBonuses()
 
 
 func RemoveCPBuffs() -> bool:
@@ -36,7 +36,7 @@ func RemoveCPBuffs() -> bool:
 
 	var buffDataList: Array[MercenaryBuffData] = GameDataManager.GetMercenaryBuffData(mercenaryKey)
 	for buffData: MercenaryBuffData in buffDataList:
-		if not _unitGroupManager.RemoveStatBonusFromAllUnitGroups(
+		if not _towerManager.RemoveStatBonusFromAllTowers(
 			buffData.statType,
 			buffData.flatValue,
 			buffData.ratioValue,
@@ -46,7 +46,7 @@ func RemoveCPBuffs() -> bool:
 	return true
 
 
-func _ApplyUnitGroupBuffs() -> bool:
+func _ApplyTowerBuffs() -> bool:
 	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
 	for cell: Vector2i in cells:
 		var mercenaryKey: int = _mercenaryAssignmentManager.GetMercenaryKeyByUnitCell(cell)
@@ -57,7 +57,7 @@ func _ApplyUnitGroupBuffs() -> bool:
 			mercenaryKey
 		)
 		for buffData: MercenaryBuffData in buffDataList:
-			if not _unitGroupManager.AddStatBonusToUnitGroup(
+			if not _towerManager.AddStatBonusToTower(
 				cell,
 				buffData.statType,
 				buffData.flatValue,
@@ -75,7 +75,7 @@ func _ApplyCPBuffs() -> bool:
 
 	var buffDataList: Array[MercenaryBuffData] = GameDataManager.GetMercenaryBuffData(mercenaryKey)
 	for buffData: MercenaryBuffData in buffDataList:
-		if not _unitGroupManager.AddStatBonusToAllUnitGroups(
+		if not _towerManager.AddStatBonusToAllTowers(
 			buffData.statType,
 			buffData.flatValue,
 			buffData.ratioValue,

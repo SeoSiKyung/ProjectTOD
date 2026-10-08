@@ -2,7 +2,7 @@ class_name DefenseBattleFacade
 extends RefCounted
 
 var _unitRuntime: UnitRuntime
-var _unitGroupManager: DefenseUnitGroupManager
+var _towerManager: DefenseTowerManager
 var _machineManager: DefenseMachineManager
 var _trapManager: DefenseTrapManager
 var _monsterManager: DefenseMonsterManager
@@ -11,14 +11,14 @@ var _cpManager: DefenseCPManager
 
 func _init(
 	unitRuntime: UnitRuntime,
-	unitGroupManager: DefenseUnitGroupManager,
+	towerManager: DefenseTowerManager,
 	machineManager: DefenseMachineManager,
 	trapManager: DefenseTrapManager,
 	monsterManager: DefenseMonsterManager,
 	cpManager: DefenseCPManager,
 ) -> void:
 	_unitRuntime = unitRuntime
-	_unitGroupManager = unitGroupManager
+	_towerManager = towerManager
 	_machineManager = machineManager
 	_trapManager = trapManager
 	_monsterManager = monsterManager
@@ -105,7 +105,7 @@ func ApplyDamage(target: Unit, damage: int) -> bool:
 func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
 	match characterType:
 		CharacterData.CharacterType.UNIT:
-			return _unitGroupManager
+			return _towerManager
 
 		CharacterData.CharacterType.MACHINE:
 			return _machineManager

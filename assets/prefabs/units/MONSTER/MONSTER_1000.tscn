@@ -2,8 +2,24 @@
 
 [ext_resource type="PackedScene" uid="uid://dmtwwqwhhf1qk" path="res://assets/prefabs/units/Unit.tscn" id="1_yfh3g"]
 [ext_resource type="Texture2D" uid="uid://bvcbw2jgyhf3v" path="res://assets/picture/units/MONSTER/MONSTER_1000.png" id="2_hvdyi"]
+[ext_resource type="Script" uid="uid://be21utln34skv" path="res://scripts/defense/ai/MonsterAI.gd" id="3_88me7"]
+[ext_resource type="Script" uid="uid://beqh5ci1spgjh" path="res://scripts/defense/ai/targetPolicy/DefaultMonsterTargetPolicy.gd" id="4_0cqyc"]
+[ext_resource type="Script" uid="uid://1sa57r0b7qfa" path="res://scripts/defense/ai/movementPolicy/DefaultChaseMovementPolicy.gd" id="5_ui4mu"]
+
+[sub_resource type="Resource" id="Resource_3d2u5"]
+script = ExtResource("4_0cqyc")
+metadata/_custom_type_script = "uid://beqh5ci1spgjh"
+
+[sub_resource type="Resource" id="Resource_v4jgi"]
+script = ExtResource("5_ui4mu")
+metadata/_custom_type_script = "uid://1sa57r0b7qfa"
 
 [node name="Unit" unique_id=470747039 instance=ExtResource("1_yfh3g")]
 
 [node name="Sprite2D" parent="." index="1" unique_id=617625335]
 texture = ExtResource("2_hvdyi")
+
+[node name="MonsterAI" type="Node" parent="." index="3" unique_id=1920810451]
+script = ExtResource("3_88me7")
+targetPolicy = SubResource("Resource_3d2u5")
+movementPolicy = SubResource("Resource_v4jgi")

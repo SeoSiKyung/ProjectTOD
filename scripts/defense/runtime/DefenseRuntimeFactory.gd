@@ -19,7 +19,7 @@ static func Create(
 
 	runtime.mercenaryAssignmentManager = DefenseMercenaryAssignmentManager.new(deploymentManager)
 
-	runtime.unitGroupManager = DefenseUnitGroupManager.new()
+	runtime.towerManager = DefenseTowerManager.new()
 	runtime.machineManager = DefenseMachineManager.new()
 	runtime.trapManager = DefenseTrapManager.new()
 	runtime.monsterManager = DefenseMonsterManager.new()
@@ -48,11 +48,11 @@ static func Create(
 	runtime.mercenaryBuffService = DefenseMercenaryBuffService.new(
 		deploymentManager,
 		runtime.mercenaryAssignmentManager,
-		runtime.unitGroupManager,
+		runtime.towerManager,
 	)
 
 	runtime.characterRemovalService = DefenseCharacterRemovalService.new(
-		runtime.unitGroupManager,
+		runtime.towerManager,
 		runtime.machineManager,
 		runtime.trapManager,
 		runtime.monsterManager,
@@ -62,7 +62,7 @@ static func Create(
 
 	var battleContext: DefenseBattleFacade = DefenseBattleFacade.new(
 		unitRuntime,
-		runtime.unitGroupManager,
+		runtime.towerManager,
 		runtime.machineManager,
 		runtime.trapManager,
 		runtime.monsterManager,
@@ -76,7 +76,7 @@ static func Create(
 	# Controllers
 	runtime.deploymentController = DefenseDeploymentController.new(
 		deploymentManager,
-		runtime.unitGroupManager,
+		runtime.towerManager,
 		unitFactory,
 		navigationService,
 		runtime.unitLifecycle,

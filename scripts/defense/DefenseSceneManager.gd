@@ -38,7 +38,7 @@ var _spawnDataList: Array[DefenseSpawnData] = []
 
 var _mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
 
-var _unitGroupManager: DefenseUnitGroupManager
+var _towerManager: DefenseTowerManager
 var _machineManager: DefenseMachineManager
 var _trapManager: DefenseTrapManager
 var _monsterManager: DefenseMonsterManager
@@ -166,7 +166,7 @@ func _InitializeRuntime() -> void:
 func _AssignRuntimeReferences(runtime: DefenseRuntime) -> void:
 	_mercenaryAssignmentManager = runtime.mercenaryAssignmentManager
 
-	_unitGroupManager = runtime.unitGroupManager
+	_towerManager = runtime.towerManager
 	_machineManager = runtime.machineManager
 	_trapManager = runtime.trapManager
 	_monsterManager = runtime.monsterManager
@@ -187,7 +187,7 @@ func _AssignRuntimeReferences(runtime: DefenseRuntime) -> void:
 
 
 func _ConnectRuntimeSignals() -> void:
-	_unitGroupManager.CharacterDied.connect(_OnCharacterDied)
+	_towerManager.CharacterDied.connect(_OnCharacterDied)
 	_machineManager.CharacterDied.connect(_OnCharacterDied)
 	_trapManager.CharacterDied.connect(_OnCharacterDied)
 	_monsterManager.CharacterDied.connect(_OnCharacterDied)
@@ -198,7 +198,7 @@ func _ConnectRuntimeSignals() -> void:
 
 
 func _PrepareBattle() -> bool:
-	if not _deploymentController.PrepareUnitGroups():
+	if not _deploymentController.PrepareTowers():
 		return false
 
 	var commandPostData: CharacterData = GameDataManager.GetCharacterData(_startData.commandPostKey)
@@ -234,7 +234,7 @@ func _PrepareBattle() -> bool:
 		return false
 
 	# 전투 시작 시에는 버프가 반영된 최대 체력으로 시작한다.
-	_unitGroupManager.ResetVitals()
+	_towerManager.ResetVitals()
 	return true
 
 
@@ -243,7 +243,7 @@ func _RollbackBattlePreparation() -> void:
 		_unitLifecycle.UnregisterUnit(_cp)
 
 	_mercenaryBuffService.Clear()
-	_unitGroupManager.ResetVitals()
+	_towerManager.ResetVitals()
 	_deploymentController.RollbackBattlePreparation()
 	_installableDeploymentController.RollbackBattlePreparation()
 
@@ -334,9 +334,9 @@ func _CreateResult(isVictory: bool) -> DefenseResult:
 	result.isVictory = isVictory
 	result.cpDestroyed = _cpDestroyed
 
-	result.recruitedPopulation = _unitGroupManager.GetRecruitedPopulation()
-	result.survivingPopulation = _unitGroupManager.GetSurvivingPopulation()
-	result.deadPopulation = _unitGroupManager.GetDeadPopulation()
+	result.recruitedPopulation = _towerManager.GetRecruitedPopulation()
+	result.survivingPopulation = _towerManager.GetSurvivingPopulation()
+	result.deadPopulation = _towerManager.GetDeadPopulation()
 
 	result.elapsedTimeMs = _timeManager.GetElapsedTimeMs()
 
@@ -353,7 +353,7 @@ func _CleanupBattle() -> bool:
 			push_error("DefenseSceneManager: CP Runtime 해제에 실패했습니다.")
 			return false
 
-	_unitGroupManager.Clear()
+	_towerManager.Clear()
 	_machineManager.Clear()
 	_trapManager.Clear()
 	_monsterManager.Clear()
@@ -441,15 +441,15 @@ func GetCPCurrentMp() -> int:
 
 
 func GetRecruitedPopulation() -> int:
-	return _unitGroupManager.GetRecruitedPopulation()
+	return _towerManager.GetRecruitedPopulation()
 
 
 func GetSurvivingPopulation() -> int:
-	return _unitGroupManager.GetSurvivingPopulation()
+	return _towerManager.GetSurvivingPopulation()
 
 
 func GetDeadPopulation() -> int:
-	return _unitGroupManager.GetDeadPopulation()
+	return _towerManager.GetDeadPopulation()
 
 
 func CalculateRecruitedPopulation(recruitRatio: int) -> int:
@@ -641,8 +641,8 @@ func ConfirmMercenaryAssignment() -> bool:
 	return true
 
 
-func _IsHeroUnitGroup(character: Unit) -> bool:
-	if not character is UnitGroup:
+func _IsHeroTower(character: Unit) -> bool:
+	if not character is Tower:
 		return false
 
 	var heroAssignment: DefenseMercenaryAssignmentManager.DefenseMercenaryAssignment = _mercenaryAssignmentManager.GetHeroAssignment()
@@ -651,7 +651,7 @@ func _IsHeroUnitGroup(character: Unit) -> bool:
 	if heroAssignment.targetType != DefenseMercenaryAssignmentManager.TargetType.UNIT_GROUP:
 		return false
 
-	return character == _unitGroupManager.GetUnitGroupByCell(heroAssignment.unitCell)
+	return character == _towerManager.GetTowerByCell(heroAssignment.unitCell)
 
 
 func _IsHeroAssignedToCP() -> bool:
@@ -686,7 +686,7 @@ func _OnCharacterDied(character: Unit) -> void:
 	if _phase != DefensePhase.BATTLE or character == null:
 		return
 
-	if _IsHeroUnitGroup(character):
+	if _IsHeroTower(character):
 		_pendingDefeat = true
 
 	if not _characterRemovalService.Remove(character):
