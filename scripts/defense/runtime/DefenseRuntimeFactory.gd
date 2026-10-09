@@ -19,10 +19,10 @@ static func Create(
 
 	runtime.mercenaryAssignmentManager = DefenseMercenaryAssignmentManager.new(deploymentManager)
 
-	runtime.unitGroupManager = DefenseUnitGroupManager.new()
+	runtime.towerManager = DefenseTowerManager.new()
 	runtime.machineManager = DefenseMachineManager.new()
 	runtime.trapManager = DefenseTrapManager.new()
-	runtime.monsterManager = DefenseMonsterManager.new()
+	runtime.enemyManager = DefenseEnemyManager.new()
 
 	# Battle runtime
 	runtime.cpManager = DefenseCPManager.new()
@@ -35,10 +35,10 @@ static func Create(
 		stageSnapshot,
 	)
 
-	var monsterPool: Node2D = pools.get_node("MonsterPool")
+	var enemyPool: Node2D = pools.get_node("EnemyPool")
 
-	var monsterPoolManager: DefensePoolManager.MonsterPoolManager = (
-		DefensePoolManager.MonsterPoolManager.new(monsterPool)
+	var enemyPoolManager: DefensePoolManager.EnemyPoolManager = (
+		DefensePoolManager.EnemyPoolManager.new(enemyPool)
 	)
 
 	var unitFactory: DefenseUnitFactory = DefenseUnitFactory.new(friendlyUnits)
@@ -48,24 +48,24 @@ static func Create(
 	runtime.mercenaryBuffService = DefenseMercenaryBuffService.new(
 		deploymentManager,
 		runtime.mercenaryAssignmentManager,
-		runtime.unitGroupManager,
+		runtime.towerManager,
 	)
 
 	runtime.characterRemovalService = DefenseCharacterRemovalService.new(
-		runtime.unitGroupManager,
+		runtime.towerManager,
 		runtime.machineManager,
 		runtime.trapManager,
-		runtime.monsterManager,
-		monsterPoolManager,
+		runtime.enemyManager,
+		enemyPoolManager,
 		runtime.unitLifecycle,
 	)
 
 	var battleContext: DefenseBattleFacade = DefenseBattleFacade.new(
 		unitRuntime,
-		runtime.unitGroupManager,
+		runtime.towerManager,
 		runtime.machineManager,
 		runtime.trapManager,
-		runtime.monsterManager,
+		runtime.enemyManager,
 		runtime.cpManager,
 	)
 
@@ -76,7 +76,7 @@ static func Create(
 	# Controllers
 	runtime.deploymentController = DefenseDeploymentController.new(
 		deploymentManager,
-		runtime.unitGroupManager,
+		runtime.towerManager,
 		unitFactory,
 		navigationService,
 		runtime.unitLifecycle,
@@ -95,8 +95,8 @@ static func Create(
 
 	runtime.spawnController = DefenseSpawnController.new(
 		spawnPositionManager,
-		monsterPoolManager,
-		runtime.monsterManager,
+		enemyPoolManager,
+		runtime.enemyManager,
 		runtime.unitLifecycle,
 	)
 
@@ -107,6 +107,4 @@ static func Create(
 
 static func _ConnectInternalSignals(runtime: DefenseRuntime) -> void:
 	runtime.unitLifecycle.UnitUnregistered.connect(runtime.targetingManager.RemoveUnit)
-	runtime.spawnController.MonstersSpawned.connect(
-		runtime.targetingManager.IssueDefaultChaseTargets
-	)
+	runtime.spawnController.EnemiesSpawned.connect(runtime.targetingManager.IssueInitialEnemyChases)

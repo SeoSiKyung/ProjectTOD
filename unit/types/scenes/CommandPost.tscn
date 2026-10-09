@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://dk6pu0cpfq1yw"]
+
+[ext_resource type="PackedScene" uid="uid://k4um3n00uobv" path="res://unit/types/scenes/Unit.tscn" id="1_g106e"]
+[ext_resource type="Script" uid="uid://y5rmi7vs4uxv" path="res://unit/types/scripts/CommandPost.gd" id="2_g106e"]
+
+[node name="CommandPost" unique_id=470747039 instance=ExtResource("1_g106e")]
+script = ExtResource("2_g106e")

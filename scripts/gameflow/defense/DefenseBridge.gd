@@ -1,10 +1,6 @@
 class_name DefenseBridge
 extends Node
 
-const TEMP_CP_MAX_HP: int = 1000
-const TEMP_CP_DEF: int = 0
-const TEMP_CP_MAGIC_DEF: int = 0
-
 const TEMP_AUTO_CROSSBOW_COUNT: int = 2
 const TEMP_CANNON_COUNT: int = 2
 const TEMP_SPIKE_TRAP_COUNT: int = 2
@@ -16,9 +12,7 @@ func CreateStartData(campaign: CampaignState, population: int) -> DefenseStartDa
 	startData.cycle = campaign.cycle
 	startData.population = population
 
-	startData.cpMaxHp = TEMP_CP_MAX_HP
-	startData.cpDef = TEMP_CP_DEF
-	startData.cpMagicDef = TEMP_CP_MAGIC_DEF
+	startData.commandPostKey = 20000
 
 	startData.installableCountByCharacterKey[500] = TEMP_AUTO_CROSSBOW_COUNT
 	startData.installableCountByCharacterKey[501] = TEMP_CANNON_COUNT

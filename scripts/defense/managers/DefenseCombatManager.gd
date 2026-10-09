@@ -10,7 +10,7 @@ var _touchedTargetIds: PackedInt32Array
 var _touchedTargetCount: int = 0
 
 var _attackTickByUnitId: PackedInt32Array
-var _pendingSelfDestructUnits: Array[Unit] = []
+var _pendingSelfDestructUnits: Array[Trap] = []
 
 var _isInitialized: bool = false
 
@@ -45,10 +45,10 @@ func Update() -> void:
 	if not _isInitialized:
 		return
 
-	_UpdateCharacterCombat(CharacterData.CharacterType.UNIT)
+	_UpdateCharacterCombat(CharacterData.CharacterType.TOWER)
 	_UpdateCharacterCombat(CharacterData.CharacterType.MACHINE)
 	_UpdateCharacterCombat(CharacterData.CharacterType.TRAP)
-	_UpdateCharacterCombat(CharacterData.CharacterType.MONSTER)
+	_UpdateCharacterCombat(CharacterData.CharacterType.ENEMY)
 
 
 func AdvanceAttackTick(unitId: int, attackIntervalFrames: int) -> bool:
@@ -138,6 +138,11 @@ func _UpdateAttackerCombat(attacker: Unit) -> void:
 	if not _battleContext.IsManagedUnit(attacker):
 		return
 
+	var trap: Trap = attacker as Trap
+	if trap != null and trap.HasActivated():
+		ResetAttackTick(attacker.unitId)
+		return
+
 	if attacker.fsm == null or attacker.fsm.currentState != UnitFSM.State.ATTACK:
 		ResetAttackTick(attacker.unitId)
 		return
@@ -166,41 +171,21 @@ func _UpdateAttackerCombat(attacker: Unit) -> void:
 	if not QueueAttack(attacker.unitId, target.unitId, damage):
 		return
 
-	if attacker.characterType == CharacterData.CharacterType.TRAP:
-		_pendingSelfDestructUnits.append(attacker)
+	if trap != null and trap.CommitActivation():
+		_pendingSelfDestructUnits.append(trap)
 
 
 func _CalculateDamage(attacker: Unit, target: Unit) -> int:
 	if attacker == null or not attacker.HasCharacterStats() or attacker.IsDead():
 		return -1
 
-	var damage: int
-	if target == _battleContext.GetCP():
-		damage = _CalculateCPDamage(attacker)
-	else:
-		if target == null or not target.HasCharacterStats() or target.IsDead():
-			return -1
-
-		if not _battleContext.AreEnemies(attacker, target):
-			return -1
-
-		damage = attacker.CalculateDamage(target)
-
-	if damage < 0:
+	if target == null or not target.HasCharacterStats() or target.IsDead():
 		return -1
 
-	return damage
-
-
-func _CalculateCPDamage(attacker: Unit) -> int:
-	if attacker.characterType != CharacterData.CharacterType.MONSTER:
+	if not _battleContext.AreEnemies(attacker, target):
 		return -1
 
-	var cpStatus: DefenseCPStatus = _battleContext.GetCPStatus()
-	if cpStatus == null or cpStatus.IsDestroyed():
-		return -1
-
-	return attacker.CalculateDamageAgainstDefense(cpStatus.def, cpStatus.magicDef)
+	return attacker.CalculateDamage(target)
 
 
 func _AccumulateDamage(targetId: int, damage: int) -> void:
@@ -258,14 +243,14 @@ func _EnsureAttackTickCapacity(unitId: int) -> void:
 
 
 func _ResolvePendingSelfDestructs() -> void:
-	for trap: Unit in _pendingSelfDestructUnits:
+	for trap: Trap in _pendingSelfDestructUnits:
+		if not is_instance_valid(trap):
+			continue
+
 		if not _battleContext.IsManagedUnit(trap):
 			continue
 
 		if not trap.HasCharacterStats() or trap.IsDead():
-			continue
-
-		if trap.characterType != CharacterData.CharacterType.TRAP:
 			continue
 
 		_battleContext.ApplyDamage(trap, trap.currentHp)

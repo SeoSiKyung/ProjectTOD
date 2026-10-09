@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://c5ao2e587k877"]
+
+[ext_resource type="PackedScene" uid="uid://k4um3n00uobv" path="res://unit/types/scenes/Unit.tscn" id="1_nus1r"]
+[ext_resource type="Script" uid="uid://bfcje5p4vdmu" path="res://unit/types/scripts/Trap.gd" id="2_3j38b"]
+
+[node name="Trap" unique_id=470747039 instance=ExtResource("1_nus1r")]
+script = ExtResource("2_3j38b")

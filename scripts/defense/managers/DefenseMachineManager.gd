@@ -3,21 +3,15 @@ extends DefenseCharacterManager
 
 
 func AddMachine(machine: Unit, characterData: CharacterData) -> bool:
-	if machine == null:
+	if machine == null or characterData == null:
 		return false
 
-	if characterData == null:
-		push_error("DefenseMachineManager: CharacterData가 없습니다.")
+	if (
+		characterData.characterType != CharacterData.CharacterType.MACHINE
+		or machine.characterType != CharacterData.CharacterType.MACHINE
+		or machine.characterKey != characterData.characterKey
+	):
+		push_error("DefenseMachineManager: Machine 데이터가 일치하지 않습니다.")
 		return false
-
-	if characterData.characterType != CharacterData.CharacterType.MACHINE:
-		push_error(
-			"DefenseMachineManager: MACHINE 타입이 아닌 캐릭터입니다. key: " + str(characterData.characterKey)
-		)
-		return false
-
-	if machine.characterKey != characterData.characterKey:
-		if not machine.ConfigureCharacter(characterData):
-			return false
 
 	return RegisterCharacter(machine)

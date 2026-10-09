@@ -2,7 +2,7 @@ class_name DefenseDeploymentController
 extends RefCounted
 
 var _deploymentManager: DefenseDeploymentManager
-var _unitGroupManager: DefenseUnitGroupManager
+var _towerManager: DefenseTowerManager
 var _unitFactory: DefenseUnitFactory
 var _navigationService: NavigationService
 var _unitLifecycle: DefenseUnitLifecycle
@@ -13,13 +13,13 @@ var _totalPopulation: int = 0
 
 func _init(
 	deploymentManager: DefenseDeploymentManager,
-	unitGroupManager: DefenseUnitGroupManager,
+	towerManager: DefenseTowerManager,
 	unitFactory: DefenseUnitFactory,
 	navigationService: NavigationService,
 	unitLifecycle: DefenseUnitLifecycle,
 ) -> void:
 	_deploymentManager = deploymentManager
-	_unitGroupManager = unitGroupManager
+	_towerManager = towerManager
 	_unitFactory = unitFactory
 	_navigationService = navigationService
 	_unitLifecycle = unitLifecycle
@@ -114,8 +114,8 @@ func UpdateDeployment(cell: Vector2i, characterData: CharacterData, recruitRatio
 	return _ReplaceDeploymentUnit(cell, deployment, characterData, recruitRatio)
 
 
-func PrepareUnitGroups() -> bool:
-	_unitGroupManager.Clear()
+func PrepareTowers() -> bool:
+	_towerManager.Clear()
 
 	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
 	for cell: Vector2i in cells:
@@ -123,31 +123,31 @@ func PrepareUnitGroups() -> bool:
 			cell
 		)
 		if deployment == null:
-			_RollbackUnitGroups()
+			_RollbackTowers()
 			push_error("DefenseDeploymentController: 배치 정보를 찾을 수 없습니다. cell: " + str(cell))
 			return false
 
 		var characterData: CharacterData = GameDataManager.GetCharacterData(deployment.characterKey)
 		if characterData == null:
-			_RollbackUnitGroups()
+			_RollbackTowers()
 			push_error(
 				"DefenseDeploymentController: 존재하지 않는 characterKey입니다. key: "
 				+ str(deployment.characterKey)
 			)
 			return false
 
-		if not _unitGroupManager.AddUnitGroup(
+		if not _towerManager.AddTower(
 			cell,
 			characterData,
 			deployment.recruitRatio,
 			_totalPopulation,
 		):
-			_RollbackUnitGroups()
-			push_error("DefenseDeploymentController: UnitGroup 준비에 실패했습니다. cell: " + str(cell))
+			_RollbackTowers()
+			push_error("DefenseDeploymentController: Tower 준비에 실패했습니다. cell: " + str(cell))
 			return false
 
 	if not _ValidateDeploymentUnits(cells):
-		_RollbackUnitGroups()
+		_RollbackTowers()
 		return false
 
 	return true
@@ -155,19 +155,18 @@ func PrepareUnitGroups() -> bool:
 
 func BindPreparedUnits() -> bool:
 	var cells: Array[Vector2i] = _deploymentManager.GetDeploymentCells()
+
 	for cell: Vector2i in cells:
-		var unit: Unit = _deploymentUnitsByCell.get(cell)
-		if unit == null or not _unitGroupManager.BindUnit(cell, unit):
-			push_error(
-				"DefenseDeploymentController: DefenseUnitGroup 연결에 실패했습니다. cell: " + str(cell)
-			)
+		var tower: Tower = _deploymentUnitsByCell.get(cell) as Tower
+		if tower == null or not _towerManager.BindUnit(cell, tower):
+			push_error("DefenseDeploymentController: Tower 연결에 실패했습니다. cell: " + str(cell))
 			return false
 
 	return true
 
 
 func RollbackBattlePreparation() -> void:
-	_RollbackUnitGroups()
+	_RollbackTowers()
 
 
 func CompleteDeployment() -> void:
@@ -216,18 +215,17 @@ func _ReplaceDeploymentUnit(
 func _ValidateDeploymentUnits(cells: Array[Vector2i]) -> bool:
 	for cell: Vector2i in cells:
 		var unit: Unit = _deploymentUnitsByCell.get(cell)
-		if unit == null or not _unitGroupManager.HasPreparedUnitGroup(cell):
+		if unit == null or not _towerManager.HasPreparedTower(cell):
 			push_error(
-				"DefenseDeploymentController: 배치 데이터와 UnitGroup 준비 정보가 일치하지 않습니다. cell: "
-				+ str(cell)
+				"DefenseDeploymentController: 배치 데이터와 Tower 준비 정보가 일치하지 않습니다. cell: " + str(cell)
 			)
 			return false
 
 	return true
 
 
-func _RollbackUnitGroups() -> void:
-	_unitGroupManager.Clear()
+func _RollbackTowers() -> void:
+	_towerManager.Clear()
 
 
 func _CanRecruitPopulation(recruitRatio: int) -> bool:

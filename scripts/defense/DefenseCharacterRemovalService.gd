@@ -1,29 +1,29 @@
 class_name DefenseCharacterRemovalService
 extends RefCounted
 
-var _unitGroupManager: DefenseUnitGroupManager
+var _towerManager: DefenseTowerManager
 var _machineManager: DefenseMachineManager
 var _trapManager: DefenseTrapManager
-var _monsterManager: DefenseMonsterManager
+var _enemyManager: DefenseEnemyManager
 
-var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
+var _enemyPoolManager: DefensePoolManager.EnemyPoolManager
 var _unitLifecycle: DefenseUnitLifecycle
 
 
 func _init(
-	unitGroupManager: DefenseUnitGroupManager,
+	towerManager: DefenseTowerManager,
 	machineManager: DefenseMachineManager,
 	trapManager: DefenseTrapManager,
-	monsterManager: DefenseMonsterManager,
-	monsterPoolManager: DefensePoolManager.MonsterPoolManager,
+	enemyManager: DefenseEnemyManager,
+	enemyPoolManager: DefensePoolManager.EnemyPoolManager,
 	unitLifecycle: DefenseUnitLifecycle,
 ) -> void:
-	_unitGroupManager = unitGroupManager
+	_towerManager = towerManager
 	_machineManager = machineManager
 	_trapManager = trapManager
-	_monsterManager = monsterManager
+	_enemyManager = enemyManager
 
-	_monsterPoolManager = monsterPoolManager
+	_enemyPoolManager = enemyPoolManager
 	_unitLifecycle = unitLifecycle
 
 
@@ -37,14 +37,14 @@ func Remove(character: Unit) -> bool:
 
 	var poolManager: DefensePoolManager
 
-	if character.characterType == CharacterData.CharacterType.MONSTER:
-		poolManager = _monsterPoolManager
+	if character.characterType == CharacterData.CharacterType.ENEMY:
+		poolManager = _enemyPoolManager
 
 	return _RemoveFromManager(character, characterManager, poolManager)
 
 
 func CleanupAll() -> bool:
-	if not _CleanupManager(_unitGroupManager):
+	if not _CleanupManager(_towerManager):
 		return false
 
 	if not _CleanupManager(_machineManager):
@@ -53,7 +53,7 @@ func CleanupAll() -> bool:
 	if not _CleanupManager(_trapManager):
 		return false
 
-	if not _CleanupManager(_monsterManager, _monsterPoolManager):
+	if not _CleanupManager(_enemyManager, _enemyPoolManager):
 		return false
 
 	return true
@@ -107,13 +107,13 @@ func _CleanupManager(
 
 func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
 	match characterType:
-		CharacterData.CharacterType.UNIT:
-			return _unitGroupManager
+		CharacterData.CharacterType.TOWER:
+			return _towerManager
 		CharacterData.CharacterType.MACHINE:
 			return _machineManager
 		CharacterData.CharacterType.TRAP:
 			return _trapManager
-		CharacterData.CharacterType.MONSTER:
-			return _monsterManager
+		CharacterData.CharacterType.ENEMY:
+			return _enemyManager
 
 	return null

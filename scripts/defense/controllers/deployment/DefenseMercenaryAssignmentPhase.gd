@@ -112,7 +112,7 @@ func _RefreshAssignmentLabels() -> void:
 
 		var cell: Vector2i
 		match assignment.targetType:
-			DefenseMercenaryAssignmentManager.TargetType.UNIT_GROUP:
+			DefenseMercenaryAssignmentManager.TargetType.TOWER:
 				cell = assignment.unitCell
 			DefenseMercenaryAssignmentManager.TargetType.CP:
 				cell = _cpCell
@@ -138,7 +138,7 @@ func _UpdateSelectedTargetFocus() -> void:
 
 	var targetCell: Vector2i
 	match assignment.targetType:
-		DefenseMercenaryAssignmentManager.TargetType.UNIT_GROUP:
+		DefenseMercenaryAssignmentManager.TargetType.TOWER:
 			targetCell = assignment.unitCell
 		DefenseMercenaryAssignmentManager.TargetType.CP:
 			targetCell = _cpCell

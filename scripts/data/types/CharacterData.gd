@@ -2,10 +2,12 @@ class_name CharacterData
 extends RefCounted
 
 enum CharacterType {
-	UNIT,
+	ALLY,
+	COMMAND_POST,
+	TOWER,
 	MACHINE,
 	TRAP,
-	MONSTER,
+	ENEMY,
 	COUNT,
 }
 
@@ -14,7 +16,6 @@ var characterName: String
 var characterType: CharacterType
 var iconPath: String
 var parchmentIconPath: String
-var prefabPath: String
 var stats: CharacterStats
 
 
@@ -24,7 +25,6 @@ func _init(
 	pCharacterType: CharacterType,
 	pIconPath: String,
 	pParchmentIconPath: String,
-	pPrefabPath: String,
 	pStats: CharacterStats,
 ) -> void:
 	characterKey = pCharacterKey
@@ -32,5 +32,4 @@ func _init(
 	characterType = pCharacterType
 	iconPath = pIconPath
 	parchmentIconPath = pParchmentIconPath
-	prefabPath = pPrefabPath
 	stats = pStats

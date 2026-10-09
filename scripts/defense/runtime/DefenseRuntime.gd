@@ -3,10 +3,10 @@ extends RefCounted
 
 var mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
 
-var unitGroupManager: DefenseUnitGroupManager
+var towerManager: DefenseTowerManager
 var machineManager: DefenseMachineManager
 var trapManager: DefenseTrapManager
-var monsterManager: DefenseMonsterManager
+var enemyManager: DefenseEnemyManager
 
 var cpManager: DefenseCPManager
 var spawnManager: DefenseSpawnManager

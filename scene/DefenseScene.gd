@@ -3,7 +3,6 @@ extends Node2D
 signal DefenseFinished(result: DefenseResult)
 
 @onready var _defenseSceneManager: DefenseSceneManager = $DefenseSceneManager
-@onready var _cp: DefenseCP = $CP
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
 @onready var _deploymentInfoView: DefenseDeploymentInfoView = $DeploymentInfoView
 
@@ -15,6 +14,8 @@ var _deploymentFlowController: DefenseDeploymentFlowController
 
 var _startData: DefenseStartData
 
+var _cp: CommandPost
+
 var _isBattlePaused: bool = false
 
 
@@ -22,6 +23,9 @@ var _isBattlePaused: bool = false
 
 func _ready() -> void:
 	_InitializeStartData()
+
+	if not _CreateCP():
+		return
 
 	_deploymentFlowController = DefenseDeploymentFlowController.new(
 		_defenseSceneManager,
@@ -62,6 +66,41 @@ func Initialize(startData: DefenseStartData) -> void:
 
 #region Initialize
 
+func _CreateCP() -> bool:
+	var characterData: CharacterData = GameDataManager.GetCharacterData(_startData.commandPostKey)
+	if characterData == null:
+		push_error(
+			"DefenseScene: CP CharacterData를 찾을 수 없습니다. key: " + str(_startData.commandPostKey)
+		)
+		return false
+
+	if characterData.characterType != CharacterData.CharacterType.COMMAND_POST:
+		push_error("DefenseScene: COMMAND_POST 타입이 아닙니다.")
+		return false
+
+	var unit: Unit = UnitFactory.Create(characterData)
+	var cp: CommandPost = unit as CommandPost
+	if cp == null:
+		if unit != null:
+			unit.free()
+
+		push_error("DefenseScene: CommandPost 생성에 실패했습니다.")
+		return false
+
+	cp.name = "CP"
+	cp.playerControllable = false
+	cp.moveSpeed = 0
+
+	if not _defenseSceneManager.BindCP(cp):
+		cp.free()
+		return false
+
+	_cp = cp
+	add_child(_cp)
+
+	return true
+
+
 func _InitializeStartData() -> void:
 	if _startData != null:
 		return
@@ -70,9 +109,7 @@ func _InitializeStartData() -> void:
 	_startData.cycle = 1
 	_startData.population = 100
 
-	_startData.cpMaxHp = 1000
-	_startData.cpDef = 0
-	_startData.cpMagicDef = 0
+	_startData.commandPostKey = 20000
 
 	_startData.installableCountByCharacterKey[500] = 2
 	_startData.installableCountByCharacterKey[501] = 2

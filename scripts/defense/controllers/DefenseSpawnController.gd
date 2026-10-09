@@ -1,23 +1,23 @@
 class_name DefenseSpawnController
 extends RefCounted
 
-signal MonstersSpawned(monsters: Array[Unit])
+signal EnemiesSpawned(enemies: Array[Unit])
 
 var _spawnPositionManager: DefenseSpawnPositionManager
-var _monsterPoolManager: DefensePoolManager.MonsterPoolManager
-var _monsterManager: DefenseMonsterManager
+var _enemyPoolManager: DefensePoolManager.EnemyPoolManager
+var _enemyManager: DefenseEnemyManager
 var _unitLifecycle: DefenseUnitLifecycle
 
 
 func _init(
 	spawnPositionManager: DefenseSpawnPositionManager,
-	monsterPoolManager: DefensePoolManager.MonsterPoolManager,
-	monsterManager: DefenseMonsterManager,
+	enemyPoolManager: DefensePoolManager.EnemyPoolManager,
+	enemyManager: DefenseEnemyManager,
 	unitLifecycle: DefenseUnitLifecycle,
 ) -> void:
 	_spawnPositionManager = spawnPositionManager
-	_monsterPoolManager = monsterPoolManager
-	_monsterManager = monsterManager
+	_enemyPoolManager = enemyPoolManager
+	_enemyManager = enemyManager
 	_unitLifecycle = unitLifecycle
 
 
@@ -33,21 +33,19 @@ func SpawnBatch(spawnPointKey: int, characterData: CharacterData, count: int) ->
 	if characterData == null:
 		return
 
-	var spawnedMonsters: Array[Unit] = []
+	var spawnedEnemies: Array[Unit] = []
 	var nextCandidateIndex: int = 0
 
 	for i: int in range(count):
-		var monster: Unit = _monsterPoolManager.SpawnMonster(
-			characterData,
-			spawnPoint.global_position,
-		)
-		if monster == null:
+		var enemy: Enemy = _enemyPoolManager.SpawnEnemy(characterData, spawnPoint.global_position)
+		if enemy == null:
 			push_error(
-				"DefenseSpawnController: Monster 생성에 실패했습니다. characterKey: " + str(characterData.characterKey)
+				"DefenseSpawnController: Enemy 생성에 실패했습니다. characterKey: "
+				+ str(characterData.characterKey)
 			)
 			break
 
-		var halfSize: int = monster.GetHalfSize()
+		var halfSize: int = enemy.GetHalfSize()
 		var candidateIndex: int = _spawnPositionManager.FindNextCandidateIndex(
 			spawnPoint.global_position,
 			halfSize,
@@ -55,29 +53,29 @@ func SpawnBatch(spawnPointKey: int, characterData: CharacterData, count: int) ->
 		)
 
 		if candidateIndex < 0:
-			_monsterPoolManager.Return(monster)
+			_enemyPoolManager.Return(enemy)
 			push_error(
-				"DefenseSpawnController: Monster Spawn 위치를 찾지 못했습니다. spawnPointKey: "
+				"DefenseSpawnController: Enemy Spawn 위치를 찾지 못했습니다. spawnPointKey: "
 				+ str(spawnPointKey)
 			)
 			break
 
 		nextCandidateIndex = candidateIndex + 1
-		monster.global_position = _spawnPositionManager.GetSpawnPosition(
+		enemy.global_position = _spawnPositionManager.GetSpawnPosition(
 			spawnPoint.global_position,
 			halfSize,
 			candidateIndex,
 		)
 
-		if not _unitLifecycle.RegisterUnit(monster):
-			_monsterPoolManager.Return(monster)
+		if not _unitLifecycle.RegisterUnit(enemy):
+			_enemyPoolManager.Return(enemy)
 			continue
 
-		if not _monsterManager.AddMonster(monster, characterData):
-			_unitLifecycle.ReturnToPool(monster, _monsterPoolManager)
+		if not _enemyManager.AddEnemy(enemy, characterData):
+			_unitLifecycle.ReturnToPool(enemy, _enemyPoolManager)
 			continue
 
-		spawnedMonsters.append(monster)
+		spawnedEnemies.append(enemy)
 
-	if not spawnedMonsters.is_empty():
-		MonstersSpawned.emit(spawnedMonsters)
+	if not spawnedEnemies.is_empty():
+		EnemiesSpawned.emit(spawnedEnemies)

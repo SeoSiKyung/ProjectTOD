@@ -1,7 +1,7 @@
 class_name DefenseSpawnManager
 extends RefCounted
 
-signal MonsterSpawnBatchRequested(spawnPointKey: int, characterKey: int, count: int)
+signal EnemySpawnBatchRequested(spawnPointKey: int, characterKey: int, count: int)
 
 var _spawnDataList: Array[DefenseSpawnData] = []
 var _nextSpawnIndex: int = 0
@@ -27,8 +27,4 @@ func IsSpawnFinished() -> bool:
 
 
 func _SpawnGroup(spawnData: DefenseSpawnData) -> void:
-	MonsterSpawnBatchRequested.emit(
-		spawnData.spawnPointKey,
-		spawnData.characterKey,
-		spawnData.count,
-	)
+	EnemySpawnBatchRequested.emit(spawnData.spawnPointKey, spawnData.characterKey, spawnData.count)

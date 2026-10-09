@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://brj3k5wkt2gpk" path="res://ui/defense/hud/DefenseBattleHUDView.gd" id="1_script"]
 [ext_resource type="Script" path="res://ui/common/parchment/ParchmentPanel.gd" id="2_parchment_panel"]
 [ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="3_button"]
-[ext_resource type="PackedScene" uid="uid://dk6t3w9m1p8r2" path="res://ui/common/parchment/ParchmentProgressBar.tscn" id="4_progress"]
+[ext_resource type="PackedScene" uid="uid://dk6t3xam1p8r2" path="res://ui/common/parchment/ParchmentProgressBar.tscn" id="4_progress"]
 
 [node name="DefenseBattleHUDView" type="Control"]
 visible = false

@@ -153,10 +153,9 @@ func BindPreparedInstallables() -> bool:
 		var bindSuccess: bool = false
 		match characterData.characterType:
 			CharacterData.CharacterType.MACHINE:
-				bindSuccess = _machineManager.AddMachine(unit, characterData)
-
+				bindSuccess = _machineManager.AddMachine(unit as Machine, characterData)
 			CharacterData.CharacterType.TRAP:
-				bindSuccess = _trapManager.AddTrap(unit, characterData)
+				bindSuccess = _trapManager.AddTrap(unit as Trap, characterData)
 
 		if not bindSuccess:
 			_RollbackBindings()

@@ -34,22 +34,27 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			push_error("CharacterTable characterName이 비어있습니다. " + context)
 			continue
 
-		var characterTypeName: String = row["characterType"].strip_edges().to_upper()
+		var characterTypeName: String = row["characterType"].strip_edges()
 		var characterType: CharacterData.CharacterType
 		match characterTypeName:
-			"UNIT":
-				characterType = CharacterData.CharacterType.UNIT
+			"ALLY":
+				characterType = CharacterData.CharacterType.ALLY
+			"COMMAND_POST":
+				characterType = CharacterData.CharacterType.COMMAND_POST
+			"TOWER":
+				characterType = CharacterData.CharacterType.TOWER
 			"MACHINE":
 				characterType = CharacterData.CharacterType.MACHINE
 			"TRAP":
 				characterType = CharacterData.CharacterType.TRAP
-			"MONSTER":
-				characterType = CharacterData.CharacterType.MONSTER
+			"ENEMY":
+				characterType = CharacterData.CharacterType.ENEMY
 			_:
 				push_error("CharacterTable characterType이 올바르지 않습니다. " + context)
 				continue
 
-		var resourceName: String = characterTypeName + "_" + str(characterKey)
+		var resourceName: String = "Unit_" + str(characterKey)
+
 		var iconPath: String = (
 			ASSET_BASE_PATH
 			.path_join("picture")
@@ -64,13 +69,6 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			.path_join("parchment")
 			.path_join(characterTypeName)
 			.path_join(resourceName + ".png")
-		)
-		var prefabPath: String = (
-			ASSET_BASE_PATH
-			.path_join("prefabs")
-			.path_join("units")
-			.path_join(characterTypeName)
-			.path_join(resourceName + ".tscn")
 		)
 
 		var maxHp: int = _ReadInt(row, "maxHp", 1, "CharacterTable", context)
@@ -148,7 +146,6 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			characterType,
 			iconPath,
 			parchmentIconPath,
-			prefabPath,
 			stats,
 		)
 		characterDataByKey[characterKey] = characterData
@@ -197,7 +194,7 @@ static func LoadMercenaryData() -> Dictionary[int, MercenaryData]:
 
 		var isHero: bool = isHeroValue
 
-		var resourceName: String = "MERCENARY_" + str(mercenaryKey)
+		var resourceName: String = "Unit_" + str(characterKey)
 		var iconPath: String = (
 			ASSET_BASE_PATH
 			.path_join("picture")
@@ -402,9 +399,9 @@ static func ValidateDefenseSpawnDataReferences(
 				isValid = false
 				continue
 
-			if characterData.characterType != CharacterData.CharacterType.MONSTER:
+			if characterData.characterType != CharacterData.CharacterType.ENEMY:
 				push_error(
-					"DefenseSpawnTable에는 MONSTER 타입만 등록할 수 있습니다. cycle: "
+					"DefenseSpawnTable에는 ENEMY 타입만 등록할 수 있습니다. cycle: "
 					+ str(cycle) + ", key: " + str(spawnData.characterKey)
 				)
 				isValid = false
@@ -451,7 +448,7 @@ static func _ReadBool(
 	tableName: String,
 	context: String = "",
 ) -> Variant:
-	var text: String = row[fieldName].strip_edges().to_upper()
+	var text: String = row[fieldName].strip_edges()
 	match text:
 		"1":
 			return true

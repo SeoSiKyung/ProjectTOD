@@ -19,6 +19,7 @@ var attackReturnState: State = State.IDLE
 
 var _followTarget: Unit = null
 var _chaseTarget: Unit = null
+var _lastChaseDestination: Vector2 = Vector2.INF
 var _attackTarget: Unit = null
 var _stunTimeLeft: float = 0.0
 
@@ -94,12 +95,39 @@ func RequestChase(target: Unit) -> bool:
 	if not _IsValidTarget(target):
 		return false
 
+	if _chaseTarget != target:
+		_lastChaseDestination = Vector2.INF
+
 	_followTarget = null
 	_chaseTarget = target
 	_attackTarget = null
 	attackReturnState = State.IDLE
+
 	_ChangeState(State.CHASE)
 	return true
+
+
+func NeedsChaseRepath(destination: Vector2, repathDistance: float) -> bool:
+	if currentState != State.CHASE:
+		return false
+
+	if not destination.is_finite() or repathDistance < 0.0:
+		return false
+
+	if not _lastChaseDestination.is_finite():
+		return true
+
+	return _lastChaseDestination.distance_squared_to(destination) >= repathDistance * repathDistance
+
+
+func MarkChasePathIssued(destination: Vector2) -> void:
+	if currentState != State.CHASE:
+		return
+
+	if not destination.is_finite():
+		return
+
+	_lastChaseDestination = destination
 
 
 func RequestAttackMove() -> bool:
@@ -130,6 +158,7 @@ func RequestAttack(target: Unit, returnState: State = State.IDLE) -> bool:
 
 	if returnState == State.CHASE:
 		_chaseTarget = target
+		_lastChaseDestination = Vector2.INF
 	else:
 		_chaseTarget = null
 
@@ -306,6 +335,8 @@ func _ClearTargets() -> void:
 	_chaseTarget = null
 	_attackTarget = null
 	attackReturnState = State.IDLE
+
+	_lastChaseDestination = Vector2.INF
 
 
 func _ChangeState(nextState: State) -> void:

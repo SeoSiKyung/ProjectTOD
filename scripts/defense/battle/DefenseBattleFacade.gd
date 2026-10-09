@@ -2,26 +2,26 @@ class_name DefenseBattleFacade
 extends RefCounted
 
 var _unitRuntime: UnitRuntime
-var _unitGroupManager: DefenseUnitGroupManager
+var _towerManager: DefenseTowerManager
 var _machineManager: DefenseMachineManager
 var _trapManager: DefenseTrapManager
-var _monsterManager: DefenseMonsterManager
+var _enemyManager: DefenseEnemyManager
 var _cpManager: DefenseCPManager
 
 
 func _init(
 	unitRuntime: UnitRuntime,
-	unitGroupManager: DefenseUnitGroupManager,
+	towerManager: DefenseTowerManager,
 	machineManager: DefenseMachineManager,
 	trapManager: DefenseTrapManager,
-	monsterManager: DefenseMonsterManager,
+	enemyManager: DefenseEnemyManager,
 	cpManager: DefenseCPManager,
 ) -> void:
 	_unitRuntime = unitRuntime
-	_unitGroupManager = unitGroupManager
+	_towerManager = towerManager
 	_machineManager = machineManager
 	_trapManager = trapManager
-	_monsterManager = monsterManager
+	_enemyManager = enemyManager
 	_cpManager = cpManager
 
 
@@ -38,9 +38,9 @@ func GetUnit(unitId: int) -> Unit:
 
 func AreEnemies(a: Unit, b: Unit) -> bool:
 	if _IsFriendlyType(a.characterType):
-		return b.characterType == CharacterData.CharacterType.MONSTER
+		return b.characterType == CharacterData.CharacterType.ENEMY
 
-	if a.characterType == CharacterData.CharacterType.MONSTER:
+	if a.characterType == CharacterData.CharacterType.ENEMY:
 		return _IsFriendlyType(b.characterType)
 
 	return false
@@ -62,12 +62,8 @@ func GetCharacterByIndex(characterType: CharacterData.CharacterType, index: int)
 	return manager.GetCharacterByIndex(index)
 
 
-func GetCP() -> DefenseCP:
+func GetCP() -> Unit:
 	return _cpManager.GetCP()
-
-
-func GetCPStatus() -> DefenseCPStatus:
-	return _cpManager.GetStatus()
 
 
 func IsValidTarget(attacker: Unit, target: Unit) -> bool:
@@ -78,10 +74,9 @@ func IsValidTarget(attacker: Unit, target: Unit) -> bool:
 		return false
 
 	if target == GetCP():
-		var cpStatus: DefenseCPStatus = GetCPStatus()
 		return (
-			attacker.characterType == CharacterData.CharacterType.MONSTER
-			and cpStatus != null and not cpStatus.IsDestroyed()
+			attacker.characterType == CharacterData.CharacterType.ENEMY
+			and target.HasCharacterStats() and not target.IsDead()
 		)
 
 	if not target.HasCharacterStats() or target.IsDead():
@@ -95,8 +90,7 @@ func ApplyDamage(target: Unit, damage: int) -> bool:
 		return false
 
 	if target == GetCP():
-		var cpStatus: DefenseCPStatus = GetCPStatus()
-		if cpStatus == null or cpStatus.IsDestroyed():
+		if not target.HasCharacterStats() or target.IsDead():
 			return false
 
 		return _cpManager.TakeDamage(damage)
@@ -110,8 +104,8 @@ func ApplyDamage(target: Unit, damage: int) -> bool:
 
 func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
 	match characterType:
-		CharacterData.CharacterType.UNIT:
-			return _unitGroupManager
+		CharacterData.CharacterType.TOWER:
+			return _towerManager
 
 		CharacterData.CharacterType.MACHINE:
 			return _machineManager
@@ -119,15 +113,16 @@ func _GetCharacterManager(characterType: CharacterData.CharacterType) -> Defense
 		CharacterData.CharacterType.TRAP:
 			return _trapManager
 
-		CharacterData.CharacterType.MONSTER:
-			return _monsterManager
+		CharacterData.CharacterType.ENEMY:
+			return _enemyManager
 
 	return null
 
 
 func _IsFriendlyType(characterType: CharacterData.CharacterType) -> bool:
 	return (
-		characterType == CharacterData.CharacterType.UNIT
+		characterType == CharacterData.CharacterType.TOWER
 		or characterType == CharacterData.CharacterType.MACHINE
 		or characterType == CharacterData.CharacterType.TRAP
+		or characterType == CharacterData.CharacterType.COMMAND_POST
 	)

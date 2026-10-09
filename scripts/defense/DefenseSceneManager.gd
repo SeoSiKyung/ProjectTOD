@@ -6,7 +6,7 @@ const ATTACK_BUFFER_CAPACITY_MULTIPLIER: int = 2
 signal DefenseFinished(result: DefenseResult)
 
 enum DefensePhase {
-	UNIT_DEPLOYMENT,
+	TOWER_DEPLOYMENT,
 	INSTALLABLE_DEPLOYMENT,
 	MERCENARY_ASSIGNMENT,
 	BATTLE,
@@ -18,7 +18,6 @@ enum DefensePhase {
 @export var _spawnPoints: Node2D
 @export var _pools: Node
 @export var _friendlyUnits: Node2D
-@export var _cp: DefenseCP
 
 @export_group("Navigation")
 @export var navigationData: NavigationData
@@ -26,6 +25,8 @@ enum DefensePhase {
 @export_range(8, 256, 8) var navigationAnchorConnectionCacheCapacity: int = 64
 
 var _startData: DefenseStartData
+
+var _cp: CommandPost
 
 @export_group("Simulation")
 @export_range(0, 100000, 1)
@@ -38,10 +39,10 @@ var _spawnDataList: Array[DefenseSpawnData] = []
 
 var _mercenaryAssignmentManager: DefenseMercenaryAssignmentManager
 
-var _unitGroupManager: DefenseUnitGroupManager
+var _towerManager: DefenseTowerManager
 var _machineManager: DefenseMachineManager
 var _trapManager: DefenseTrapManager
-var _monsterManager: DefenseMonsterManager
+var _enemyManager: DefenseEnemyManager
 var _cpManager: DefenseCPManager
 var _spawnManager: DefenseSpawnManager
 var _timeManager: DefenseTimeManager
@@ -57,7 +58,7 @@ var _spawnController: DefenseSpawnController
 var _pendingDefeat: bool = false
 var _cpDestroyed: bool = false
 
-var _phase: DefensePhase = DefensePhase.UNIT_DEPLOYMENT
+var _phase: DefensePhase = DefensePhase.TOWER_DEPLOYMENT
 
 
 #region Lifecycle
@@ -74,6 +75,23 @@ func _ready() -> void:
 		return
 
 	_InitializeRuntime()
+
+
+func BindCP(cp: CommandPost) -> bool:
+	if cp == null:
+		push_error("DefenseSceneManager: CP가 없습니다.")
+		return false
+
+	if cp.characterType != CharacterData.CharacterType.COMMAND_POST:
+		push_error("DefenseSceneManager: CP 타입이 올바르지 않습니다.")
+		return false
+
+	if _cp != null:
+		push_error("DefenseSceneManager: CP가 이미 등록되어 있습니다.")
+		return false
+
+	_cp = cp
+	return true
 
 
 func Initialize(startData: DefenseStartData) -> bool:
@@ -166,10 +184,10 @@ func _InitializeRuntime() -> void:
 func _AssignRuntimeReferences(runtime: DefenseRuntime) -> void:
 	_mercenaryAssignmentManager = runtime.mercenaryAssignmentManager
 
-	_unitGroupManager = runtime.unitGroupManager
+	_towerManager = runtime.towerManager
 	_machineManager = runtime.machineManager
 	_trapManager = runtime.trapManager
-	_monsterManager = runtime.monsterManager
+	_enemyManager = runtime.enemyManager
 
 	_cpManager = runtime.cpManager
 	_spawnManager = runtime.spawnManager
@@ -187,21 +205,21 @@ func _AssignRuntimeReferences(runtime: DefenseRuntime) -> void:
 
 
 func _ConnectRuntimeSignals() -> void:
-	_unitGroupManager.CharacterDied.connect(_OnCharacterDied)
+	_towerManager.CharacterDied.connect(_OnCharacterDied)
 	_machineManager.CharacterDied.connect(_OnCharacterDied)
 	_trapManager.CharacterDied.connect(_OnCharacterDied)
-	_monsterManager.CharacterDied.connect(_OnCharacterDied)
+	_enemyManager.CharacterDied.connect(_OnCharacterDied)
 
 	_cpManager.CPDestroyed.connect(_OnCPDestroyed)
 
-	_spawnManager.MonsterSpawnBatchRequested.connect(_OnMonsterSpawnBatchRequested)
+	_spawnManager.EnemySpawnBatchRequested.connect(_OnEnemySpawnBatchRequested)
 
 
 func _PrepareBattle() -> bool:
-	if not _deploymentController.PrepareUnitGroups():
+	if not _deploymentController.PrepareTowers():
 		return false
 
-	if not _cpManager.Initialize(_cp, _startData.cpMaxHp, _startData.cpDef, _startData.cpMagicDef):
+	if not _cpManager.Initialize(_cp, _startData.commandPostKey):
 		push_error("DefenseSceneManager: 지휘소 초기화에 실패했습니다.")
 		_RollbackBattlePreparation()
 		return false
@@ -225,7 +243,7 @@ func _PrepareBattle() -> bool:
 		return false
 
 	# 전투 시작 시에는 버프가 반영된 최대 체력으로 시작한다.
-	_unitGroupManager.ResetVitals()
+	_towerManager.ResetVitals()
 	return true
 
 
@@ -234,7 +252,7 @@ func _RollbackBattlePreparation() -> void:
 		_unitLifecycle.UnregisterUnit(_cp)
 
 	_mercenaryBuffService.Clear()
-	_unitGroupManager.ResetVitals()
+	_towerManager.ResetVitals()
 	_deploymentController.RollbackBattlePreparation()
 	_installableDeploymentController.RollbackBattlePreparation()
 
@@ -302,7 +320,7 @@ func _CheckVictory() -> void:
 	if not _spawnManager.IsSpawnFinished():
 		return
 
-	if _monsterManager.GetActiveCount() > 0:
+	if _enemyManager.GetActiveCount() > 0:
 		return
 
 	_FinishDefense(true)
@@ -325,9 +343,9 @@ func _CreateResult(isVictory: bool) -> DefenseResult:
 	result.isVictory = isVictory
 	result.cpDestroyed = _cpDestroyed
 
-	result.recruitedPopulation = _unitGroupManager.GetRecruitedPopulation()
-	result.survivingPopulation = _unitGroupManager.GetSurvivingPopulation()
-	result.deadPopulation = _unitGroupManager.GetDeadPopulation()
+	result.recruitedPopulation = _towerManager.GetRecruitedPopulation()
+	result.survivingPopulation = _towerManager.GetSurvivingPopulation()
+	result.deadPopulation = _towerManager.GetDeadPopulation()
 
 	result.elapsedTimeMs = _timeManager.GetElapsedTimeMs()
 
@@ -344,10 +362,10 @@ func _CleanupBattle() -> bool:
 			push_error("DefenseSceneManager: CP Runtime 해제에 실패했습니다.")
 			return false
 
-	_unitGroupManager.Clear()
+	_towerManager.Clear()
 	_machineManager.Clear()
 	_trapManager.Clear()
-	_monsterManager.Clear()
+	_enemyManager.Clear()
 	_cpManager.Clear()
 
 	return true
@@ -400,47 +418,47 @@ func GetElapsedTimeMs() -> int:
 
 
 func GetCPMaxHp() -> int:
-	var status: DefenseCPStatus = _cpManager.GetStatus()
-	if status == null:
+	var cp: Unit = _cpManager.GetCP()
+	if cp == null:
 		return 0
 
-	return status.maxHp
+	return cp.maxHp
 
 
 func GetCPCurrentHp() -> int:
-	var status: DefenseCPStatus = _cpManager.GetStatus()
-	if status == null:
+	var cp: Unit = _cpManager.GetCP()
+	if cp == null:
 		return 0
 
-	return status.currentHp
+	return cp.currentHp
 
 
 func GetCPMaxMp() -> int:
-	var status: DefenseCPStatus = _cpManager.GetStatus()
-	if status == null:
+	var cp: Unit = _cpManager.GetCP()
+	if cp == null:
 		return 0
 
-	return status.maxMp
+	return cp.maxMp
 
 
 func GetCPCurrentMp() -> int:
-	var status: DefenseCPStatus = _cpManager.GetStatus()
-	if status == null:
+	var cp: Unit = _cpManager.GetCP()
+	if cp == null:
 		return 0
 
-	return status.currentMp
+	return cp.currentMp
 
 
 func GetRecruitedPopulation() -> int:
-	return _unitGroupManager.GetRecruitedPopulation()
+	return _towerManager.GetRecruitedPopulation()
 
 
 func GetSurvivingPopulation() -> int:
-	return _unitGroupManager.GetSurvivingPopulation()
+	return _towerManager.GetSurvivingPopulation()
 
 
 func GetDeadPopulation() -> int:
-	return _unitGroupManager.GetDeadPopulation()
+	return _towerManager.GetDeadPopulation()
 
 
 func CalculateRecruitedPopulation(recruitRatio: int) -> int:
@@ -450,7 +468,7 @@ func CalculateRecruitedPopulation(recruitRatio: int) -> int:
 func ReturnToPreviousDeploymentPhase() -> bool:
 	match _phase:
 		DefensePhase.INSTALLABLE_DEPLOYMENT:
-			_phase = DefensePhase.UNIT_DEPLOYMENT
+			_phase = DefensePhase.TOWER_DEPLOYMENT
 			return true
 		DefensePhase.MERCENARY_ASSIGNMENT:
 			_phase = DefensePhase.INSTALLABLE_DEPLOYMENT
@@ -464,7 +482,7 @@ func ReturnToPreviousDeploymentPhase() -> bool:
 #region Deployment
 
 func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int, position: Vector2) -> bool:
-	if _phase != DefensePhase.UNIT_DEPLOYMENT:
+	if _phase != DefensePhase.TOWER_DEPLOYMENT:
 		return false
 
 	var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
@@ -475,7 +493,7 @@ func AddDeployment(cell: Vector2i, characterKey: int, recruitRatio: int, positio
 
 
 func RemoveDeployment(cell: Vector2i) -> bool:
-	if _phase != DefensePhase.UNIT_DEPLOYMENT:
+	if _phase != DefensePhase.TOWER_DEPLOYMENT:
 		return false
 
 	if not _deploymentController.RemoveDeployment(cell):
@@ -489,7 +507,7 @@ func RemoveDeployment(cell: Vector2i) -> bool:
 
 
 func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> bool:
-	if _phase != DefensePhase.UNIT_DEPLOYMENT:
+	if _phase != DefensePhase.TOWER_DEPLOYMENT:
 		return false
 
 	var characterData: CharacterData = GameDataManager.GetCharacterData(characterKey)
@@ -500,7 +518,7 @@ func UpdateDeployment(cell: Vector2i, characterKey: int, recruitRatio: int) -> b
 
 
 func ConfirmDeployment() -> bool:
-	if _phase != DefensePhase.UNIT_DEPLOYMENT:
+	if _phase != DefensePhase.TOWER_DEPLOYMENT:
 		return false
 
 	if not _deploymentController.HasDeployment():
@@ -632,17 +650,17 @@ func ConfirmMercenaryAssignment() -> bool:
 	return true
 
 
-func _IsHeroUnitGroup(character: Unit) -> bool:
-	if not character is DefenseUnitGroup:
+func _IsHeroTower(character: Unit) -> bool:
+	if not character is Tower:
 		return false
 
 	var heroAssignment: DefenseMercenaryAssignmentManager.DefenseMercenaryAssignment = _mercenaryAssignmentManager.GetHeroAssignment()
 	if heroAssignment == null:
 		return false
-	if heroAssignment.targetType != DefenseMercenaryAssignmentManager.TargetType.UNIT_GROUP:
+	if heroAssignment.targetType != DefenseMercenaryAssignmentManager.TargetType.TOWER:
 		return false
 
-	return character == _unitGroupManager.GetUnitGroupByCell(heroAssignment.unitCell)
+	return character == _towerManager.GetTowerByCell(heroAssignment.unitCell)
 
 
 func _IsHeroAssignedToCP() -> bool:
@@ -657,7 +675,7 @@ func _IsHeroAssignedToCP() -> bool:
 
 #region Spawn
 
-func _OnMonsterSpawnBatchRequested(spawnPointKey: int, characterKey: int, count: int) -> void:
+func _OnEnemySpawnBatchRequested(spawnPointKey: int, characterKey: int, count: int) -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
@@ -677,7 +695,7 @@ func _OnCharacterDied(character: Unit) -> void:
 	if _phase != DefensePhase.BATTLE or character == null:
 		return
 
-	if _IsHeroUnitGroup(character):
+	if _IsHeroTower(character):
 		_pendingDefeat = true
 
 	if not _characterRemovalService.Remove(character):
@@ -713,10 +731,10 @@ func _CalculateAttackBufferCapacity() -> int:
 		DefenseDeploymentManager.MAX_RECRUIT_RATIO,
 	)
 
-	var totalMonsterCount: int = 0
+	var totalEnemyCount: int = 0
 	for spawnData: DefenseSpawnData in _spawnDataList:
-		totalMonsterCount += spawnData.count
+		totalEnemyCount += spawnData.count
 
-	return (maxFriendlyCount + totalMonsterCount) * ATTACK_BUFFER_CAPACITY_MULTIPLIER
+	return (maxFriendlyCount + totalEnemyCount) * ATTACK_BUFFER_CAPACITY_MULTIPLIER
 
 #endregion

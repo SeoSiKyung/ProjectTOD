@@ -4,21 +4,21 @@ extends RefCounted
 signal DeploymentFinished
 
 const DEPLOYMENT_CELL_SIZE: int = 128
-const DEPLOYMENT_UNIT_HALF_SIZE: int = 16
+const DEPLOYMENT_TOWER_HALF_SIZE: int = 16
 
 const CP_CELL: Vector2i = Vector2i(4, 1)
 
 var _defenseSceneManager: DefenseSceneManager
 var _startData: DefenseStartData
 
-var _cp: DefenseCP
+var _cp: Unit
 var _deploymentGridView: DefenseDeploymentGridView
 var _deploymentInfoView: DefenseDeploymentInfoView
 var _deploymentView: DefenseDeploymentView
 
 var _deploymentGrid: DefenseDeploymentGrid
 
-var _unitDeploymentPhase: DefenseUnitDeploymentPhase
+var _unitDeploymentPhase: DefenseTowerDeploymentPhase
 var _installableDeploymentPhase: DefenseInstallableDeploymentPhase
 var _mercenaryAssignmentPhase: DefenseMercenaryAssignmentPhase
 
@@ -28,7 +28,7 @@ var _mercenaryAssignmentPhase: DefenseMercenaryAssignmentPhase
 func _init(
 	defenseSceneManager: DefenseSceneManager,
 	startData: DefenseStartData,
-	cp: DefenseCP,
+	cp: Unit,
 	deploymentGridView: DefenseDeploymentGridView,
 	deploymentInfoView: DefenseDeploymentInfoView,
 	deploymentView: DefenseDeploymentView,
@@ -66,7 +66,7 @@ func CreateDeploymentGrid() -> void:
 
 	_cp.global_position = _deploymentGrid.CellToWorldCenter(CP_CELL)
 
-	_unitDeploymentPhase = DefenseUnitDeploymentPhase.new(
+	_unitDeploymentPhase = DefenseTowerDeploymentPhase.new(
 		_defenseSceneManager,
 		_startData,
 		_deploymentGrid,
@@ -74,7 +74,7 @@ func CreateDeploymentGrid() -> void:
 		_deploymentInfoView,
 		_deploymentView,
 		CP_CELL,
-		DEPLOYMENT_UNIT_HALF_SIZE,
+		DEPLOYMENT_TOWER_HALF_SIZE,
 	)
 
 	_installableDeploymentPhase = DefenseInstallableDeploymentPhase.new(
@@ -85,7 +85,7 @@ func CreateDeploymentGrid() -> void:
 		_deploymentInfoView,
 		_deploymentView,
 		CP_CELL,
-		DEPLOYMENT_UNIT_HALF_SIZE,
+		DEPLOYMENT_TOWER_HALF_SIZE,
 	)
 
 	_mercenaryAssignmentPhase = DefenseMercenaryAssignmentPhase.new(
@@ -96,7 +96,7 @@ func CreateDeploymentGrid() -> void:
 		_deploymentInfoView,
 		_deploymentView,
 		CP_CELL,
-		DEPLOYMENT_UNIT_HALF_SIZE,
+		DEPLOYMENT_TOWER_HALF_SIZE,
 	)
 
 
@@ -294,7 +294,7 @@ func _CanInteractDeploymentCell(cell: Vector2i) -> bool:
 
 func _GetCurrentPhaseHandler() -> DefenseDeploymentPhaseHandler:
 	match _defenseSceneManager.GetPhase():
-		DefenseSceneManager.DefensePhase.UNIT_DEPLOYMENT:
+		DefenseSceneManager.DefensePhase.TOWER_DEPLOYMENT:
 			return _unitDeploymentPhase
 		DefenseSceneManager.DefensePhase.INSTALLABLE_DEPLOYMENT:
 			return _installableDeploymentPhase

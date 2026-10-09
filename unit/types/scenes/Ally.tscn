@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://cghlf0d5cnser"]
+
+[ext_resource type="PackedScene" uid="uid://k4um3n00uobv" path="res://unit/types/scenes/Unit.tscn" id="1_uixlo"]
+[ext_resource type="Script" uid="uid://c3lco8tufxyth" path="res://unit/types/scripts/Ally.gd" id="2_uixlo"]
+
+[node name="Ally" unique_id=470747039 instance=ExtResource("1_uixlo")]
+script = ExtResource("2_uixlo")

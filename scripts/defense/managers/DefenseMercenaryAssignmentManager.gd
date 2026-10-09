@@ -2,7 +2,7 @@ class_name DefenseMercenaryAssignmentManager
 extends RefCounted
 
 enum TargetType {
-	UNIT_GROUP,
+	TOWER,
 	CP,
 }
 
@@ -94,7 +94,7 @@ func AssignToUnit(mercenaryKey: int, cell: Vector2i) -> bool:
 
 	_assignmentByMercenaryKey[mercenaryKey] = DefenseMercenaryAssignment.new(
 		mercenaryKey,
-		TargetType.UNIT_GROUP,
+		TargetType.TOWER,
 		cell,
 	)
 
@@ -161,7 +161,7 @@ func _UnassignInternal(mercenaryKey: int) -> void:
 		return
 
 	match assignment.targetType:
-		TargetType.UNIT_GROUP:
+		TargetType.TOWER:
 			_mercenaryKeyByUnitCell.erase(assignment.unitCell)
 
 		TargetType.CP:
