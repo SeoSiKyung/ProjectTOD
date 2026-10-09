@@ -14,7 +14,7 @@ scale = Vector2(0.4, 0.4)
 texture = ExtResource("3_japly")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=617625335]
-scale = Vector2(0.25, 0.25)
+scale = Vector2(0.1, 0.1)
 texture = ExtResource("2_twhwq")
 
 [node name="UnitFSM" type="Node" parent="." unique_id=404963815]

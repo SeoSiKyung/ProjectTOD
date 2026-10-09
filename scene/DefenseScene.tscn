@@ -6,7 +6,6 @@
 [ext_resource type="Resource" uid="uid://ct7nb5rwp5lkd" path="res://maps/2_navigation.res" id="3_ffq3l"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="3_m8apv"]
 [ext_resource type="Script" uid="uid://blgbhtt23abdo" path="res://scripts/defense/DefenseDeploymentGridView.gd" id="5_to5m3"]
-[ext_resource type="PackedScene" uid="uid://dqdotall8h6j8" path="res://assets/prefabs/units/COMMAND_POST/CommandPost.tscn" id="6_fns1k"]
 [ext_resource type="Script" uid="uid://d2t3mpohidf45" path="res://scripts/defense/DefenseDeploymentInfoView.gd" id="7_f716s"]
 [ext_resource type="PackedScene" uid="uid://c4v37s61eag4j" path="res://ui/defense/deployment/DefenseDeploymentView.tscn" id="8_deployment_view"]
 [ext_resource type="PackedScene" uid="uid://d1jn5c1rulh83" path="res://ui/defense/hud/DefenseBattleHUDView.tscn" id="9_battle_hud_view"]
@@ -15,12 +14,11 @@
 [node name="DefenseScene" type="Node2D" unique_id=745379328]
 script = ExtResource("1_aixx4")
 
-[node name="DefenseSceneManager" type="Node" parent="." unique_id=1767082849 node_paths=PackedStringArray("_spawnPoints", "_pools", "_friendlyUnits", "_cp")]
+[node name="DefenseSceneManager" type="Node" parent="." unique_id=1767082849 node_paths=PackedStringArray("_spawnPoints", "_pools", "_friendlyUnits")]
 script = ExtResource("3_f716s")
 _spawnPoints = NodePath("../SpawnPoints")
 _pools = NodePath("../Pools")
 _friendlyUnits = NodePath("../FriendlyUnits")
-_cp = NodePath("../CP")
 navigationData = ExtResource("3_ffq3l")
 
 [node name="DeploymentGridView" type="Node2D" parent="." unique_id=1390217635]
@@ -55,9 +53,6 @@ centered = false
 [node name="Camera2D" type="Camera2D" parent="." unique_id=1683497128]
 anchor_mode = 0
 zoom = Vector2(0.5, 0.5)
-
-[node name="CP" parent="." unique_id=1269883416 instance=ExtResource("6_fns1k")]
-position = Vector2(556, 275)
 
 [node name="Pools" type="Node" parent="." unique_id=804699937]
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c2pn28nap7rn5"
-path="res://.godot/imported/MERCENARY_0.png-5b1cce3a7bb598d97c3e2a60b0dd1c3e.ctex"
+uid="uid://drsex041u3ylj"
+path="res://.godot/imported/Unit_501.png-799c54e42258098efcc4e6c027dd1194.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/picture/ui/parchment/MERCENARY/MERCENARY_0.png"
-dest_files=["res://.godot/imported/MERCENARY_0.png-5b1cce3a7bb598d97c3e2a60b0dd1c3e.ctex"]
+source_file="res://assets/picture/ui/parchment/MACHINE/Unit_501.png"
+dest_files=["res://.godot/imported/Unit_501.png-799c54e42258098efcc4e6c027dd1194.ctex"]
 
 [params]
 

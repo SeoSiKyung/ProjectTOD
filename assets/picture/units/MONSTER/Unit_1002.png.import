@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c70cr8ij70fop"
-path="res://.godot/imported/MACHINE_501.png-021f3d84b7aef8cc53412da242d10bcf.ctex"
+uid="uid://swb5nwuh48sb"
+path="res://.godot/imported/Unit_1002.png-4b676bf12903af2c4415e3bdb9f57f85.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/picture/units/MACHINE/MACHINE_501.png"
-dest_files=["res://.godot/imported/MACHINE_501.png-021f3d84b7aef8cc53412da242d10bcf.ctex"]
+source_file="res://assets/picture/units/MONSTER/Unit_1002.png"
+dest_files=["res://.godot/imported/Unit_1002.png-4b676bf12903af2c4415e3bdb9f57f85.ctex"]
 
 [params]
 

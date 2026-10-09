@@ -18,7 +18,6 @@ enum DefensePhase {
 @export var _spawnPoints: Node2D
 @export var _pools: Node
 @export var _friendlyUnits: Node2D
-@export var _cp: CommandPost
 
 @export_group("Navigation")
 @export var navigationData: NavigationData
@@ -26,6 +25,8 @@ enum DefensePhase {
 @export_range(8, 256, 8) var navigationAnchorConnectionCacheCapacity: int = 64
 
 var _startData: DefenseStartData
+
+var _cp: Unit
 
 @export_group("Simulation")
 @export_range(0, 100000, 1)
@@ -74,6 +75,23 @@ func _ready() -> void:
 		return
 
 	_InitializeRuntime()
+
+
+func BindCP(cp: Unit) -> bool:
+	if cp == null:
+		push_error("DefenseSceneManager: CP가 없습니다.")
+		return false
+
+	if cp.characterType != CharacterData.CharacterType.COMMAND_POST:
+		push_error("DefenseSceneManager: CP 타입이 올바르지 않습니다.")
+		return false
+
+	if _cp != null:
+		push_error("DefenseSceneManager: CP가 이미 등록되어 있습니다.")
+		return false
+
+	_cp = cp
+	return true
 
 
 func Initialize(startData: DefenseStartData) -> bool:
@@ -201,16 +219,7 @@ func _PrepareBattle() -> bool:
 	if not _deploymentController.PrepareTowers():
 		return false
 
-	var commandPostData: CharacterData = GameDataManager.GetCharacterData(_startData.commandPostKey)
-	if commandPostData == null:
-		push_error(
-			"DefenseSceneManager: 지휘소 CharacterData를 찾을 수 없습니다. key: "
-			+ str(_startData.commandPostKey)
-		)
-		_RollbackBattlePreparation()
-		return false
-
-	if not _cpManager.Initialize(_cp, commandPostData):
+	if not _cpManager.Initialize(_cp, _startData.commandPostKey):
 		push_error("DefenseSceneManager: 지휘소 초기화에 실패했습니다.")
 		_RollbackBattlePreparation()
 		return false
@@ -409,7 +418,7 @@ func GetElapsedTimeMs() -> int:
 
 
 func GetCPMaxHp() -> int:
-	var cp: CommandPost = _cpManager.GetCP()
+	var cp: Unit = _cpManager.GetCP()
 	if cp == null:
 		return 0
 
@@ -417,7 +426,7 @@ func GetCPMaxHp() -> int:
 
 
 func GetCPCurrentHp() -> int:
-	var cp: CommandPost = _cpManager.GetCP()
+	var cp: Unit = _cpManager.GetCP()
 	if cp == null:
 		return 0
 
@@ -425,7 +434,7 @@ func GetCPCurrentHp() -> int:
 
 
 func GetCPMaxMp() -> int:
-	var cp: CommandPost = _cpManager.GetCP()
+	var cp: Unit = _cpManager.GetCP()
 	if cp == null:
 		return 0
 
@@ -433,7 +442,7 @@ func GetCPMaxMp() -> int:
 
 
 func GetCPCurrentMp() -> int:
-	var cp: CommandPost = _cpManager.GetCP()
+	var cp: Unit = _cpManager.GetCP()
 	if cp == null:
 		return 0
 
@@ -642,7 +651,7 @@ func ConfirmMercenaryAssignment() -> bool:
 
 
 func _IsHeroTower(character: Unit) -> bool:
-	if not character is Tower:
+	if character == null or character.GetTowerComponent() == null:
 		return false
 
 	var heroAssignment: DefenseMercenaryAssignmentManager.DefenseMercenaryAssignment = _mercenaryAssignmentManager.GetHeroAssignment()

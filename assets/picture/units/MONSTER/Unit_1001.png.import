@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://be0pj48e8sg75"
-path="res://.godot/imported/MERCENARY_2.png-686171996bd6d391a4b8bef5ddc3f962.ctex"
+uid="uid://c84hjfbysjqmb"
+path="res://.godot/imported/Unit_1001.png-6fc79f8aef634fedf2d47b232e847825.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/picture/ui/parchment/MERCENARY/MERCENARY_2.png"
-dest_files=["res://.godot/imported/MERCENARY_2.png-686171996bd6d391a4b8bef5ddc3f962.ctex"]
+source_file="res://assets/picture/units/MONSTER/Unit_1001.png"
+dest_files=["res://.godot/imported/Unit_1001.png-6fc79f8aef634fedf2d47b232e847825.ctex"]
 
 [params]
 

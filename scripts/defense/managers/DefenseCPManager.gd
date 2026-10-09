@@ -3,23 +3,28 @@ extends RefCounted
 
 signal CPDestroyed
 
-var _cp: CommandPost
+var _cpCharacterKey: int = -1
+var _cp: Unit
 
 
-func Initialize(cp: CommandPost, characterData: CharacterData) -> bool:
-	if cp == null or characterData == null:
+func Initialize(cp: Unit, cpCharacterKey: int) -> bool:
+	if cp == null:
+		push_error("DefenseCPManager: CP가 없습니다.")
 		return false
 
-	if characterData.characterType != CharacterData.CharacterType.COMMAND_POST:
-		push_error(
-			"DefenseCPManager: COMMAND_POST 타입의 CharacterData가 아닙니다. key: "
-			+ str(characterData.characterKey)
-		)
+	if cp.characterKey != cpCharacterKey:
+		push_error("DefenseCPManager: CP 캐릭터 키가 일치하지 않습니다. key: " + str(cpCharacterKey))
 		return false
 
-	if not cp.ConfigureCharacter(characterData):
+	if cp.characterType != CharacterData.CharacterType.COMMAND_POST:
+		push_error("DefenseCPManager: COMMAND_POST 타입이 아닙니다.")
 		return false
 
+	if not cp.HasCharacterStats():
+		push_error("DefenseCPManager: CP 스탯이 초기화되지 않았습니다.")
+		return false
+
+	_cpCharacterKey = cpCharacterKey
 	_cp = cp
 	return true
 
@@ -43,8 +48,12 @@ func ApplyStatBonus(type: CharacterStats.Type, flatValue: int, ratioValue: int) 
 	return _cp.AddStatBonus(type, flatValue, ratioValue)
 
 
-func GetCP() -> CommandPost:
+func GetCP() -> Unit:
 	return _cp
+
+
+func GetCPCharacterKey() -> int:
+	return _cpCharacterKey
 
 
 func GetPosition() -> Vector2:
@@ -55,4 +64,5 @@ func GetPosition() -> Vector2:
 
 
 func Clear() -> void:
+	_cpCharacterKey = -1
 	_cp = null

@@ -3,7 +3,6 @@ extends Node2D
 signal DefenseFinished(result: DefenseResult)
 
 @onready var _defenseSceneManager: DefenseSceneManager = $DefenseSceneManager
-@onready var _cp: CommandPost = $CP
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
 @onready var _deploymentInfoView: DefenseDeploymentInfoView = $DeploymentInfoView
 
@@ -15,6 +14,8 @@ var _deploymentFlowController: DefenseDeploymentFlowController
 
 var _startData: DefenseStartData
 
+var _cp: Unit
+
 var _isBattlePaused: bool = false
 
 
@@ -22,6 +23,9 @@ var _isBattlePaused: bool = false
 
 func _ready() -> void:
 	_InitializeStartData()
+
+	if not _CreateCP():
+		return
 
 	_deploymentFlowController = DefenseDeploymentFlowController.new(
 		_defenseSceneManager,
@@ -61,6 +65,36 @@ func Initialize(startData: DefenseStartData) -> void:
 
 
 #region Initialize
+
+func _CreateCP() -> bool:
+	var characterData: CharacterData = GameDataManager.GetCharacterData(_startData.commandPostKey)
+	if characterData == null:
+		push_error(
+			"DefenseScene: CP CharacterData를 찾을 수 없습니다. key: " + str(_startData.commandPostKey)
+		)
+		return false
+
+	if characterData.characterType != CharacterData.CharacterType.COMMAND_POST:
+		push_error("DefenseScene: COMMAND_POST 타입이 아닙니다.")
+		return false
+
+	var cp: Unit = UnitFactory.Create(characterData)
+	if cp == null:
+		return false
+
+	cp.name = "CP"
+	cp.playerControllable = false
+	cp.moveSpeed = 0
+
+	if not _defenseSceneManager.BindCP(cp):
+		cp.free()
+		return false
+
+	_cp = cp
+	add_child(_cp)
+
+	return true
+
 
 func _InitializeStartData() -> void:
 	if _startData != null:

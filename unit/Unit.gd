@@ -32,6 +32,7 @@ var currentMp: int = 0
 var _bonusStats: BonusStats = BonusStats.new()
 var _finalStats: PackedInt32Array = PackedInt32Array()
 var _unitRuntime: UnitRuntime
+var _towerComponent: TowerComponent
 
 
 func _init() -> void:
@@ -42,6 +43,23 @@ func _init() -> void:
 func _ready() -> void:
 	fsm.BindUnit(self)
 	add_to_group("unit")
+
+
+func AttachTowerComponent(component: TowerComponent) -> bool:
+	if component == null:
+		push_error("Unit: TowerComponent가 없습니다.")
+		return false
+
+	if _towerComponent != null:
+		push_error("Unit: TowerComponent가 이미 연결되어 있습니다.")
+		return false
+
+	_towerComponent = component
+	return true
+
+
+func GetTowerComponent() -> TowerComponent:
+	return _towerComponent
 
 
 func ConfigureCharacter(characterData: CharacterData) -> bool:
@@ -117,6 +135,9 @@ func TakeDamage(damage: int) -> void:
 
 	currentHp = maxi(currentHp - damage, 0)
 
+	if _towerComponent != null:
+		_towerComponent.UpdateSurvivingPopulation(currentHp, GetStat(CharacterStats.Type.MAX_HP))
+
 
 func IsDead() -> bool:
 	return HasCharacterStats() and currentHp <= 0
@@ -136,12 +157,13 @@ func CalculateDamageAgainstDefense(defense: int, magicDefense: int) -> int:
 	if not HasCharacterStats():
 		return 0
 
-	return Math.CalculateDamage(
-		GetStat(CharacterStats.Type.ATK),
-		defense,
-		GetStat(CharacterStats.Type.MAGIC_ATK),
-		magicDefense,
-	)
+	var atk: int = GetStat(CharacterStats.Type.ATK)
+	var magicAtk: int = GetStat(CharacterStats.Type.MAGIC_ATK)
+
+	if _towerComponent != null:
+		return _towerComponent.CalculateDamageAgainstDefense(atk, magicAtk, defense, magicDefense)
+
+	return Math.CalculateDamage(atk, defense, magicAtk, magicDefense)
 
 
 func GetFootprintSize() -> int:
@@ -196,6 +218,9 @@ func Die() -> void:
 func ResetForReuse() -> void:
 	_unitRuntime = null
 
+	if _towerComponent != null:
+		_towerComponent.ResetForReuse()
+
 	if _baseStats != null:
 		_bonusStats.Clear()
 		_RebuildFinalStats(true)
@@ -240,7 +265,12 @@ func _RefreshVitalCapacity(resetVitals: bool) -> void:
 
 
 func _CalculateMaxHp() -> int:
-	return maxi(GetStat(CharacterStats.Type.MAX_HP), 0)
+	var hpPerPerson: int = maxi(GetStat(CharacterStats.Type.MAX_HP), 0)
+
+	if _towerComponent != null:
+		return _towerComponent.CalculateMaxHp(hpPerPerson)
+
+	return hpPerPerson
 
 
 func _CalculateMaxMp() -> int:
@@ -248,6 +278,9 @@ func _CalculateMaxMp() -> int:
 
 
 func _CalculateHpRecoveryOnCapacityIncrease(previousMaxHp: int, newMaxHp: int) -> int:
+	if _towerComponent != null:
+		return _towerComponent.CalculateHpRecoveryOnCapacityIncrease(previousMaxHp, newMaxHp)
+
 	return maxi(newMaxHp - previousMaxHp, 0)
 
 
@@ -255,5 +288,12 @@ func _CalculateMpRecoveryOnCapacityIncrease(previousMaxMp: int, newMaxMp: int) -
 	return maxi(newMaxMp - previousMaxMp, 0)
 
 
-func _OnVitalCapacityRefreshed(_resetVitals: bool) -> void:
-	pass
+func _OnVitalCapacityRefreshed(resetVitals: bool) -> void:
+	if _towerComponent == null:
+		return
+
+	_towerComponent.OnVitalCapacityRefreshed(
+		resetVitals,
+		currentHp,
+		GetStat(CharacterStats.Type.MAX_HP),
+	)

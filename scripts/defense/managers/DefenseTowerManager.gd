@@ -2,8 +2,8 @@ class_name DefenseTowerManager
 extends DefenseCharacterManager
 
 var _preparedPopulationByCell: Dictionary[Vector2i, int] = { }
-var _towerByCell: Dictionary[Vector2i, Tower] = { }
-var _cellByTower: Dictionary[Tower, Vector2i] = { }
+var _towerByCell: Dictionary[Vector2i, Unit] = { }
+var _cellByTower: Dictionary[Unit, Vector2i] = { }
 var _totalRecruitedPopulation: int = 0
 
 
@@ -40,56 +40,44 @@ func Clear() -> void:
 
 
 func BindUnit(cell: Vector2i, unit: Unit) -> bool:
-	if not _preparedPopulationByCell.has(cell) or _towerByCell.has(cell):
+	if unit == null or not _preparedPopulationByCell.has(cell) or _towerByCell.has(cell):
 		return false
 
-	if not unit is Tower:
-		push_error("DefenseTowerManager: Tower가 아닌 Unit입니다. cell: " + str(cell))
+	if unit.characterType != CharacterData.CharacterType.UNIT:
 		return false
 
-	var tower: Tower = unit as Tower
-	if tower.characterType != CharacterData.CharacterType.UNIT:
+	var towerComponent: TowerComponent = unit.GetTowerComponent()
+	if towerComponent == null:
+		push_error("DefenseTowerManager: TowerComponent가 없습니다. cell: " + str(cell))
 		return false
 
-	if not RegisterCharacter(tower):
+	if not RegisterCharacter(unit):
 		return false
 
 	var recruitedPopulation: int = _preparedPopulationByCell[cell]
-	if not tower.InitializePopulation(recruitedPopulation):
-		super.UnregisterCharacter(tower)
+	if not towerComponent.InitializePopulation(recruitedPopulation):
+		super.UnregisterCharacter(unit)
 		return false
 
-	_towerByCell[cell] = tower
-	_cellByTower[tower] = cell
+	unit.ResetVitals()
+
+	_towerByCell[cell] = unit
+	_cellByTower[unit] = cell
 	return true
 
 
 func UnregisterCharacter(character: Unit) -> bool:
-	if not character is Tower or not HasCharacter(character):
+	if not HasCharacter(character):
 		return false
 
-	var tower: Tower = character as Tower
-	var cell: Vector2i = _cellByTower.get(tower, Vector2i(-1, -1))
+	var cell: Vector2i = _cellByTower.get(character, Vector2i(-1, -1))
 
-	if not super.UnregisterCharacter(tower):
+	if not super.UnregisterCharacter(character):
 		return false
 
-	_cellByTower.erase(tower)
+	_cellByTower.erase(character)
 	if cell != Vector2i(-1, -1):
 		_towerByCell.erase(cell)
-
-	return true
-
-
-func TakeDamage(character: Unit, damage: int) -> bool:
-	if not character is Tower or not HasCharacter(character) or character.IsDead():
-		return false
-
-	var tower: Tower = character as Tower
-	tower.TakeDamage(damage)
-
-	if tower.IsDead():
-		CharacterDied.emit(tower)
 
 	return true
 
@@ -100,7 +88,7 @@ func AddStatBonusToTower(
 	flatValue: int,
 	ratioValue: int,
 ) -> bool:
-	var tower: Tower = _towerByCell.get(cell)
+	var tower: Unit = _towerByCell.get(cell)
 	return tower != null and tower.AddStatBonus(type, flatValue, ratioValue)
 
 
@@ -110,12 +98,12 @@ func RemoveStatBonusFromTower(
 	flatValue: int,
 	ratioValue: int,
 ) -> bool:
-	var tower: Tower = _towerByCell.get(cell)
+	var tower: Unit = _towerByCell.get(cell)
 	return tower != null and tower.RemoveStatBonus(type, flatValue, ratioValue)
 
 
 func AddStatBonusToAllTowers(type: CharacterStats.Type, flatValue: int, ratioValue: int) -> bool:
-	for tower: Tower in _towerByCell.values():
+	for tower: Unit in _towerByCell.values():
 		if not tower.AddStatBonus(type, flatValue, ratioValue):
 			return false
 
@@ -127,7 +115,7 @@ func RemoveStatBonusFromAllTowers(
 	flatValue: int,
 	ratioValue: int,
 ) -> bool:
-	for tower: Tower in _towerByCell.values():
+	for tower: Unit in _towerByCell.values():
 		if not tower.RemoveStatBonus(type, flatValue, ratioValue):
 			return false
 
@@ -135,12 +123,12 @@ func RemoveStatBonusFromAllTowers(
 
 
 func ClearStatBonuses() -> void:
-	for tower: Tower in _towerByCell.values():
+	for tower: Unit in _towerByCell.values():
 		tower.ClearStatBonuses()
 
 
 func ResetVitals() -> void:
-	for tower: Tower in _towerByCell.values():
+	for tower: Unit in _towerByCell.values():
 		tower.ResetVitals()
 
 
@@ -148,7 +136,7 @@ func HasPreparedTower(cell: Vector2i) -> bool:
 	return _preparedPopulationByCell.has(cell)
 
 
-func GetTowerByCell(cell: Vector2i) -> Tower:
+func GetTowerByCell(cell: Vector2i) -> Unit:
 	return _towerByCell.get(cell)
 
 
@@ -158,8 +146,11 @@ func GetRecruitedPopulation() -> int:
 
 func GetSurvivingPopulation() -> int:
 	var population: int = 0
-	for tower: Tower in _towerByCell.values():
-		population += tower.GetSurvivingPopulation()
+
+	for tower: Unit in _towerByCell.values():
+		var towerComponent: TowerComponent = tower.GetTowerComponent()
+		if towerComponent != null:
+			population += towerComponent.GetSurvivingPopulation()
 
 	return population
 

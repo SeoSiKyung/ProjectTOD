@@ -38,11 +38,6 @@ func _Spawn(characterData: CharacterData, spawnPosition: Vector2) -> Node2D:
 
 		_pool.add_child(object)
 
-	if object is Unit:
-		var unit: Unit = object as Unit
-		if not unit.ConfigureCharacter(characterData):
-			return null
-
 	_ActivateObject(object, spawnPosition)
 	_characterKeyByActiveObject[object] = characterKey
 
@@ -101,28 +96,19 @@ class MonsterPoolManager extends DefensePoolManager:
 			push_error("MonsterPoolManager: CharacterData가 없습니다.")
 			return null
 
-		var characterKey: int = characterData.characterKey
-
 		if characterData.characterType != CharacterData.CharacterType.MONSTER:
-			push_error("MonsterPoolManager: MONSTER 타입이 아닌 캐릭터입니다. key: " + str(characterKey))
-			return null
-
-		if characterData.prefabPath.is_empty():
-			push_error("MonsterPoolManager: MONSTER path가 비어있습니다. key: " + str(characterKey))
-			return null
-
-		var scene: PackedScene = load(characterData.prefabPath) as PackedScene
-		if scene == null:
 			push_error(
-				"MonsterPoolManager: MONSTER scene을 불러올 수 없습니다. path: " + characterData.prefabPath
+				"MonsterPoolManager: MONSTER 타입이 아닙니다. key: " + str(characterData.characterKey)
 			)
 			return null
 
-		var monster: Unit = scene.instantiate() as Unit
+		var monster: Unit = UnitFactory.Create(characterData)
 		if monster == null:
-			push_error(
-				"MonsterPoolManager: MONSTER scene의 루트가 Unit이 아닙니다. key: " + str(characterKey)
-			)
+			return null
+
+		if not DefenseMonsterAIConfigurator.Configure(monster, characterData):
+			push_error("MonsterPoolManager: AI 구성에 실패했습니다. key: " + str(characterData.characterKey))
+			monster.free()
 			return null
 
 		monster.playerControllable = false

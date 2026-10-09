@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bulkyv3k56xal"
-path="res://.godot/imported/TRAP_751.png-14e1ac3ea2096ac80c4a0207ec61fe50.ctex"
+uid="uid://bcru6ojbrat02"
+path="res://.godot/imported/Unit_750.png-ebe08878ec3dc5b381e5ac32ec31c087.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/picture/ui/parchment/TRAP/TRAP_751.png"
-dest_files=["res://.godot/imported/TRAP_751.png-14e1ac3ea2096ac80c4a0207ec61fe50.ctex"]
+source_file="res://assets/picture/units/TRAP/Unit_750.png"
+dest_files=["res://.godot/imported/Unit_750.png-ebe08878ec3dc5b381e5ac32ec31c087.ctex"]
 
 [params]
 

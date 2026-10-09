@@ -34,7 +34,7 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			push_error("CharacterTable characterName이 비어있습니다. " + context)
 			continue
 
-		var characterTypeName: String = row["characterType"].strip_edges().to_upper()
+		var characterTypeName: String = row["characterType"].strip_edges()
 		var characterType: CharacterData.CharacterType
 		match characterTypeName:
 			"UNIT":
@@ -51,11 +51,19 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 				push_error("CharacterTable characterType이 올바르지 않습니다. " + context)
 				continue
 
-		var resourceName: String
-		if characterType == CharacterData.CharacterType.COMMAND_POST:
-			resourceName = "CommandPost"
+		var targetPolicyId: String = row["targetPolicyId"].strip_edges()
+		var movementPolicyId: String = row["movementPolicyId"].strip_edges()
+		if characterType == CharacterData.CharacterType.MONSTER:
+			if targetPolicyId.is_empty() or movementPolicyId.is_empty():
+				push_error("GameDataLoader: MONSTER의 AI 정책이 누락되었습니다. " + context)
+				continue
 		else:
-			resourceName = characterTypeName + "_" + str(characterKey)
+			if not targetPolicyId.is_empty() or not movementPolicyId.is_empty():
+				push_error("GameDataLoader: MONSTER가 아닌 캐릭터에 AI 정책이 설정되었습니다. " + context)
+				continue
+
+		var resourceName: String = "Unit_" + str(characterKey)
+
 		var iconPath: String = (
 			ASSET_BASE_PATH
 			.path_join("picture")
@@ -70,13 +78,6 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			.path_join("parchment")
 			.path_join(characterTypeName)
 			.path_join(resourceName + ".png")
-		)
-		var prefabPath: String = (
-			ASSET_BASE_PATH
-			.path_join("prefabs")
-			.path_join("units")
-			.path_join(characterTypeName)
-			.path_join(resourceName + ".tscn")
 		)
 
 		var maxHp: int = _ReadInt(row, "maxHp", 1, "CharacterTable", context)
@@ -154,8 +155,9 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			characterType,
 			iconPath,
 			parchmentIconPath,
-			prefabPath,
 			stats,
+			targetPolicyId,
+			movementPolicyId,
 		)
 		characterDataByKey[characterKey] = characterData
 
@@ -457,7 +459,7 @@ static func _ReadBool(
 	tableName: String,
 	context: String = "",
 ) -> Variant:
-	var text: String = row[fieldName].strip_edges().to_upper()
+	var text: String = row[fieldName].strip_edges()
 	match text:
 		"1":
 			return true

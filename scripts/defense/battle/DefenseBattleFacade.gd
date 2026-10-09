@@ -62,7 +62,7 @@ func GetCharacterByIndex(characterType: CharacterData.CharacterType, index: int)
 	return manager.GetCharacterByIndex(index)
 
 
-func GetCP() -> CommandPost:
+func GetCP() -> Unit:
 	return _cpManager.GetCP()
 
 

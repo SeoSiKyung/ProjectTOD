@@ -3,6 +3,7 @@ extends RefCounted
 
 const TARGET_ACQUISITION_INTERVAL_MS: int = 100
 const CHASE_COMMAND_GROUP_SIZE: int = 20
+const CHASE_REPATH_DISTANCE: float = 32.0
 
 var _battleContext: DefenseBattleFacade
 var _unitRuntime: UnitRuntime
@@ -17,6 +18,8 @@ var _monsterTargetAcquisitionCursor: int = 0
 var _unitTargetAcquisitionCursor: int = 0
 var _machineTargetAcquisitionCursor: int = 0
 var _trapTargetAcquisitionCursor: int = 0
+
+var _lastChaseDestinationByMonster: Dictionary[Unit, Vector2] = { }
 
 
 func _init(battleContext: DefenseBattleFacade, unitRuntime: UnitRuntime) -> void:
@@ -40,6 +43,8 @@ func Reset() -> void:
 	_machineTargetAcquisitionCursor = 0
 	_trapTargetAcquisitionCursor = 0
 
+	_lastChaseDestinationByMonster.clear()
+
 
 func Update() -> void:
 	_UpdateExistingTargets()
@@ -62,15 +67,18 @@ func GetTarget(attacker: Unit) -> Unit:
 
 
 func ClearTarget(attacker: Unit) -> void:
-	if attacker != null:
-		_targetByAttacker.erase(attacker)
+	if attacker == null:
+		return
+
+	_targetByAttacker.erase(attacker)
+	_lastChaseDestinationByMonster.erase(attacker)
 
 
 func RemoveUnit(unit: Unit) -> void:
 	if unit == null:
 		return
 
-	_targetByAttacker.erase(unit)
+	ClearTarget(unit)
 
 	var attackers: Array[Unit] = _targetByAttacker.keys()
 	for attacker: Unit in attackers:
@@ -100,7 +108,10 @@ func IssueChaseGroupTarget(attackers: Array[Unit], target: Unit) -> bool:
 	if movementPolicy == null:
 		return false
 
-	var destination: Vector2 = movementPolicy.GetDestination(validAttackers[0], target)
+	var leader: Unit = validAttackers[0]
+	var distance: float = _GetFootprintDistance(leader.unitId, target.unitId)
+
+	var destination: Vector2 = movementPolicy.GetDestination(validAttackers[0], target, distance)
 	if not destination.is_finite():
 		return false
 
@@ -123,39 +134,32 @@ func IssueChaseGroupTarget(attackers: Array[Unit], target: Unit) -> bool:
 		if not SetTarget(attacker, target):
 			_unitRuntime.StopUnit(attacker.unitId)
 			attacker.fsm.RequestIdle()
+			continue
+
+		_lastChaseDestinationByMonster[attacker] = destination
 
 	return true
 
 
-# 몬스터 스폰 시 CHASE_COMMAND_GROUP_SIZE 씩 묶어서 cp 또는 부대를 추격
+# 몬스터 스폰 시 그룹 단위로 최초 추격 명령 발행
 func IssueDefaultChaseTargets(monsters: Array[Unit]) -> void:
 	if monsters.is_empty():
 		return
 
-	var sharedTarget: Unit = _GetDefaultMonsterTarget(monsters[0])
-	var canUseSharedTarget: bool = (sharedTarget != null)
-	if canUseSharedTarget:
-		for monster: Unit in monsters:
-			if _GetDefaultMonsterTarget(monster) != sharedTarget:
-				canUseSharedTarget = false
-				break
-
-	if canUseSharedTarget:
-		var startIndex: int = 0
-		while startIndex < monsters.size():
-			var endIndex: int = mini(startIndex + CHASE_COMMAND_GROUP_SIZE, monsters.size())
-
-			var group: Array[Unit] = []
-			for index: int in range(startIndex, endIndex):
-				group.append(monsters[index])
-
-			IssueChaseGroupTarget(group, sharedTarget)
-			startIndex = endIndex
-
+	var target: Unit = _GetDefaultMonsterTarget(monsters[0])
+	if target == null:
 		return
 
-	for monster: Unit in monsters:
-		_IssueDefaultMonsterChase(monster)
+	var startIndex: int = 0
+	while startIndex < monsters.size():
+		var endIndex = mini(startIndex + CHASE_COMMAND_GROUP_SIZE, monsters.size())
+
+		var group: Array[Unit] = []
+		for index: int in range(startIndex, endIndex):
+			group.append(monsters[index])
+
+		IssueChaseGroupTarget(group, target)
+		startIndex = endIndex
 
 
 func IsWithinRange(attacker: Unit, target: Unit, range: int) -> bool:
@@ -246,7 +250,7 @@ func _GetDefaultMonsterTarget(monster: Unit) -> Unit:
 	var bestDistanceSquared: float = INF
 	var bestUnitId: int = -1
 
-	var cp: CommandPost = _battleContext.GetCP()
+	var cp: Unit = _battleContext.GetCP()
 	if cp != null and _battleContext.IsValidTarget(monster, cp):
 		var cpPriority: int = policy.GetPriority(monster, cp, TargetPolicy.SelectionContext.DEFAULT)
 		if cpPriority != TargetPolicy.INVALID_PRIORITY:
@@ -360,7 +364,8 @@ func _IssueChaseTarget(attacker: Unit, target: Unit) -> bool:
 		)
 		return false
 
-	var destination: Vector2 = movementPolicy.GetDestination(attacker, target)
+	var distance: float = _GetFootprintDistance(attacker.unitId, target.unitId)
+	var destination: Vector2 = movementPolicy.GetDestination(attacker, target, distance)
 	if not destination.is_finite():
 		return false
 
@@ -382,7 +387,37 @@ func _IssueChaseTarget(attacker: Unit, target: Unit) -> bool:
 		attacker.fsm.RequestIdle()
 		return false
 
+	_lastChaseDestinationByMonster[attacker] = destination
 	return true
+
+
+func _RefreshMonsterChase(monster: Unit) -> void:
+	if monster == null or monster.fsm == null:
+		return
+
+	if monster.fsm.currentState != UnitFSM.State.CHASE:
+		return
+
+	var target: Unit = GetTarget(monster)
+	if not _battleContext.IsValidTarget(monster, target):
+		return
+
+	var movementPolicy: MovementPolicy = _GetMonsterMovementPolicy(monster)
+	if movementPolicy == null:
+		return
+
+	var distance: float = _GetFootprintDistance(monster.unitId, target.unitId)
+	var destination: Vector2 = movementPolicy.GetDestination(monster, target, distance)
+	if not destination.is_finite():
+		return
+
+	var previousDestination: Vector2 = _lastChaseDestinationByMonster.get(monster, Vector2.INF)
+	if previousDestination.is_finite():
+		var distanceSquared: float = (previousDestination.distance_squared_to(destination))
+		if distanceSquared < CHASE_REPATH_DISTANCE * CHASE_REPATH_DISTANCE:
+			return
+
+	_IssueChaseTarget(monster, target)
 
 
 func _ReturnUnitToIdle(unit: Unit) -> void:
@@ -433,13 +468,13 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 		Math.CeilDivide(characterCount, _targetAcquisitionIntervalFrames),
 		characterCount,
 	)
-
 	for i: int in range(acquisitionCount):
 		if cursor >= characterCount:
 			cursor = 0
 
 		var character: Unit = _battleContext.GetCharacterByIndex(characterType, cursor)
 		cursor += 1
+
 		if not _battleContext.IsManagedUnit(character):
 			continue
 
@@ -447,18 +482,17 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 			continue
 
 		var currentTarget: Unit = GetTarget(character)
-		if not _ShouldAcquireTarget(character, characterType, currentTarget):
-			continue
+		if _ShouldAcquireTarget(character, characterType, currentTarget):
+			var targetPolicy: TargetPolicy = null
+			if characterType == CharacterData.CharacterType.MONSTER:
+				targetPolicy = _GetMonsterTargetPolicy(character)
 
-		var targetPolicy: TargetPolicy = null
+			var newTarget: Unit = _FindBestEnemyInAcquisitionRange(character, targetPolicy)
+			if newTarget != null and newTarget != currentTarget:
+				_SetAcquiredTarget(character, newTarget, characterType)
+
 		if characterType == CharacterData.CharacterType.MONSTER:
-			targetPolicy = _GetMonsterTargetPolicy(character)
-
-		var newTarget: Unit = _FindBestEnemyInAcquisitionRange(character, targetPolicy)
-		if newTarget == null or newTarget == currentTarget:
-			continue
-
-		_SetAcquiredTarget(character, newTarget, characterType)
+			_RefreshMonsterChase(character)
 
 	return cursor
 
@@ -596,6 +630,10 @@ func _GetFootprintDistanceSquared(firstUnitId: int, secondUnitId: int) -> float:
 	var dx: float = maxf(absf(firstPosition.x - secondPosition.x) - combinedHalfSize, 0.0)
 	var dy: float = maxf(absf(firstPosition.y - secondPosition.y) - combinedHalfSize, 0.0)
 	return dx * dx + dy * dy
+
+
+func _GetFootprintDistance(firstUnitId: int, secondUnitId: int) -> float:
+	return sqrt(_GetFootprintDistanceSquared(firstUnitId, secondUnitId))
 
 
 func _IsFriendlyStaticCombatType(characterType: CharacterData.CharacterType) -> bool:
