@@ -245,11 +245,70 @@ func _GetDefaultEnemyTarget(enemy: Enemy) -> Unit:
 	if enemy == null or not _battleContext.IsManagedUnit(enemy):
 		return null
 
-	var cp: Unit = _battleContext.GetCP()
-	if _battleContext.IsValidTarget(enemy, cp):
-		return cp
+	var policy: TargetPolicy = _GetEnemyTargetPolicy(enemy)
+	if policy == null:
+		return null
 
-	return null
+	var bestTarget: Unit = null
+	var bestPriority: int = TargetPolicy.INVALID_PRIORITY
+	var bestDistanceSquared: float = INF
+	var bestUnitId: int = -1
+
+	var cp: Unit = _battleContext.GetCP()
+	if cp != null and _battleContext.IsValidTarget(enemy, cp):
+		var cpPriority: int = policy.GetPriority(enemy, cp, TargetPolicy.SelectionContext.DEFAULT)
+		if cpPriority != TargetPolicy.INVALID_PRIORITY:
+			bestTarget = cp
+			bestPriority = cpPriority
+			bestDistanceSquared = _GetFootprintDistanceSquared(enemy.unitId, cp.unitId)
+			bestUnitId = cp.unitId
+
+	var candidateTypes: Array[CharacterData.CharacterType] = [
+		CharacterData.CharacterType.TOWER,
+		CharacterData.CharacterType.MACHINE,
+		CharacterData.CharacterType.TRAP,
+	]
+	for characterType: CharacterData.CharacterType in candidateTypes:
+		var characterCount: int = _battleContext.GetCharacterCount(characterType)
+		for index: int in characterCount:
+			var candidate: Unit = _battleContext.GetCharacterByIndex(characterType, index)
+			if not _battleContext.IsValidTarget(enemy, candidate):
+				continue
+
+			var priority: int = policy.GetPriority(
+				enemy,
+				candidate,
+				TargetPolicy.SelectionContext.DEFAULT,
+			)
+			if priority == TargetPolicy.INVALID_PRIORITY:
+				continue
+
+			var distanceSquared: float = _GetFootprintDistanceSquared(
+				enemy.unitId,
+				candidate.unitId,
+			)
+
+			if _IsBetterTarget(
+				priority,
+				distanceSquared,
+				candidate.unitId,
+				bestPriority,
+				bestDistanceSquared,
+				bestUnitId,
+			):
+				bestTarget = candidate
+				bestPriority = priority
+				bestDistanceSquared = distanceSquared
+				bestUnitId = candidate.unitId
+
+	return bestTarget
+
+
+func _GetEnemyTargetPolicy(enemy: Enemy) -> TargetPolicy:
+	if enemy == null:
+		return null
+
+	return enemy.GetTargetPolicy()
 
 
 func _IsBetterTarget(
@@ -395,7 +454,11 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 
 		var currentTarget: Unit = GetTarget(character)
 		if _ShouldAcquireTarget(character, characterType, currentTarget):
-			var newTarget: Unit = _FindBestEnemyInAcquisitionRange(character)
+			var targetPolicy: TargetPolicy = null
+			if characterType == CharacterData.CharacterType.ENEMY:
+				targetPolicy = _GetEnemyTargetPolicy(character as Enemy)
+
+			var newTarget: Unit = _FindBestEnemyInAcquisitionRange(character, targetPolicy)
 			if newTarget != null and newTarget != currentTarget:
 				_SetAcquiredTarget(character, newTarget, characterType)
 
@@ -405,7 +468,7 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 	return cursor
 
 
-func _FindBestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
+func _FindBestEnemyInAcquisitionRange(attacker: Unit, policy: TargetPolicy = null) -> Unit:
 	if attacker == null or not attacker.HasCharacterStats() or attacker.IsDead():
 		return null
 
@@ -420,7 +483,7 @@ func _FindBestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
 	)
 
 	var bestTarget: Unit = null
-	var bestPriority: int = -1
+	var bestPriority: int = TargetPolicy.INVALID_PRIORITY
 	var bestDistanceSquared: float = INF
 	var bestUnitId: int = -1
 
@@ -434,6 +497,14 @@ func _FindBestEnemyInAcquisitionRange(attacker: Unit) -> Unit:
 			continue
 
 		var priority: int = 0
+		if policy != null:
+			priority = policy.GetPriority(
+				attacker,
+				candidate,
+				TargetPolicy.SelectionContext.ACQUISITION,
+			)
+			if priority == TargetPolicy.INVALID_PRIORITY:
+				continue
 
 		var distanceSquared: float = _GetFootprintDistanceSquared(attacker.unitId, candidate.unitId)
 		if distanceSquared > acquisitionRange * acquisitionRange:
@@ -465,7 +536,16 @@ func _ShouldAcquireTarget(
 			if character.fsm != null and character.fsm.currentState == UnitFSM.State.ATTACK:
 				return false
 
-			return currentTarget != null
+			var policy: TargetPolicy = _GetEnemyTargetPolicy(character as Enemy)
+			if policy == null or currentTarget == null:
+				return false
+
+			var priority: int = policy.GetPriority(
+				character,
+				currentTarget,
+				TargetPolicy.SelectionContext.DEFAULT,
+			)
+			return priority != TargetPolicy.INVALID_PRIORITY
 		CharacterData.CharacterType.TOWER, \
 				CharacterData.CharacterType.MACHINE, \
 				CharacterData.CharacterType.TRAP:

@@ -1,6 +1,7 @@
 class_name Trap
 extends Unit
 
+var _trigger: TrapTrigger
 var _hasActivated: bool = false
 
 
@@ -12,25 +13,21 @@ func ConfigureCharacter(characterData: CharacterData) -> bool:
 		push_error("Trap: TRAP 타입이 아닙니다.")
 		return false
 
+	_trigger = null
 	_hasActivated = false
-	return super.ConfigureCharacter(characterData)
+
+	if not super.ConfigureCharacter(characterData):
+		return false
+
+	_trigger = _CreateTrigger(characterData.triggerId)
+	return _trigger != null
 
 
 func CanTrigger(target: Unit, distanceSquared: float) -> bool:
-	if _hasActivated or target == null:
+	if _hasActivated or _trigger == null:
 		return false
 
-	if not HasCharacterStats() or IsDead():
-		return false
-
-	if not target.HasCharacterStats() or target.IsDead():
-		return false
-
-	if distanceSquared < 0.0:
-		return false
-
-	var attackRange: int = GetStat(CharacterStats.Type.ATK_RANGE)
-	return distanceSquared <= float(attackRange) * float(attackRange)
+	return _trigger.CanTrigger(self, target, distanceSquared)
 
 
 func HasActivated() -> bool:
@@ -38,7 +35,7 @@ func HasActivated() -> bool:
 
 
 func CommitActivation() -> bool:
-	if _hasActivated:
+	if _hasActivated or _trigger == null:
 		return false
 
 	_hasActivated = true
@@ -48,3 +45,15 @@ func CommitActivation() -> bool:
 func ResetForReuse() -> void:
 	super.ResetForReuse()
 	_hasActivated = false
+
+
+func _CreateTrigger(triggerId: CharacterData.TriggerId) -> TrapTrigger:
+	match triggerId:
+		CharacterData.TriggerId.RANGE:
+			return RangeTrapTrigger.new()
+		_:
+			push_error(
+				"Trap: Trigger가 정의되지 않았습니다. key: " + str(characterKey)
+				+ ", triggerId: " + str(triggerId)
+			)
+			return null

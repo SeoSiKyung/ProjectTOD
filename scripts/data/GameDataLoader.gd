@@ -53,6 +53,38 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 				push_error("CharacterTable characterType이 올바르지 않습니다. " + context)
 				continue
 
+		var targetPolicyName: String = row["targetPolicyId"].strip_edges()
+		if characterType == CharacterData.CharacterType.ENEMY:
+			if targetPolicyName.is_empty():
+				push_error("GameDataLoader: ENEMY의 targetPolicyId가 누락되었습니다. " + context)
+				continue
+			if not CharacterData.TargetPolicyId.has(targetPolicyName):
+				push_error(
+					"GameDataLoader: 지원하지 않는 targetPolicyId입니다. "
+					+ context + ", targetPolicyId: " + targetPolicyName
+				)
+				continue
+		else:
+			if not targetPolicyName.is_empty():
+				push_error("GameDataLoader: ENEMY가 아닌 캐릭터에 targetPolicyId가 설정되었습니다. " + context)
+				continue
+
+		var triggerName: String = row["triggerId"].strip_edges()
+		if characterType == CharacterData.CharacterType.TRAP:
+			if triggerName.is_empty():
+				push_error("GameDataLoader: TRAP의 triggerId가 누락되었습니다. " + context)
+				continue
+			if not CharacterData.TriggerId.has(triggerName):
+				push_error(
+					"GameDataLoader: 지원하지 않는 triggerId입니다. "
+					+ context + ", triggerId: " + triggerName
+				)
+				continue
+		else:
+			if not triggerName.is_empty():
+				push_error("GameDataLoader: TRAP이 아닌 캐릭터에 triggerId가 설정되었습니다. " + context)
+				continue
+
 		var resourceName: String = "Unit_" + str(characterKey)
 
 		var iconPath: String = (
@@ -147,6 +179,8 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			iconPath,
 			parchmentIconPath,
 			stats,
+			CharacterData.TargetPolicyId.get(targetPolicyName),
+			CharacterData.TriggerId.get(triggerName),
 		)
 		characterDataByKey[characterKey] = characterData
 
