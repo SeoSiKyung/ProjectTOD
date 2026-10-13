@@ -10,7 +10,7 @@ func _init(unit: Unit, fsm: UnitFSM) -> void:
 	_fsm = weakref(fsm)
 
 @abstract
-func Action() -> void
+func IsMoving() -> bool
 
 @abstract
-func Get() -> void
+func Action(snapshot: StageSnapshot) -> void
