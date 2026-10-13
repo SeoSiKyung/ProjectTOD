@@ -9,7 +9,7 @@ func ConfigureCharacter(characterData: CharacterData) -> bool:
 	if characterData == null:
 		return false
 
-	if characterData.characterType != CharacterData.CharacterType.TRAP:
+	if characterData.characterType != CharacterType.TRAP:
 		push_error("Trap: TRAP 타입이 아닙니다.")
 		return false
 

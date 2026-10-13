@@ -21,7 +21,8 @@ signal MoveSpeedChanged(moveSpeed: int)
 @onready var fsm: UnitFSM = $UnitFSM
 
 var characterKey: int = -1
-var characterType: CharacterData.CharacterType = CharacterData.CharacterType.COUNT
+var characterType: CharacterType.Type = CharacterType.COUNT
+var faction: Faction.Type = Faction.Type.NONE
 var _baseStats: CharacterStats
 
 var maxHp: int = 0
@@ -51,6 +52,7 @@ func ConfigureCharacter(characterData: CharacterData) -> bool:
 
 	characterKey = characterData.characterKey
 	characterType = characterData.characterType
+	faction = characterData.faction
 	_baseStats = characterData.stats
 
 	_bonusStats.Clear()

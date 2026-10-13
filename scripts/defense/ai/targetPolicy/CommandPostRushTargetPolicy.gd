@@ -6,7 +6,7 @@ func GetPriority(_attacker: Unit, candidate: Unit, _context: SelectionContext) -
 	if candidate == null:
 		return INVALID_PRIORITY
 
-	if candidate.characterType == CharacterData.CharacterType.COMMAND_POST:
+	if candidate.characterType == CharacterType.COMMAND_POST:
 		return 0
 
 	return INVALID_PRIORITY

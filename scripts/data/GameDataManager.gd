@@ -2,7 +2,7 @@ extends Node
 
 # 여기에 Dictionary 추가
 var _characterDataByKey: Dictionary[int, CharacterData] = { }
-var _characterDataByType: Dictionary[CharacterData.CharacterType, Array] = { }
+var _characterDataByType: Dictionary[CharacterType.Type, Array] = { }
 var _mercenaryDataByKey: Dictionary[int, MercenaryData] = { }
 var _mercenaryBuffDataByKey: Dictionary[int, Array] = { }
 var _defenseSpawnDataByCycle: Dictionary[int, Array] = { }
@@ -38,7 +38,7 @@ func GetCharacterData(characterKey: int) -> CharacterData:
 	return _characterDataByKey.get(characterKey)
 
 
-func GetCharacterDataByType(characterType: CharacterData.CharacterType) -> Array[CharacterData]:
+func GetCharacterDataByType(characterType: CharacterType.Type) -> Array[CharacterData]:
 	return _characterDataByType[characterType]
 
 
@@ -91,9 +91,9 @@ func _ValidateGameData() -> bool:
 	return isValid
 
 
-func _BuildCharacterDataByType() -> Dictionary[CharacterData.CharacterType, Array]:
-	var characterDataByType: Dictionary[CharacterData.CharacterType, Array] = { }
-	for characterType: CharacterData.CharacterType in CharacterData.CharacterType.COUNT:
+func _BuildCharacterDataByType() -> Dictionary[CharacterType.Type, Array]:
+	var characterDataByType: Dictionary[CharacterType.Type, Array] = { }
+	for characterType: CharacterType.Type in CharacterType.COUNT:
 		var characterDataList: Array[CharacterData] = []
 		characterDataByType[characterType] = characterDataList
 
@@ -104,7 +104,7 @@ func _BuildCharacterDataByType() -> Dictionary[CharacterData.CharacterType, Arra
 		]
 		characterDataList.append(characterData)
 
-	for characterType: CharacterData.CharacterType in CharacterData.CharacterType.COUNT:
+	for characterType: CharacterType.Type in CharacterType.COUNT:
 		characterDataByType[characterType].make_read_only()
 
 	characterDataByType.make_read_only()

@@ -16,7 +16,7 @@ func AddTower(
 	if _preparedPopulationByCell.has(cell) or characterData == null:
 		return false
 
-	if characterData.characterType != CharacterData.CharacterType.TOWER:
+	if characterData.characterType != CharacterType.TOWER:
 		push_error(
 			"DefenseTowerManager: TOWER 타입이 아닌 캐릭터가 배치되었습니다. key: "
 			+ str(characterData.characterKey)
@@ -44,7 +44,7 @@ func BindUnit(cell: Vector2i, tower: Tower) -> bool:
 	if tower == null or not _preparedPopulationByCell.has(cell) or _towerByCell.has(cell):
 		return false
 
-	if tower.characterType != CharacterData.CharacterType.TOWER:
+	if tower.characterType != CharacterType.TOWER:
 		return false
 
 	if not RegisterCharacter(tower):

@@ -35,26 +35,26 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 			continue
 
 		var characterTypeName: String = row["characterType"].strip_edges()
-		var characterType: CharacterData.CharacterType
+		var characterType: CharacterType.Type
 		match characterTypeName:
 			"ALLY":
-				characterType = CharacterData.CharacterType.ALLY
+				characterType = CharacterType.ALLY
 			"COMMAND_POST":
-				characterType = CharacterData.CharacterType.COMMAND_POST
+				characterType = CharacterType.COMMAND_POST
 			"TOWER":
-				characterType = CharacterData.CharacterType.TOWER
+				characterType = CharacterType.TOWER
 			"MACHINE":
-				characterType = CharacterData.CharacterType.MACHINE
+				characterType = CharacterType.MACHINE
 			"TRAP":
-				characterType = CharacterData.CharacterType.TRAP
+				characterType = CharacterType.TRAP
 			"ENEMY":
-				characterType = CharacterData.CharacterType.ENEMY
+				characterType = CharacterType.ENEMY
 			_:
 				push_error("CharacterTable characterType이 올바르지 않습니다. " + context)
 				continue
 
 		var targetPolicyName: String = row["targetPolicyId"].strip_edges()
-		if characterType == CharacterData.CharacterType.ENEMY:
+		if characterType == CharacterType.ENEMY:
 			if targetPolicyName.is_empty():
 				push_error("GameDataLoader: ENEMY의 targetPolicyId가 누락되었습니다. " + context)
 				continue
@@ -70,7 +70,7 @@ static func LoadCharacterData() -> Dictionary[int, CharacterData]:
 				continue
 
 		var triggerName: String = row["triggerId"].strip_edges()
-		if characterType == CharacterData.CharacterType.TRAP:
+		if characterType == CharacterType.TRAP:
 			if triggerName.is_empty():
 				push_error("GameDataLoader: TRAP의 triggerId가 누락되었습니다. " + context)
 				continue
@@ -433,7 +433,7 @@ static func ValidateDefenseSpawnDataReferences(
 				isValid = false
 				continue
 
-			if characterData.characterType != CharacterData.CharacterType.ENEMY:
+			if characterData.characterType != CharacterType.ENEMY:
 				push_error(
 					"DefenseSpawnTable에는 ENEMY 타입만 등록할 수 있습니다. cycle: "
 					+ str(cycle) + ", key: " + str(spawnData.characterKey)

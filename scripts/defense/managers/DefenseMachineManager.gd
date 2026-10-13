@@ -7,8 +7,8 @@ func AddMachine(machine: Unit, characterData: CharacterData) -> bool:
 		return false
 
 	if (
-		characterData.characterType != CharacterData.CharacterType.MACHINE
-		or machine.characterType != CharacterData.CharacterType.MACHINE
+		characterData.characterType != CharacterType.MACHINE
+		or machine.characterType != CharacterType.MACHINE
 		or machine.characterKey != characterData.characterKey
 	):
 		push_error("DefenseMachineManager: Machine 데이터가 일치하지 않습니다.")

@@ -16,7 +16,7 @@ func Initialize(cp: CommandPost, cpCharacterKey: int) -> bool:
 		push_error("DefenseCPManager: CP 캐릭터 키가 일치하지 않습니다. key: " + str(cpCharacterKey))
 		return false
 
-	if cp.characterType != CharacterData.CharacterType.COMMAND_POST:
+	if cp.characterType != CharacterType.COMMAND_POST:
 		push_error("DefenseCPManager: COMMAND_POST 타입이 아닙니다.")
 		return false
 

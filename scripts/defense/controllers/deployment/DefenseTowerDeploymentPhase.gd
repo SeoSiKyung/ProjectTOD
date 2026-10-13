@@ -11,7 +11,7 @@ func Enter() -> bool:
 	_deploymentInfoView.ClearMercenaries()
 
 	var unitDataList: Array[CharacterData] = GameDataManager.GetCharacterDataByType(
-		CharacterData.CharacterType.TOWER
+		CharacterType.TOWER
 	)
 	if unitDataList.is_empty():
 		push_error("DefenseTowerDeploymentPhase: 배치 가능한 TOWER 데이터가 없습니다.")

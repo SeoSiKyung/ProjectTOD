@@ -7,8 +7,8 @@ func AddTrap(trap: Trap, characterData: CharacterData) -> bool:
 		return false
 
 	if (
-		characterData.characterType != CharacterData.CharacterType.TRAP
-		or trap.characterType != CharacterData.CharacterType.TRAP
+		characterData.characterType != CharacterType.TRAP
+		or trap.characterType != CharacterType.TRAP
 		or trap.characterKey != characterData.characterKey
 	):
 		push_error("DefenseTrapManager: Trap 데이터가 일치하지 않습니다.")

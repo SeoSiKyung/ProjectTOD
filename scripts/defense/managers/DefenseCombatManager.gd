@@ -45,10 +45,10 @@ func Update() -> void:
 	if not _isInitialized:
 		return
 
-	_UpdateCharacterCombat(CharacterData.CharacterType.TOWER)
-	_UpdateCharacterCombat(CharacterData.CharacterType.MACHINE)
-	_UpdateCharacterCombat(CharacterData.CharacterType.TRAP)
-	_UpdateCharacterCombat(CharacterData.CharacterType.ENEMY)
+	_UpdateCharacterCombat(CharacterType.TOWER)
+	_UpdateCharacterCombat(CharacterType.MACHINE)
+	_UpdateCharacterCombat(CharacterType.TRAP)
+	_UpdateCharacterCombat(CharacterType.ENEMY)
 
 
 func AdvanceAttackTick(unitId: int, attackIntervalFrames: int) -> bool:
@@ -127,7 +127,7 @@ func FlushAttacks() -> void:
 	_ResolvePendingSelfDestructs()
 
 
-func _UpdateCharacterCombat(characterType: CharacterData.CharacterType) -> void:
+func _UpdateCharacterCombat(characterType: CharacterType.Type) -> void:
 	var characterCount: int = _battleContext.GetCharacterCount(characterType)
 	for index: int in characterCount:
 		var character: Unit = _battleContext.GetCharacterByIndex(characterType, index)

@@ -37,19 +37,19 @@ static func Create(characterData: CharacterData) -> Unit:
 	return unit
 
 
-static func _GetCharacterScene(characterType: CharacterData.CharacterType) -> PackedScene:
+static func _GetCharacterScene(characterType: CharacterType.Type) -> PackedScene:
 	match characterType:
-		CharacterData.CharacterType.ALLY:
+		CharacterType.ALLY:
 			return ALLY_SCENE
-		CharacterData.CharacterType.COMMAND_POST:
+		CharacterType.COMMAND_POST:
 			return COMMAND_POST_SCENE
-		CharacterData.CharacterType.TOWER:
+		CharacterType.TOWER:
 			return TOWER_SCENE
-		CharacterData.CharacterType.MACHINE:
+		CharacterType.MACHINE:
 			return MACHINE_SCENE
-		CharacterData.CharacterType.TRAP:
+		CharacterType.TRAP:
 			return TRAP_SCENE
-		CharacterData.CharacterType.ENEMY:
+		CharacterType.ENEMY:
 			return ENEMY_SCENE
 		_:
 			return null

@@ -13,12 +13,8 @@ func Enter() -> bool:
 	var installableDataList: Array[CharacterData] = []
 	var sourceDataList: Array[CharacterData] = []
 
-	sourceDataList.append_array(
-		GameDataManager.GetCharacterDataByType(CharacterData.CharacterType.MACHINE)
-	)
-	sourceDataList.append_array(
-		GameDataManager.GetCharacterDataByType(CharacterData.CharacterType.TRAP)
-	)
+	sourceDataList.append_array(GameDataManager.GetCharacterDataByType(CharacterType.MACHINE))
+	sourceDataList.append_array(GameDataManager.GetCharacterDataByType(CharacterType.TRAP))
 
 	_installableCharacterKeys.clear()
 
@@ -151,13 +147,11 @@ func _RefreshInfo() -> void:
 	var trapCount: int = 0
 
 	for characterData: CharacterData in (
-		GameDataManager.GetCharacterDataByType(CharacterData.CharacterType.MACHINE)
+		GameDataManager.GetCharacterDataByType(CharacterType.MACHINE)
 	):
 		machineCount += _defenseSceneManager.GetInstallableDeployedCount(characterData.characterKey)
 
-	for characterData: CharacterData in (
-		GameDataManager.GetCharacterDataByType(CharacterData.CharacterType.TRAP)
-	):
+	for characterData: CharacterData in (GameDataManager.GetCharacterDataByType(CharacterType.TRAP)):
 		trapCount += _defenseSceneManager.GetInstallableDeployedCount(characterData.characterKey)
 
 	_deploymentView.UpdateInstallableInfo(machineCount, trapCount)

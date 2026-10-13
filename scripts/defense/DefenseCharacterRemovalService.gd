@@ -37,7 +37,7 @@ func Remove(character: Unit) -> bool:
 
 	var poolManager: DefensePoolManager
 
-	if character.characterType == CharacterData.CharacterType.ENEMY:
+	if character.characterType == CharacterType.ENEMY:
 		poolManager = _enemyPoolManager
 
 	return _RemoveFromManager(character, characterManager, poolManager)
@@ -105,15 +105,15 @@ func _CleanupManager(
 	return true
 
 
-func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
+func _GetCharacterManager(characterType: CharacterType.Type) -> DefenseCharacterManager:
 	match characterType:
-		CharacterData.CharacterType.TOWER:
+		CharacterType.TOWER:
 			return _towerManager
-		CharacterData.CharacterType.MACHINE:
+		CharacterType.MACHINE:
 			return _machineManager
-		CharacterData.CharacterType.TRAP:
+		CharacterType.TRAP:
 			return _trapManager
-		CharacterData.CharacterType.ENEMY:
+		CharacterType.ENEMY:
 			return _enemyManager
 
 	return null

@@ -82,7 +82,7 @@ func BindCP(cp: CommandPost) -> bool:
 		push_error("DefenseSceneManager: CP가 없습니다.")
 		return false
 
-	if cp.characterType != CharacterData.CharacterType.COMMAND_POST:
+	if cp.characterType != CharacterType.COMMAND_POST:
 		push_error("DefenseSceneManager: CP 타입이 올바르지 않습니다.")
 		return false
 

@@ -137,8 +137,5 @@ func HasDeployment() -> bool:
 	return not _deployments.is_empty()
 
 
-func _IsInstallableType(characterType: CharacterData.CharacterType) -> bool:
-	return (
-		characterType == CharacterData.CharacterType.MACHINE
-		or characterType == CharacterData.CharacterType.TRAP
-	)
+func _IsInstallableType(characterType: CharacterType.Type) -> bool:
+	return (characterType == CharacterType.MACHINE or characterType == CharacterType.TRAP)

@@ -74,7 +74,7 @@ func _CreateCP() -> bool:
 		)
 		return false
 
-	if characterData.characterType != CharacterData.CharacterType.COMMAND_POST:
+	if characterData.characterType != CharacterType.COMMAND_POST:
 		push_error("DefenseScene: COMMAND_POST 타입이 아닙니다.")
 		return false
 

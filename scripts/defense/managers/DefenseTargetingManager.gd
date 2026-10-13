@@ -162,7 +162,7 @@ func IsWithinRange(attacker: Unit, target: Unit, range: int) -> bool:
 
 
 func _UpdateExistingTargets() -> void:
-	for characterType: CharacterData.CharacterType in CharacterData.CharacterType.COUNT:
+	for characterType: CharacterType.Type in CharacterType.COUNT:
 		var characterCount: int = _battleContext.GetCharacterCount(characterType)
 		for index: int in characterCount:
 			var character: Unit = _battleContext.GetCharacterByIndex(characterType, index)
@@ -175,7 +175,7 @@ func _UpdateExistingTargets() -> void:
 			_UpdateCharacterTargeting(character, characterType)
 
 
-func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.CharacterType) -> void:
+func _UpdateCharacterTargeting(character: Unit, characterType: CharacterType.Type) -> void:
 	var target: Unit = GetTarget(character)
 
 	if target == null or not _battleContext.IsValidTarget(character, target):
@@ -190,14 +190,14 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.Cha
 	var attackRange: int = character.GetStat(CharacterStats.Type.ATK_RANGE)
 
 	if (
-		_IsFriendlyStaticCombatType(characterType)
+		_IsStaticCombatType(characterType)
 		and not IsWithinRange(character, target, acquisitionRange)
 	):
 		ClearTarget(character)
 		_ReturnUnitToIdle(character)
 		return
 
-	if characterType == CharacterData.CharacterType.TRAP:
+	if characterType == CharacterType.TRAP:
 		var trap: Trap = character as Trap
 		if trap == null:
 			push_error("DefenseTargetingManager: TRAP 타입의 인스턴스가 Trap이 아닙니다.")
@@ -222,22 +222,22 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterData.Cha
 		return
 
 	match characterType:
-		CharacterData.CharacterType.ENEMY:
+		CharacterType.ENEMY:
 			_IssueChaseTarget(character, target)
-		CharacterData.CharacterType.TOWER, \
-				CharacterData.CharacterType.MACHINE, \
-				CharacterData.CharacterType.TRAP:
+		CharacterType.TOWER, \
+				CharacterType.MACHINE, \
+				CharacterType.TRAP:
 			character.fsm.ReturnFromAttackOutOfRange()
 
 
-func _HandleMissingTarget(character: Unit, characterType: CharacterData.CharacterType) -> void:
+func _HandleMissingTarget(character: Unit, characterType: CharacterType.Type) -> void:
 	match characterType:
-		CharacterData.CharacterType.ENEMY:
+		CharacterType.ENEMY:
 			_IssueDefaultEnemyChase(character as Enemy)
 
-		CharacterData.CharacterType.TOWER, \
-				CharacterData.CharacterType.MACHINE, \
-				CharacterData.CharacterType.TRAP:
+		CharacterType.TOWER, \
+				CharacterType.MACHINE, \
+				CharacterType.TRAP:
 			_ReturnUnitToIdle(character)
 
 
@@ -263,12 +263,12 @@ func _GetDefaultEnemyTarget(enemy: Enemy) -> Unit:
 			bestDistanceSquared = _GetFootprintDistanceSquared(enemy.unitId, cp.unitId)
 			bestUnitId = cp.unitId
 
-	var candidateTypes: Array[CharacterData.CharacterType] = [
-		CharacterData.CharacterType.TOWER,
-		CharacterData.CharacterType.MACHINE,
-		CharacterData.CharacterType.TRAP,
+	var candidateTypes: Array[CharacterType.Type] = [
+		CharacterType.TOWER,
+		CharacterType.MACHINE,
+		CharacterType.TRAP,
 	]
-	for characterType: CharacterData.CharacterType in candidateTypes:
+	for characterType: CharacterType.Type in candidateTypes:
 		var characterCount: int = _battleContext.GetCharacterCount(characterType)
 		for index: int in characterCount:
 			var candidate: Unit = _battleContext.GetCharacterByIndex(characterType, index)
@@ -396,13 +396,13 @@ func _ReturnUnitToIdle(unit: Unit) -> void:
 		unit.fsm.RequestIdle()
 
 
-func _EnterAttack(attacker: Unit, target: Unit, characterType: CharacterData.CharacterType) -> void:
+func _EnterAttack(attacker: Unit, target: Unit, characterType: CharacterType.Type) -> void:
 	if attacker.fsm.currentState == UnitFSM.State.ATTACK:
 		return
 
 	var returnState: UnitFSM.State = UnitFSM.State.IDLE
 
-	if characterType == CharacterData.CharacterType.ENEMY:
+	if characterType == CharacterType.ENEMY:
 		if not _unitRuntime.StopUnit(attacker.unitId):
 			return
 
@@ -413,24 +413,24 @@ func _EnterAttack(attacker: Unit, target: Unit, characterType: CharacterData.Cha
 
 func _UpdateTargetAcquisition() -> void:
 	_unitTargetAcquisitionCursor = _UpdateTargetAcquisitionByType(
-		CharacterData.CharacterType.TOWER,
+		CharacterType.TOWER,
 		_unitTargetAcquisitionCursor,
 	)
 	_machineTargetAcquisitionCursor = _UpdateTargetAcquisitionByType(
-		CharacterData.CharacterType.MACHINE,
+		CharacterType.MACHINE,
 		_machineTargetAcquisitionCursor,
 	)
 	_trapTargetAcquisitionCursor = _UpdateTargetAcquisitionByType(
-		CharacterData.CharacterType.TRAP,
+		CharacterType.TRAP,
 		_trapTargetAcquisitionCursor,
 	)
 	_enemyTargetAcquisitionCursor = _UpdateTargetAcquisitionByType(
-		CharacterData.CharacterType.ENEMY,
+		CharacterType.ENEMY,
 		_enemyTargetAcquisitionCursor,
 	)
 
 
-func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, cursor: int) -> int:
+func _UpdateTargetAcquisitionByType(characterType: CharacterType.Type, cursor: int) -> int:
 	var characterCount: int = _battleContext.GetCharacterCount(characterType)
 	if characterCount == 0:
 		return 0
@@ -455,14 +455,14 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterData.CharacterType, 
 		var currentTarget: Unit = GetTarget(character)
 		if _ShouldAcquireTarget(character, characterType, currentTarget):
 			var targetPolicy: TargetPolicy = null
-			if characterType == CharacterData.CharacterType.ENEMY:
+			if characterType == CharacterType.ENEMY:
 				targetPolicy = _GetEnemyTargetPolicy(character as Enemy)
 
 			var newTarget: Unit = _FindBestEnemyInAcquisitionRange(character, targetPolicy)
 			if newTarget != null and newTarget != currentTarget:
 				_SetAcquiredTarget(character, newTarget, characterType)
 
-		if characterType == CharacterData.CharacterType.ENEMY:
+		if characterType == CharacterType.ENEMY:
 			_RefreshEnemyChase(character as Enemy)
 
 	return cursor
@@ -528,11 +528,11 @@ func _FindBestEnemyInAcquisitionRange(attacker: Unit, policy: TargetPolicy = nul
 
 func _ShouldAcquireTarget(
 	character: Unit,
-	characterType: CharacterData.CharacterType,
+	characterType: CharacterType.Type,
 	currentTarget: Unit,
 ) -> bool:
 	match characterType:
-		CharacterData.CharacterType.ENEMY:
+		CharacterType.ENEMY:
 			if character.fsm != null and character.fsm.currentState == UnitFSM.State.ATTACK:
 				return false
 
@@ -546,21 +546,17 @@ func _ShouldAcquireTarget(
 				TargetPolicy.SelectionContext.DEFAULT,
 			)
 			return priority != TargetPolicy.INVALID_PRIORITY
-		CharacterData.CharacterType.TOWER, \
-				CharacterData.CharacterType.MACHINE, \
-				CharacterData.CharacterType.TRAP:
+		CharacterType.TOWER, \
+				CharacterType.MACHINE, \
+				CharacterType.TRAP:
 			return currentTarget == null
 
 	return false
 
 
-func _SetAcquiredTarget(
-	character: Unit,
-	target: Unit,
-	characterType: CharacterData.CharacterType,
-) -> void:
+func _SetAcquiredTarget(character: Unit, target: Unit, characterType: CharacterType.Type) -> void:
 	match characterType:
-		CharacterData.CharacterType.ENEMY:
+		CharacterType.ENEMY:
 			if _IssueChaseTarget(character, target):
 				return
 
@@ -570,9 +566,9 @@ func _SetAcquiredTarget(
 					+ str(character.unitId)
 				)
 
-		CharacterData.CharacterType.TOWER, \
-				CharacterData.CharacterType.MACHINE, \
-				CharacterData.CharacterType.TRAP:
+		CharacterType.TOWER, \
+				CharacterType.MACHINE, \
+				CharacterType.TRAP:
 			SetTarget(character, target)
 
 
@@ -603,9 +599,8 @@ func _GetFootprintDistanceSquared(firstUnitId: int, secondUnitId: int) -> float:
 	return dx * dx + dy * dy
 
 
-func _IsFriendlyStaticCombatType(characterType: CharacterData.CharacterType) -> bool:
+func _IsStaticCombatType(characterType: CharacterType.Type) -> bool:
 	return (
-		characterType == CharacterData.CharacterType.TOWER
-		or characterType == CharacterData.CharacterType.MACHINE
-		or characterType == CharacterData.CharacterType.TRAP
+		characterType == CharacterType.TOWER or characterType == CharacterType.MACHINE
+		or characterType == CharacterType.TRAP
 	)

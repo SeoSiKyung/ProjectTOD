@@ -8,7 +8,7 @@ func ConfigureCharacter(characterData: CharacterData) -> bool:
 	if characterData == null:
 		return false
 
-	if characterData.characterType != CharacterData.CharacterType.ENEMY:
+	if characterData.characterType != CharacterType.ENEMY:
 		push_error("Enemy: ENEMY 타입이 아닙니다.")
 		return false
 

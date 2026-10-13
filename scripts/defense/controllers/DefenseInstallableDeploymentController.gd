@@ -152,9 +152,9 @@ func BindPreparedInstallables() -> bool:
 
 		var bindSuccess: bool = false
 		match characterData.characterType:
-			CharacterData.CharacterType.MACHINE:
+			CharacterType.MACHINE:
 				bindSuccess = _machineManager.AddMachine(unit as Machine, characterData)
-			CharacterData.CharacterType.TRAP:
+			CharacterType.TRAP:
 				bindSuccess = _trapManager.AddTrap(unit as Trap, characterData)
 
 		if not bindSuccess:
@@ -249,6 +249,6 @@ func _IsValidInstallable(characterData: CharacterData) -> bool:
 		return false
 
 	return (
-		characterData.characterType == CharacterData.CharacterType.MACHINE
-		or characterData.characterType == CharacterData.CharacterType.TRAP
+		characterData.characterType == CharacterType.MACHINE
+		or characterData.characterType == CharacterType.TRAP
 	)

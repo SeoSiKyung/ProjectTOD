@@ -96,7 +96,7 @@ class EnemyPoolManager extends DefensePoolManager:
 			push_error("EnemyPoolManager: CharacterData가 없습니다.")
 			return null
 
-		if characterData.characterType != CharacterData.CharacterType.ENEMY:
+		if characterData.characterType != CharacterType.ENEMY:
 			push_error("EnemyPoolManager: ENEMY 타입이 아닙니다. key: " + str(characterData.characterKey))
 			return null
 

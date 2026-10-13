@@ -37,16 +37,16 @@ func GetUnit(unitId: int) -> Unit:
 
 
 func AreEnemies(a: Unit, b: Unit) -> bool:
-	if _IsFriendlyType(a.characterType):
-		return b.characterType == CharacterData.CharacterType.ENEMY
+	if a == null or b == null:
+		return false
 
-	if a.characterType == CharacterData.CharacterType.ENEMY:
-		return _IsFriendlyType(b.characterType)
+	return (
+		(a.faction == Faction.Type.ALLY and b.faction == Faction.Type.ENEMY)
+		or (a.faction == Faction.Type.ENEMY and b.faction == Faction.Type.ALLY)
+	)
 
-	return false
 
-
-func GetCharacterCount(characterType: CharacterData.CharacterType) -> int:
+func GetCharacterCount(characterType: CharacterType.Type) -> int:
 	var manager: DefenseCharacterManager = _GetCharacterManager(characterType)
 	if manager == null:
 		return 0
@@ -54,7 +54,7 @@ func GetCharacterCount(characterType: CharacterData.CharacterType) -> int:
 	return manager.GetCharacterCount()
 
 
-func GetCharacterByIndex(characterType: CharacterData.CharacterType, index: int) -> Unit:
+func GetCharacterByIndex(characterType: CharacterType.Type, index: int) -> Unit:
 	var manager: DefenseCharacterManager = _GetCharacterManager(characterType)
 	if manager == null:
 		return null
@@ -75,7 +75,7 @@ func IsValidTarget(attacker: Unit, target: Unit) -> bool:
 
 	if target == GetCP():
 		return (
-			attacker.characterType == CharacterData.CharacterType.ENEMY
+			attacker.faction == Faction.Type.ENEMY and target.faction == Faction.Type.ALLY
 			and target.HasCharacterStats() and not target.IsDead()
 		)
 
@@ -102,27 +102,18 @@ func ApplyDamage(target: Unit, damage: int) -> bool:
 	return manager != null and manager.TakeDamage(target, damage)
 
 
-func _GetCharacterManager(characterType: CharacterData.CharacterType) -> DefenseCharacterManager:
+func _GetCharacterManager(characterType: CharacterType.Type) -> DefenseCharacterManager:
 	match characterType:
-		CharacterData.CharacterType.TOWER:
+		CharacterType.TOWER:
 			return _towerManager
 
-		CharacterData.CharacterType.MACHINE:
+		CharacterType.MACHINE:
 			return _machineManager
 
-		CharacterData.CharacterType.TRAP:
+		CharacterType.TRAP:
 			return _trapManager
 
-		CharacterData.CharacterType.ENEMY:
+		CharacterType.ENEMY:
 			return _enemyManager
 
 	return null
-
-
-func _IsFriendlyType(characterType: CharacterData.CharacterType) -> bool:
-	return (
-		characterType == CharacterData.CharacterType.TOWER
-		or characterType == CharacterData.CharacterType.MACHINE
-		or characterType == CharacterData.CharacterType.TRAP
-		or characterType == CharacterData.CharacterType.COMMAND_POST
-	)
