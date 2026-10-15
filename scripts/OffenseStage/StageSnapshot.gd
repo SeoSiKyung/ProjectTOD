@@ -3,16 +3,19 @@ extends RefCounted
 
 const SPATIAL_CELL_SIZE: int = 64
 const DEFAULT_SLOT_CAPACITY: int = 512
+const MAX_FOUND_UNIT: int = 1000
 
 var _slots: UnitSlotStorage
 var _slotsByCell: Dictionary[Vector2i, Array] = { }
 var _spatialCellSize: int = SPATIAL_CELL_SIZE
 
+var foundUnit: PackedInt32Array
 
 func _init(initialCapacity: int = DEFAULT_SLOT_CAPACITY, spatialCellSize: int = SPATIAL_CELL_SIZE) -> void:
 	_slots = UnitSlotStorage.new(initialCapacity)
 	if is_finite(spatialCellSize) and spatialCellSize > 0.0:
 		_spatialCellSize = spatialCellSize
+	foundUnit.resize(MAX_FOUND_UNIT)
 
 
 func GetUnitCount() -> int:
@@ -90,13 +93,13 @@ func Clear() -> void:
 	_slots.Clear()
 
 
-func FindUnitIdsInCircle(center: Vector2, radius: float) -> Array[int]:
-	var result: Array[int] = []
-
+func FindUnitIdsInCircle(center: Vector2, radius: float) -> PackedInt32Array:
 	if radius < 0.0:
 		push_error("검색 반경은 0 이상이어야 합니다.")
-		return result
+		foundUnit[0] = Flag.EOA
+		return foundUnit
 
+	var foundUnitIndex: int = 0
 	var radiusVector: Vector2 = Vector2(radius, radius)
 	var minCell: Vector2i = _getCell(center - radiusVector)
 	var maxCell: Vector2i = _getCell(center + radiusVector)
@@ -117,17 +120,15 @@ func FindUnitIdsInCircle(center: Vector2, radius: float) -> Array[int]:
 					continue
 
 				if _intersectsCircle(slot, center, radiusSquared):
-					result.append(_slots.GetUnitId(slot))
+					foundUnit[foundUnitIndex] = _slots.GetUnitId(slot)
+					foundUnitIndex += 1
+					
+	foundUnit[foundUnitIndex] = Flag.EOA
+	return foundUnit
 
-	return result
 
-
-func FindUnitIdsInRect(center: Vector2, halfExtent: Vector2, resultBuffer: PackedInt32Array) -> int:
-	var requiredCapacity: int = _slots.GetSlotCapacity()
-	if resultBuffer.size() < requiredCapacity:
-		resultBuffer.resize(requiredCapacity)
-
-	var resultCount: int = 0
+func FindUnitIdsInRect(center: Vector2, halfExtent: Vector2) -> PackedInt32Array:
+	var foundUnitIndex: int = 0
 	var extent: Vector2 = Vector2(absf(halfExtent.x), absf(halfExtent.y))
 	var minCell: Vector2i = _getCell(center - extent)
 	var maxCell: Vector2i = _getCell(center + extent)
@@ -149,10 +150,11 @@ func FindUnitIdsInRect(center: Vector2, halfExtent: Vector2, resultBuffer: Packe
 				if not _intersectsRect(slot, center, extent):
 					continue
 
-				resultBuffer[resultCount] = _slots.GetUnitId(slot)
-				resultCount += 1
-
-	return resultCount
+				foundUnit[foundUnitIndex] = _slots.GetUnitId(slot)
+				foundUnitIndex += 1
+	
+	foundUnit[foundUnitIndex] = Flag.EOA
+	return foundUnit
 
 
 func FindUnitIdsInRadius(center: Vector2, radius: float) -> Array[int]:
@@ -162,9 +164,8 @@ func FindUnitIdsInRadius(center: Vector2, radius: float) -> Array[int]:
 func FindUnitIdsInBounds(
 	center: Vector2,
 	halfExtent: Vector2,
-	resultBuffer: PackedInt32Array,
-) -> int:
-	return FindUnitIdsInRect(center, halfExtent, resultBuffer)
+) -> PackedInt32Array:
+	return FindUnitIdsInRect(center, halfExtent)
 
 
 func _getSlotOrError(unitId: int) -> int:

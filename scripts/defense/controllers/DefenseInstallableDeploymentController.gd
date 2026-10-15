@@ -193,10 +193,9 @@ func _CanPlaceUnit(unit: Unit, position: Vector2) -> bool:
 	if not _navigationService.CanPlaceStatic(position, halfSize):
 		return false
 
-	var nearbyCount: int = _stageSnapshot.FindUnitIdsInRect(
+	var nearbyCount: PackedInt32Array = _stageSnapshot.FindUnitIdsInRect(
 		position,
 		Vector2(halfSize, halfSize),
-		_nearbyUnitIdBuffer,
 	)
 
 	return nearbyCount == 0
