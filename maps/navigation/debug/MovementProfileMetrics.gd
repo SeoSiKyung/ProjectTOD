@@ -13,6 +13,10 @@ var collisionResolveUsec: int = 0
 var commitTickUsec: int = 0
 var arrivalResolveUsec: int = 0
 
+var pathRebuildUsec: int = 0
+var pathRebuildRequests: int = 0
+var pathRebuildFailures: int = 0
+
 var collisionCandidateQueries: int = 0
 var dynamicBlockedCandidates: int = 0
 var alternateCandidateQueries: int = 0
@@ -24,6 +28,9 @@ var settledAgentCount: int = 0
 func ToDictionary() -> Dictionary:
 	return {
 		"simulation_tick_count": simulationTickCount,
+		"path_rebuild_usec": pathRebuildUsec,
+		"path_rebuild_requests": pathRebuildRequests,
+		"path_rebuild_failures": pathRebuildFailures,
 		"capture_tick_usec": captureTickUsec,
 		"collision_resolve_usec": collisionResolveUsec,
 		"commit_tick_usec": commitTickUsec,

@@ -56,6 +56,36 @@ var staticSegmentChecks: int = 0
 
 #endregion
 
+#region Optional Static Query Details
+
+var captureStaticQueryDetails: bool = false
+var staticQueryTick: int = 0 # 0: 명령 처리 또는 Path Build, 1 이상: 이동 틱.
+var staticDetailCalls: int = 0
+var staticDetailClearCalls: int = 0
+var staticDetailInvalidEndCalls: int = 0
+var staticDetailRecoveryCalls: int = 0
+var staticDetailEndpointUsec: int = 0
+var staticDetailSweepUsec: int = 0
+var staticDetailBroadCalls: int = 0
+var staticDetailBroadCells: int = 0
+var staticDetailBroadBlocked: int = 0
+var staticDetailPrefixEmptyCalls: int = 0
+var staticDetailRowsVisited: int = 0
+var staticDetailIntersectionChecks: int = 0
+var staticDetailWorstUsec: int = -1
+var staticDetailWorstEndpointUsec: int = 0
+var staticDetailWorstSweepUsec: int = 0
+var staticDetailWorstStart: Vector2 = Vector2.ZERO
+var staticDetailWorstEnd: Vector2 = Vector2.ZERO
+var staticDetailWorstHalfSize: int = 0
+var staticDetailWorstClear: bool = false
+var staticDetailWorstTick: int = 0
+var staticDetailWorstBroadCells: int = 0
+var staticDetailWorstBroadBlocked: int = 0
+var staticDetailWorstIntersectionChecks: int = 0
+
+#endregion
+
 #region Grid A*
 
 # _FindGridPathInternal() 전체 계측.
@@ -129,6 +159,41 @@ var anchorBatchMaxTargetCount: int = 0
 var anchorBatchMaxSearchArea: int = 0
 
 #endregion
+
+
+func GetStaticQueryDetails() -> Dictionary:
+	if not captureStaticQueryDetails:
+		return { }
+	var worst: Dictionary = { }
+	if staticDetailCalls > 0:
+		worst = {
+			"elapsed_usec": staticDetailWorstUsec,
+			"endpoint_checks_usec": staticDetailWorstEndpointUsec,
+			"sweep_usec": staticDetailWorstSweepUsec,
+			"start": [staticDetailWorstStart.x, staticDetailWorstStart.y],
+			"end": [staticDetailWorstEnd.x, staticDetailWorstEnd.y],
+			"half_size": staticDetailWorstHalfSize,
+			"clear": staticDetailWorstClear,
+			"tick": staticDetailWorstTick,
+			"broad_cell_count": staticDetailWorstBroadCells,
+			"broad_blocked_count": staticDetailWorstBroadBlocked,
+			"intersection_checks": staticDetailWorstIntersectionChecks,
+		}
+	return {
+		"calls": staticDetailCalls,
+		"clear_calls": staticDetailClearCalls,
+		"invalid_end_calls": staticDetailInvalidEndCalls,
+		"recovery_calls": staticDetailRecoveryCalls,
+		"endpoint_checks_usec": staticDetailEndpointUsec,
+		"sweep_usec": staticDetailSweepUsec,
+		"broad_calls": staticDetailBroadCalls,
+		"broad_cell_count": staticDetailBroadCells,
+		"broad_blocked_count": staticDetailBroadBlocked,
+		"prefix_empty_calls": staticDetailPrefixEmptyCalls,
+		"rows_visited": staticDetailRowsVisited,
+		"intersection_checks": staticDetailIntersectionChecks,
+		"worst_query": worst,
+	}
 
 
 func ToDictionary() -> Dictionary:

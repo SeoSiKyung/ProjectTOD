@@ -40,16 +40,57 @@ func SegmentClear(
 	if metrics != null:
 		metrics.staticSegmentChecks += 1
 
+	var details: NavigationProfileMetrics = (
+		metrics if metrics != null and metrics.captureStaticQueryDetails else null
+	)
+	var queryStart: int = Time.get_ticks_usec() if details != null else 0
 	var staticHalf: float = _StaticHalfSize(halfSize)
 	var startValid: bool = _CanPlaceStaticWithHalf(start, staticHalf)
 	var endValid: bool = _CanPlaceStaticWithHalf(end, staticHalf)
+	if details == null:
+		if not endValid:
+			return false
+		if not startValid:
+			return _IsRecoveringSegmentClear(start, end, staticHalf)
+		return _IsStaticSegmentClearFromValidStart(start, end, staticHalf)
+
+	var endpointEnd: int = Time.get_ticks_usec()
+	var cellsBefore: int = details.staticDetailBroadCells
+	var blockedBefore: int = details.staticDetailBroadBlocked
+	var checksBefore: int = details.staticDetailIntersectionChecks
+	var sweepStart: int = Time.get_ticks_usec()
+	var result: bool = false
 	if not endValid:
-		return false
+		details.staticDetailInvalidEndCalls += 1
+	elif not startValid:
+		details.staticDetailRecoveryCalls += 1
+		result = _IsRecoveringSegmentClear(start, end, staticHalf, details)
+	else:
+		result = _IsStaticSegmentClearFromValidStart(start, end, staticHalf, details)
+	var queryEnd: int = Time.get_ticks_usec()
+	var endpointUsec: int = endpointEnd - queryStart
+	var sweepUsec: int = queryEnd - sweepStart
+	details.staticDetailCalls += 1
+	if result:
+		details.staticDetailClearCalls += 1
+	details.staticDetailEndpointUsec += endpointUsec
+	details.staticDetailSweepUsec += sweepUsec
+	if queryEnd - queryStart > details.staticDetailWorstUsec:
+		details.staticDetailWorstUsec = queryEnd - queryStart
+		details.staticDetailWorstEndpointUsec = endpointUsec
+		details.staticDetailWorstSweepUsec = sweepUsec
+		details.staticDetailWorstStart = start
+		details.staticDetailWorstEnd = end
+		details.staticDetailWorstHalfSize = halfSize
+		details.staticDetailWorstClear = result
+		details.staticDetailWorstTick = details.staticQueryTick
+		details.staticDetailWorstBroadCells = details.staticDetailBroadCells - cellsBefore
+		details.staticDetailWorstBroadBlocked = details.staticDetailBroadBlocked - blockedBefore
+		details.staticDetailWorstIntersectionChecks = (
+			details.staticDetailIntersectionChecks - checksBefore
+		)
 
-	if not startValid:
-		return _IsRecoveringSegmentClear(start, end, staticHalf)
-
-	return _IsStaticSegmentClearFromValidStart(start, end, staticHalf)
+	return result
 
 
 func FurthestClearPoint(
@@ -131,7 +172,12 @@ func _CanPlaceStaticWithHalf(center: Vector2, halfSize: float) -> bool:
 	return _PrefixRectCount(minX, minY, maxX + 1, maxY + 1) == 0
 
 
-func _IsRecoveringSegmentClear(start: Vector2, end: Vector2, halfSize: float) -> bool:
+func _IsRecoveringSegmentClear(
+	start: Vector2,
+	end: Vector2,
+	halfSize: float,
+	details: NavigationProfileMetrics = null,
+) -> bool:
 	var delta: Vector2 = end - start
 	if delta.length_squared() <= Math.EPSILON:
 		return false
@@ -160,10 +206,15 @@ func _IsRecoveringSegmentClear(start: Vector2, end: Vector2, halfSize: float) ->
 	if not foundValid:
 		return false
 
-	return _IsStaticSegmentClearFromValidStart(firstValid, end, halfSize)
+	return _IsStaticSegmentClearFromValidStart(firstValid, end, halfSize, details)
 
 
-func _IsStaticSegmentClearFromValidStart(start: Vector2, end: Vector2, halfSize: float) -> bool:
+func _IsStaticSegmentClearFromValidStart(
+	start: Vector2,
+	end: Vector2,
+	halfSize: float,
+	details: NavigationProfileMetrics = null,
+) -> bool:
 	var half: Vector2 = Vector2(halfSize, halfSize)
 
 	var broadMin: Vector2 = Vector2(minf(start.x, end.x), minf(start.y, end.y)) - half
@@ -177,7 +228,14 @@ func _IsStaticSegmentClearFromValidStart(start: Vector2, end: Vector2, halfSize:
 	maxCell.y = clampi(maxCell.y, 0, _gridHeight - 1)
 
 	# Bounding rect 안에 장애물 자체가 하나도 없으면 즉시 성공.
-	if _PrefixRectCount(minCell.x, minCell.y, maxCell.x + 1, maxCell.y + 1) == 0:
+	var blockedCount: int = _PrefixRectCount(minCell.x, minCell.y, maxCell.x + 1, maxCell.y + 1)
+	if details != null:
+		details.staticDetailBroadCalls += 1
+		details.staticDetailBroadCells += (maxCell.x - minCell.x + 1) * (maxCell.y - minCell.y + 1)
+		details.staticDetailBroadBlocked += blockedCount
+	if blockedCount == 0:
+		if details != null:
+			details.staticDetailPrefixEmptyCalls += 1
 		return true
 
 	var cellHalf: Vector2 = Vector2(_navCellSize * 0.5, _navCellSize * 0.5)
@@ -185,12 +243,15 @@ func _IsStaticSegmentClearFromValidStart(start: Vector2, end: Vector2, halfSize:
 
 	# 모든 grid cell이 아니라 실제 blocked cell만 검사.
 	for y: int in range(minCell.y, maxCell.y + 1):
+		if details != null:
+			details.staticDetailRowsVisited += 1
 		var blockedXs: PackedInt32Array = _blockedXsByRow[y]
 		if blockedXs.is_empty():
 			continue
 
 		# 정렬되어 있으므로 minCell.x 이전은 바로 건너뛴다.
 		var blockedIndex: int = blockedXs.bsearch(minCell.x)
+		var firstBlockedIndex: int = blockedIndex
 		while blockedIndex < blockedXs.size():
 			var x: int = blockedXs[blockedIndex]
 			if x > maxCell.x:
@@ -201,9 +262,13 @@ func _IsStaticSegmentClearFromValidStart(start: Vector2, end: Vector2, halfSize:
 				+ Vector2((float(x) + 0.5) * _navCellSize, (float(y) + 0.5) * _navCellSize)
 			)
 			if Math.SegmentIntersectsCenteredAabb(start - center, end - center, expandedHalf):
+				if details != null:
+					details.staticDetailIntersectionChecks += blockedIndex - firstBlockedIndex + 1
 				return false
 
 			blockedIndex += 1
+		if details != null:
+			details.staticDetailIntersectionChecks += blockedIndex - firstBlockedIndex
 
 	return true
 

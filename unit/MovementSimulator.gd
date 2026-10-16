@@ -5,6 +5,7 @@ const INVALID_INDEX: int = -1
 const EPSILON: float = 0.00001
 
 var lastError: String = ""
+var enablePathRebuildRecovery: bool = true
 var _navigationService: NavigationService
 var _unitManager: UnitManager
 var _collisionResolver: CollisionResolver
@@ -164,6 +165,12 @@ func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 	if _profileMetrics != null:
 		_profileMetrics.simulationTickCount += 1
 
+	if enablePathRebuildRecovery:
+		var rebuildStart: int = Time.get_ticks_usec() if _profileMetrics != null else 0
+		_RecoverInvalidPath()
+		if _profileMetrics != null:
+			_profileMetrics.pathRebuildUsec += Time.get_ticks_usec() - rebuildStart
+
 	var phaseStart: int = Time.get_ticks_usec() if _profileMetrics != null else 0
 	var tick: CollisionGroup = _CaptureTick()
 	if captureDiagnostics:
@@ -291,3 +298,36 @@ func GetDiagnosticState(unitId: int) -> Dictionary:
 		true,
 	)
 	return state
+
+
+func _RecoverInvalidPath() -> void:
+	if _navigationService == null or not _navigationService.IsReady():
+		return
+	for agent: MovementAgent in _agents:
+		if not _CanAgentMove(agent) or not agent.NeedsPathRebuild():
+			continue
+		if agent.pathRebuildAttempted:
+			agent.ApplyRebuiltPath(PackedVector2Array())
+			if _profileMetrics != null:
+				_profileMetrics.pathRebuildFailures += 1
+			continue
+		if _profileMetrics != null:
+			_profileMetrics.pathRebuildRequests += 1
+		var path: PackedVector2Array = _navigationService.RebuildPath(
+			agent.position,
+			agent.moveTarget,
+			agent.halfSize,
+		)
+		if (
+			not path.is_empty()
+			and path[path.size() - 1].distance_squared_to(agent.moveTarget) > Math.EPSILON
+		):
+			path = PackedVector2Array()
+		agent.ApplyRebuiltPath(path)
+		if path.is_empty() or agent.NeedsPathRebuild():
+			if not path.is_empty():
+				agent.ApplyRebuiltPath(PackedVector2Array())
+			if _profileMetrics != null:
+				_profileMetrics.pathRebuildFailures += 1
+
+		break

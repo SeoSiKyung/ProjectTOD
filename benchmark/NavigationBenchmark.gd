@@ -17,6 +17,8 @@ const MOVEMENT_FIXED_DELTA: float = 1.0 / 60.0
 const MOVEMENT_SPEED: float = 96.0
 
 @export var enableDiagnostics: bool = true
+@export var enablePathRebuildRecovery: bool = true
+@export var enableStaticQueryDetails: bool = true
 @export var sourceCommitOverride: String = ""
 
 const DIAGNOSTICS_REVISION: String = "observability-v1"
@@ -42,6 +44,7 @@ class BenchmarkRunResult:
 	var overlapCellCount: int = 0
 	var comparedCellCount: int = 0
 	var metrics: Dictionary = { }
+	var staticQueryDetails: Dictionary = { }
 
 
 class MovementRunResult:
@@ -59,6 +62,8 @@ class MovementRunResult:
 	var navigationMetrics: Dictionary = { }
 	var movementMetrics: Dictionary = { }
 	var commandMetrics: Dictionary = { }
+	var commandStaticQueryDetails: Dictionary = { }
+	var movementStaticQueryDetails: Dictionary = { }
 	var tickTimesUsec: Array[int] = []
 	var worstTick: Dictionary = { }
 	var firstStalls: Array[Dictionary] = []
@@ -205,6 +210,7 @@ func _RunPathBenchmark(
 				"overlap_cell_count": result.overlapCellCount,
 				"compared_cell_count": result.comparedCellCount,
 				"navigation_metrics_nested": result.metrics,
+				"static_query_details": result.staticQueryDetails,
 			}
 		)
 	_AppendCaseReport(benchmarkCase, runs, warmupCount)
@@ -253,6 +259,8 @@ func _RunMovementBenchmark(
 				"command_process_usec": result.commandUsec,
 				"command_exclusive_phases": commandPhases,
 				"command_navigation_metrics_nested": result.commandMetrics,
+				"command_static_query_details": result.commandStaticQueryDetails,
+				"movement_static_query_details": result.movementStaticQueryDetails,
 				"movement_loop_usec": result.movementUsec,
 				"tick_times_usec": result.tickTimesUsec,
 				"tick_statistics": _TimeStatistics(result.tickTimesUsec),
@@ -322,6 +330,7 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 	_navigationService.ClearBenchmarkRequestCache()
 
 	var metrics: NavigationProfileMetrics = NavigationProfileMetrics.new()
+	metrics.captureStaticQueryDetails = enableDiagnostics and enableStaticQueryDetails
 	_navigationService.SetProfileMetrics(metrics)
 
 	var result: BenchmarkRunResult = BenchmarkRunResult.new()
@@ -380,6 +389,7 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 	_navigationService.ClearProfileMetrics()
 
 	result.metrics = metrics.ToDictionary()
+	result.staticQueryDetails = metrics.GetStaticQueryDetails()
 
 	return result
 
@@ -398,6 +408,7 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 
 	movementSimulator.SetProfileMetrics(movementMetrics)
 	movementSimulator.captureDiagnostics = enableDiagnostics
+	movementSimulator.enablePathRebuildRecovery = enablePathRebuildRecovery
 
 	for index: int in range(benchmarkCase.unitStarts.size()):
 		var agent: MovementAgent = MovementAgent.new(
@@ -422,6 +433,7 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 		unitIds.append(index)
 
 	var commandMetrics: NavigationProfileMetrics = NavigationProfileMetrics.new()
+	commandMetrics.captureStaticQueryDetails = enableDiagnostics and enableStaticQueryDetails
 	_navigationService.SetProfileMetrics(commandMetrics)
 
 	var commandProcessor: MoveCommandProcessor = MoveCommandProcessor.new(
@@ -437,6 +449,7 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 
 	if not commandSucceeded:
 		result.commandMetrics = commandMetrics.ToDictionary()
+		result.commandStaticQueryDetails = commandMetrics.GetStaticQueryDetails()
 		result.elapsedUsec = result.commandUsec
 		result.errorMessage = "MoveCommandProcessor failed"
 		if enableDiagnostics:
@@ -450,11 +463,15 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 		return result
 
 	var movementNavigationMetrics: NavigationProfileMetrics = NavigationProfileMetrics.new()
+	movementNavigationMetrics.captureStaticQueryDetails = (
+		enableDiagnostics and enableStaticQueryDetails
+	)
 	_navigationService.SetProfileMetrics(movementNavigationMetrics)
 
 	var noMovementTicks: PackedInt32Array = PackedInt32Array()
 	noMovementTicks.resize(agents.size())
 	noMovementTicks.fill(0)
+	var rebuildBefore: int = 0
 	var captureBefore: int = 0
 	var collisionBefore: int = 0
 	var commitBefore: int = 0
@@ -462,7 +479,10 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 	var tickStart: int = 0
 	startTime = Time.get_ticks_usec()
 	while result.tickCount < MOVEMENT_MAX_TICKS and not _AreAllAgentsSettled(agents):
+		if movementNavigationMetrics.captureStaticQueryDetails:
+			movementNavigationMetrics.staticQueryTick = result.tickCount + 1
 		if enableDiagnostics:
+			rebuildBefore = movementMetrics.pathRebuildUsec
 			captureBefore = movementMetrics.captureTickUsec
 			collisionBefore = movementMetrics.collisionResolveUsec
 			commitBefore = movementMetrics.commitTickUsec
@@ -473,6 +493,7 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 			var tickUsec: int = Time.get_ticks_usec() - tickStart
 			result.tickTimesUsec.append(tickUsec)
 			if result.worstTick.is_empty() or tickUsec > int(result.worstTick["elapsed_usec"]):
+				var rebuildUsec: int = movementMetrics.pathRebuildUsec - rebuildBefore
 				var captureUsec: int = movementMetrics.captureTickUsec - captureBefore
 				var collisionUsec: int = movementMetrics.collisionResolveUsec - collisionBefore
 				var commitUsec: int = movementMetrics.commitTickUsec - commitBefore
@@ -482,12 +503,13 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 					"elapsed_usec": tickUsec,
 					"succeeded": tickSucceeded,
 					"exclusive_phases": {
+						"path_rebuild_usec": rebuildUsec,
 						"capture_usec": captureUsec,
 						"collision_resolve_usec": collisionUsec,
 						"commit_usec": commitUsec,
 						"arrival_resolve_usec": arrivalUsec,
-						"other_usec": tickUsec - captureUsec - collisionUsec
-						- commitUsec - arrivalUsec,
+						"other_usec": tickUsec - rebuildUsec - captureUsec
+						- collisionUsec - commitUsec - arrivalUsec,
 					},
 					"agents_after_tick": _CaptureAgentStates(
 						movementSimulator,
@@ -535,6 +557,8 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 			true,
 		)
 	result.commandMetrics = commandMetrics.ToDictionary()
+	result.commandStaticQueryDetails = commandMetrics.GetStaticQueryDetails()
+	result.movementStaticQueryDetails = movementNavigationMetrics.GetStaticQueryDetails()
 	result.navigationMetrics = movementNavigationMetrics.ToDictionary()
 	result.movementMetrics = movementMetrics.ToDictionary()
 
@@ -918,8 +942,13 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
+		"change_revision": "static-query-probe-v1",
+		"static_query_details_enabled": enableDiagnostics and enableStaticQueryDetails,
+		"path_rebuild_recovery_enabled": enablePathRebuildRecovery,
+		"reached_waypoint_advance_enabled": true,
+		"rebuild_policy": "One individual fallback per unit per move command; at most one new request per tick; existing Agent target retained; no target correction.",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "Git HEAD identifies the commit, not uncommitted changes. The diagnostic patch is observability-v1. Record any other local changes separately.",
+		"working_tree_note": "Git HEAD identifies the commit, not uncommitted changes. Changes: observability-v1 plus repath-v1 plus static-query-probe-v1 (observation only). Record any other local changes separately.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
@@ -943,6 +972,12 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 			"meaning": "Observation only; no repath or movement change. First event per unit per run. Small oscillations may only appear in final unfinished states.",
 		},
 		"timing_notes": [
+			"Static query detail endpoint_checks_usec and sweep_usec are disjoint INTERNAL intervals, not additional time to add to Navigation/command/tick metrics. Sweep includes recovery for an invalid start. Bookkeeping is excluded between and after the intervals.",
+			"Static query details count ALL NavigationStaticQuery.SegmentClear calls, including internal direct calls and FurthestClearPoint probes; service segment_clear_query_usec/calls only cover the NavigationService wrapper. Their scopes differ.",
+			"broad_blocked_count is the full bounding-rectangle candidate count (prefix sum), NOT the number tested. intersection_checks counts actual exact tests up to early exit. worst_query is one maximum per run and phase; tick 0 means command processing or Path Build.",
+			"Static query details add timer/row bookkeeping overhead. This probe is for workload attribution and movement outcomes, not a speedup claim against detail-OFF timings. No cache/warmup/movement policy changed.",
+			"path_rebuild_usec is a separate Movement phase including calculation and replacement. Its nested Navigation metrics are not additional exclusive time.",
+			"Recovery OFF still uses reached-waypoint advancement; it does NOT restore the original PathFollower. Compare full recovery ON with the recorded original baseline for the combined change.",
 			"All times are CPU elapsed microseconds, not simulated travel time or rendered frame time.",
 			"command_exclusive_phases partition command_process_usec. Group/validation/bookkeeping/probe overhead is the residual.",
 			"Navigation metrics and movement metrics are NESTED views; do not add them to the exclusive phases.",

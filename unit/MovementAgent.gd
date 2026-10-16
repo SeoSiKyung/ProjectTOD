@@ -14,6 +14,7 @@ var settleProgressDistance: float = INF
 var isSettled: bool = false
 var isPaused: bool = false
 var movementRevision: int = 0
+var pathRebuildAttempted: bool = false
 var _pathFollower: PathFollower
 var _isAvoiding: bool = false
 var _shouldEndAvoidanceAfterCommit: bool = false
@@ -72,6 +73,7 @@ func BeginMove(
 	target: Vector2,
 	pArrivalRadius: float,
 ) -> void:
+	pathRebuildAttempted = false
 	moveCommandId = commandId
 	moveTarget = target
 	arrivalRadius = maxf(pArrivalRadius, 0.0)
@@ -116,6 +118,7 @@ func _SetPath(path: PackedVector2Array) -> void:
 
 
 func _ResetMoveCommand() -> void:
+	pathRebuildAttempted = false
 	moveCommandId = UnitCommand.INVALID_COMMAND_ID
 	moveTarget = Vector2.ZERO
 	arrivalRadius = 0.0
@@ -190,6 +193,7 @@ func GetDiagnosticState() -> Dictionary:
 			"paused": isPaused,
 			"command_id": moveCommandId,
 			"movement_revision": movementRevision,
+			"path_rebuild_attempted": pathRebuildAttempted,
 			"move_speed_per_tick": moveSpeed,
 			"half_size": halfSize,
 			"arrival_radius": arrivalRadius,
@@ -197,3 +201,16 @@ func GetDiagnosticState() -> Dictionary:
 		}
 	)
 	return state
+
+
+func NeedsPathRebuild() -> bool:
+	return (
+		moveCommandId >= 0 and not isPaused and not isSettled
+		and moveSpeed > 0 and _pathFollower.NeedsPathRebuild()
+	)
+
+
+func ApplyRebuiltPath(path: PackedVector2Array) -> void:
+	pathRebuildAttempted = true
+	ResetSettleProgress()
+	_SetPath(path)
