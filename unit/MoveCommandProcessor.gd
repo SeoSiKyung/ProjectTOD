@@ -8,6 +8,8 @@ var _navigationService: NavigationService
 var _movementSimulator: MovementSimulator
 var _nextGeneratedCommandId: int = 0
 
+var profileMetrics: NavigationProfileMetrics = null
+
 
 class PathGroup:
 	var halfSize: int = 0
@@ -88,16 +90,24 @@ func Process(command: MoveCommand, snapshot: StageSnapshot) -> bool:
 		for unitIndex: int in group.unitIndices:
 			groupStarts.append(snapshot.GetPosition(unitIds[unitIndex]))
 
+		var phaseStart: int = Time.get_ticks_usec() if profileMetrics != null else 0
 		var target: Vector2 = _navigationService.GetNearestReachablePoint(
 			command.targetWorld,
 			group.halfSize,
 			groupStarts[0],
 		)
+		if profileMetrics != null:
+			profileMetrics.commandTargetCorrectionUsec += Time.get_ticks_usec() - phaseStart
+
+		phaseStart = Time.get_ticks_usec() if profileMetrics != null else 0
 		var groupPaths: Array[PackedVector2Array] = _navigationService.BuildPaths(
 			groupStarts,
 			target,
 			group.halfSize,
 		)
+
+		if profileMetrics != null:
+			profileMetrics.commandBuildPathsUsec += Time.get_ticks_usec() - phaseStart
 
 		if groupPaths.size() != group.unitIndices.size():
 			push_error("NavigationService의 경로 수가 이동 그룹의 유닛 수와 일치하지 않습니다.")
@@ -118,6 +128,7 @@ func Process(command: MoveCommand, snapshot: StageSnapshot) -> bool:
 	var arrivalRadius: float = _calculateArrivalRadius(unitIds, snapshot)
 
 	var succeeded: bool = true
+	var assignmentStart: int = Time.get_ticks_usec() if profileMetrics != null else 0
 
 	for index: int in range(unitIds.size()):
 		var unitId: int = unitIds[index]
@@ -139,6 +150,9 @@ func Process(command: MoveCommand, snapshot: StageSnapshot) -> bool:
 
 		push_error("unitId %d에 이동 경로를 설정하지 못했습니다." % unitId)
 		succeeded = false
+
+	if profileMetrics != null:
+		profileMetrics.commandAssignmentUsec += Time.get_ticks_usec() - assignmentStart
 
 	return succeeded
 

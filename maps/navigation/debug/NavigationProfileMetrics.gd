@@ -14,6 +14,14 @@ extends RefCounted
 #
 # 일반 게임 실행에서는 metrics가 null이므로 계측하지 않는다.
 
+#region Command
+
+var commandTargetCorrectionUsec: int = 0
+var commandBuildPathsUsec: int = 0
+var commandAssignmentUsec: int = 0
+
+#endregion
+
 #region Group Build
 
 var groupJoinPointUsec: int = 0
@@ -125,6 +133,10 @@ var anchorBatchMaxSearchArea: int = 0
 
 func ToDictionary() -> Dictionary:
 	return {
+		# Command
+		"command_target_correction_usec": commandTargetCorrectionUsec,
+		"command_build_paths_usec": commandBuildPathsUsec,
+		"command_assignment_usec": commandAssignmentUsec,
 		# Group Build
 		"group_join_point_usec": groupJoinPointUsec,
 		"group_shared_path_usec": groupSharedPathUsec,

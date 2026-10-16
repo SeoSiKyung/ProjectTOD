@@ -4,12 +4,15 @@ extends RefCounted
 const REACH_DISTANCE: float = 1.0
 static var _navigationService: NavigationService
 
+
 static func SetNavigationService(naviService: NavigationService) -> void:
 	_navigationService = naviService
+
 
 static func ClearNavigationService(naviService: NavigationService) -> void:
 	if _navigationService == naviService:
 		_navigationService = null
+
 
 var _halfSize: int = 0
 var _path: PackedVector2Array = PackedVector2Array()
@@ -19,8 +22,10 @@ var _goalIndex: int = 0
 var _needsShortcutRefresh: bool = false
 var _isAvoiding: bool = false
 
+
 func _init(halfSize: int):
 	_halfSize = halfSize
+
 
 func SetPath(path: PackedVector2Array, curPosition: Vector2) -> void:
 	_path = path
@@ -28,9 +33,11 @@ func SetPath(path: PackedVector2Array, curPosition: Vector2) -> void:
 	if not IsEmpty():
 		_UpdateIndex(curPosition)
 
+
 func ClearPath() -> void:
 	_path.clear()
 	_initIndex()
+
 
 func _initIndex() -> void:
 	_originalPathIndex = 0
@@ -48,6 +55,7 @@ func GetDesiredPosition(curPosition: Vector2, maxDistance: float) -> Vector2:
 	var remainDistance: Vector2 = curWaypoint - curPosition
 	var maxDelta: Vector2 = remainDistance.normalized() * maxDistance
 	return curPosition + maxDelta if remainDistance.length() > maxDelta.length() else curPosition + remainDistance
+
 
 func GetTargetPosition(fallback: Vector2) -> Vector2:
 	if IsEmpty() or _shortcutIndex < 0:
@@ -69,8 +77,10 @@ func OnMovementCommitted(curPosition: Vector2) -> void:
 
 	_UpdateIndex(curPosition)
 
+
 func OnAvoidanceStarted() -> void:
 	_isAvoiding = true
+
 
 func OnAvoidanceEnded(curPosition: Vector2) -> void:
 	_isAvoiding = false
@@ -79,11 +89,13 @@ func OnAvoidanceEnded(curPosition: Vector2) -> void:
 	_needsShortcutRefresh = true
 	OnMovementCommitted(curPosition)
 
+
 func _UpdateIndex(curPosition: Vector2) -> void:
 	_UpdateOriginalPathIndex(curPosition)
 	_UpdateShortcutIndex(curPosition, _halfSize)
 	if _originalPathIndex > _goalIndex:
 		ClearPath()
+
 
 func _UpdateOriginalPathIndex(curPosition: Vector2) -> void:
 	if _shortcutIndex < 0:
@@ -98,12 +110,15 @@ func _UpdateOriginalPathIndex(curPosition: Vector2) -> void:
 			break
 	_originalPathIndex = candidateIdx
 
+
 func _UpdateShortcutIndex(curPosition: Vector2, halfSize: int) -> void:
-	if _needsShortcutRefresh or (
-		_shortcutIndex >= 0 and _IsReached(curPosition, _path[_shortcutIndex])
+	if (
+		_needsShortcutRefresh
+		or (_shortcutIndex >= 0 and _IsReached(curPosition, _path[_shortcutIndex]))
 	):
 		_needsShortcutRefresh = false
 		_FindNextShortcutIndex(curPosition, halfSize)
+
 
 func _FindNextShortcutIndex(curPosition: Vector2, halfSize: int) -> bool:
 	if _navigationService == null:
@@ -124,5 +139,20 @@ func _FindNextShortcutIndex(curPosition: Vector2, halfSize: int) -> bool:
 	_shortcutIndex = visibleShortcutIndex
 	return _shortcutIndex >= 0
 
+
 func _IsReached(pos1: Vector2, pos2: Vector2) -> bool:
 	return (pos1 - pos2).length() < REACH_DISTANCE
+
+
+func GetDiagnosticState() -> Dictionary:
+	var hasWaypoint: bool = not IsEmpty() and _shortcutIndex >= 0 and _shortcutIndex < _path.size()
+	var waypoint: Variant = null
+	if hasWaypoint:
+		waypoint = [_path[_shortcutIndex].x, _path[_shortcutIndex].y]
+	return {
+		"has_path": not IsEmpty(),
+		"path_size": _path.size(),
+		"has_waypoint": hasWaypoint,
+		"waypoint_index": _shortcutIndex,
+		"waypoint": waypoint,
+	}

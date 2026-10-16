@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://bhrx3aas2ec8n"]
+
+[ext_resource type="Script" uid="uid://rmvamr0umqle" path="res://benchmark/NavigationFailureProbe.gd" id="1_probe"]
+
+[node name="NavigationFailureProbe" type="Node" unique_id=1731412260]
+script = ExtResource("1_probe")
