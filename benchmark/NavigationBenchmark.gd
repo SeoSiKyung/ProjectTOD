@@ -942,13 +942,14 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
-		"change_revision": "static-query-probe-v1",
+		"change_revision": "static-row-pruning-v1",
+		"static_row_pruning_enabled": true,
 		"static_query_details_enabled": enableDiagnostics and enableStaticQueryDetails,
 		"path_rebuild_recovery_enabled": enablePathRebuildRecovery,
 		"reached_waypoint_advance_enabled": true,
 		"rebuild_policy": "One individual fallback per unit per move command; at most one new request per tick; existing Agent target retained; no target correction.",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "Git HEAD identifies the commit, not uncommitted changes. Changes: observability-v1 plus repath-v1 plus static-query-probe-v1 (observation only). Record any other local changes separately.",
+		"working_tree_note": "Git HEAD identifies the commit, not uncommitted changes. Changes: observability-v1 plus repath-v1 plus static-query-probe-v1 plus static-row-pruning-v1. Record any other local changes separately.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
@@ -972,6 +973,7 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 			"meaning": "Observation only; no repath or movement change. First event per unit per run. Small oscillations may only appear in final unfinished states.",
 		},
 		"timing_notes": [
+			"Static row pruning narrows per-row blocked-cell candidates; the final intersection predicate is unchanged. broad_blocked_count still describes the ORIGINAL full rectangle; intersection_checks counts the actual pruned tests.",
 			"Static query detail endpoint_checks_usec and sweep_usec are disjoint INTERNAL intervals, not additional time to add to Navigation/command/tick metrics. Sweep includes recovery for an invalid start. Bookkeeping is excluded between and after the intervals.",
 			"Static query details count ALL NavigationStaticQuery.SegmentClear calls, including internal direct calls and FurthestClearPoint probes; service segment_clear_query_usec/calls only cover the NavigationService wrapper. Their scopes differ.",
 			"broad_blocked_count is the full bounding-rectangle candidate count (prefix sum), NOT the number tested. intersection_checks counts actual exact tests up to early exit. worst_query is one maximum per run and phase; tick 0 means command processing or Path Build.",

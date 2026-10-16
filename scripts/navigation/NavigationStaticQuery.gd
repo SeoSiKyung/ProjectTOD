@@ -240,6 +240,9 @@ func _IsStaticSegmentClearFromValidStart(
 
 	var cellHalf: Vector2 = Vector2(_navCellSize * 0.5, _navCellSize * 0.5)
 	var expandedHalf: Vector2 = _CollisionHalf(half, cellHalf)
+	var deltaX: float = float(end.x) - float(start.x)
+	var deltaY: float = float(end.y) - float(start.y)
+	var pruneRows: bool = absf(deltaY) > Math.EPSILON
 
 	# 모든 grid cell이 아니라 실제 blocked cell만 검사.
 	for y: int in range(minCell.y, maxCell.y + 1):
@@ -249,12 +252,37 @@ func _IsStaticSegmentClearFromValidStart(
 		if blockedXs.is_empty():
 			continue
 
-		# 정렬되어 있으므로 minCell.x 이전은 바로 건너뛴다.
-		var blockedIndex: int = blockedXs.bsearch(minCell.x)
+		var rowMinX: int = minCell.x
+		var rowMaxX: int = maxCell.x
+		if pruneRows:
+			# 이 행의 확장 장애물과 겹칠 수 있는 선분 구간만 후보로 남긴다. 한 셀 여유를 두고, 최종 접촉 판정은 기존 정밀 함수에 맡긴다.
+			var rowCenterY: float = _worldRect.position.y + (float(y) + 0.5) * _navCellSize
+			var rowHalf: float = expandedHalf.y + _navCellSize
+			var t1: float = (rowCenterY - rowHalf - start.y) / deltaY
+			var t2: float = (rowCenterY + rowHalf - start.y) / deltaY
+			var enter: float = maxf(0.0, minf(t1, t2))
+			var leave: float = minf(1.0, maxf(t1, t2))
+			if enter > leave:
+				continue
+			var x1: float = start.x + deltaX * enter
+			var x2: float = start.x + deltaX * leave
+			rowMinX = maxi(
+				minCell.x,
+				floori((minf(x1, x2) - expandedHalf.x - _worldRect.position.x) / _navCellSize) - 1,
+			)
+			rowMaxX = mini(
+				maxCell.x,
+				floori((maxf(x1, x2) + expandedHalf.x - _worldRect.position.x) / _navCellSize) + 1,
+			)
+			if rowMinX > rowMaxX:
+				continue
+
+		# 정렬된 기존 행 인덱스에서 좁힌 범위만 조회한다.
+		var blockedIndex: int = blockedXs.bsearch(rowMinX)
 		var firstBlockedIndex: int = blockedIndex
 		while blockedIndex < blockedXs.size():
 			var x: int = blockedXs[blockedIndex]
-			if x > maxCell.x:
+			if x > rowMaxX:
 				break
 
 			var center: Vector2 = (
