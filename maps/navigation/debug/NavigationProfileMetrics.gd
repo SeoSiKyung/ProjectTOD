@@ -86,6 +86,29 @@ var staticDetailWorstIntersectionChecks: int = 0
 
 #endregion
 
+#region Optional Portal Batch Details
+
+var capturePortalBatchDetails: bool = false
+var portalBatchTick: int = 0
+var portalDetailCalls: int = 0
+var portalDetailGridCalls: int = 0
+var portalDetailPreparationUsec: int = 0
+var portalDetailGridUsec: int = 0
+var portalDetailFinalizationUsec: int = 0
+var portalDetailWorstUsec: int = -1
+var portalDetailWorstPreparationUsec: int = 0
+var portalDetailWorstGridUsec: int = 0
+var portalDetailWorstFinalizationUsec: int = 0
+var portalDetailWorstStart: Vector2 = Vector2.ZERO
+var portalDetailWorstRegion: int = -1
+var portalDetailWorstTick: int = 0
+var portalDetailWorstTargetCount: int = 0
+var portalDetailWorstExpanded: int = 0
+var portalDetailWorstRelaxed: int = 0
+var portalDetailWorstSearchArea: int = 0
+
+#endregion
+
 #region Grid A*
 
 # _FindGridPathInternal() 전체 계측.
@@ -159,6 +182,70 @@ var anchorBatchMaxTargetCount: int = 0
 var anchorBatchMaxSearchArea: int = 0
 
 #endregion
+
+
+func RecordPortalBatchDetails(
+	start: Vector2,
+	regionId: int,
+	preparationUsec: int,
+	gridUsec: int,
+	finalizationUsec: int,
+	targetCount: int = 0,
+	expanded: int = 0,
+	relaxed: int = 0,
+	searchArea: int = 0,
+	gridCalled: bool = false,
+) -> void:
+	portalDetailCalls += 1
+	if gridCalled:
+		portalDetailGridCalls += 1
+	portalDetailPreparationUsec += preparationUsec
+	portalDetailGridUsec += gridUsec
+	portalDetailFinalizationUsec += finalizationUsec
+	var elapsed: int = preparationUsec + gridUsec + finalizationUsec
+	if elapsed > portalDetailWorstUsec:
+		portalDetailWorstUsec = elapsed
+		portalDetailWorstPreparationUsec = preparationUsec
+		portalDetailWorstGridUsec = gridUsec
+		portalDetailWorstFinalizationUsec = finalizationUsec
+		portalDetailWorstStart = start
+		portalDetailWorstRegion = regionId
+		portalDetailWorstTick = portalBatchTick
+		portalDetailWorstTargetCount = targetCount
+		portalDetailWorstExpanded = expanded
+		portalDetailWorstRelaxed = relaxed
+		portalDetailWorstSearchArea = searchArea
+
+
+func GetPortalBatchDetails() -> Dictionary:
+	if not capturePortalBatchDetails:
+		return { }
+	var worst: Dictionary = { }
+	if portalDetailCalls > 0:
+		worst = {
+			"elapsed_usec": portalDetailWorstUsec,
+			"preparation_usec": portalDetailWorstPreparationUsec,
+			"grid_batch_usec": portalDetailWorstGridUsec,
+			"finalization_usec": portalDetailWorstFinalizationUsec,
+			"start": [portalDetailWorstStart.x, portalDetailWorstStart.y],
+			"region_id": portalDetailWorstRegion,
+			"tick": portalDetailWorstTick,
+			"target_count": portalDetailWorstTargetCount,
+			"expanded": portalDetailWorstExpanded,
+			"relaxed": portalDetailWorstRelaxed,
+			"search_area": portalDetailWorstSearchArea,
+		}
+	return {
+		"calls": portalDetailCalls,
+		"grid_calls": portalDetailGridCalls,
+		"skipped_before_grid": portalDetailCalls - portalDetailGridCalls,
+		"preparation_usec": portalDetailPreparationUsec,
+		"grid_batch_usec": portalDetailGridUsec,
+		"finalization_usec": portalDetailFinalizationUsec,
+		"measured_total_usec": portalDetailPreparationUsec + portalDetailGridUsec
+		+ portalDetailFinalizationUsec,
+		"worst_batch": worst,
+	}
 
 
 func GetStaticQueryDetails() -> Dictionary:

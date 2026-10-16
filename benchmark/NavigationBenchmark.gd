@@ -19,6 +19,7 @@ const MOVEMENT_SPEED: float = 96.0
 @export var enableDiagnostics: bool = true
 @export var enablePathRebuildRecovery: bool = true
 @export var enableStaticQueryDetails: bool = true
+@export var enablePortalBatchDetails: bool = true
 @export var sourceCommitOverride: String = ""
 
 const DIAGNOSTICS_REVISION: String = "observability-v1"
@@ -45,6 +46,7 @@ class BenchmarkRunResult:
 	var comparedCellCount: int = 0
 	var metrics: Dictionary = { }
 	var staticQueryDetails: Dictionary = { }
+	var portalBatchDetails: Dictionary = { }
 
 
 class MovementRunResult:
@@ -64,6 +66,8 @@ class MovementRunResult:
 	var commandMetrics: Dictionary = { }
 	var commandStaticQueryDetails: Dictionary = { }
 	var movementStaticQueryDetails: Dictionary = { }
+	var commandPortalBatchDetails: Dictionary = { }
+	var movementPortalBatchDetails: Dictionary = { }
 	var tickTimesUsec: Array[int] = []
 	var worstTick: Dictionary = { }
 	var firstStalls: Array[Dictionary] = []
@@ -211,6 +215,7 @@ func _RunPathBenchmark(
 				"compared_cell_count": result.comparedCellCount,
 				"navigation_metrics_nested": result.metrics,
 				"static_query_details": result.staticQueryDetails,
+				"portal_batch_details": result.portalBatchDetails,
 			}
 		)
 	_AppendCaseReport(benchmarkCase, runs, warmupCount)
@@ -261,6 +266,8 @@ func _RunMovementBenchmark(
 				"command_navigation_metrics_nested": result.commandMetrics,
 				"command_static_query_details": result.commandStaticQueryDetails,
 				"movement_static_query_details": result.movementStaticQueryDetails,
+				"command_portal_batch_details": result.commandPortalBatchDetails,
+				"movement_portal_batch_details": result.movementPortalBatchDetails,
 				"movement_loop_usec": result.movementUsec,
 				"tick_times_usec": result.tickTimesUsec,
 				"tick_statistics": _TimeStatistics(result.tickTimesUsec),
@@ -331,6 +338,7 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 
 	var metrics: NavigationProfileMetrics = NavigationProfileMetrics.new()
 	metrics.captureStaticQueryDetails = enableDiagnostics and enableStaticQueryDetails
+	metrics.capturePortalBatchDetails = enableDiagnostics and enablePortalBatchDetails
 	_navigationService.SetProfileMetrics(metrics)
 
 	var result: BenchmarkRunResult = BenchmarkRunResult.new()
@@ -390,6 +398,7 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 
 	result.metrics = metrics.ToDictionary()
 	result.staticQueryDetails = metrics.GetStaticQueryDetails()
+	result.portalBatchDetails = metrics.GetPortalBatchDetails()
 
 	return result
 
@@ -434,6 +443,7 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 
 	var commandMetrics: NavigationProfileMetrics = NavigationProfileMetrics.new()
 	commandMetrics.captureStaticQueryDetails = enableDiagnostics and enableStaticQueryDetails
+	commandMetrics.capturePortalBatchDetails = enableDiagnostics and enablePortalBatchDetails
 	_navigationService.SetProfileMetrics(commandMetrics)
 
 	var commandProcessor: MoveCommandProcessor = MoveCommandProcessor.new(
@@ -450,6 +460,7 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 	if not commandSucceeded:
 		result.commandMetrics = commandMetrics.ToDictionary()
 		result.commandStaticQueryDetails = commandMetrics.GetStaticQueryDetails()
+		result.commandPortalBatchDetails = commandMetrics.GetPortalBatchDetails()
 		result.elapsedUsec = result.commandUsec
 		result.errorMessage = "MoveCommandProcessor failed"
 		if enableDiagnostics:
@@ -466,6 +477,9 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 	movementNavigationMetrics.captureStaticQueryDetails = (
 		enableDiagnostics and enableStaticQueryDetails
 	)
+	movementNavigationMetrics.capturePortalBatchDetails = (
+		enableDiagnostics and enablePortalBatchDetails
+	)
 	_navigationService.SetProfileMetrics(movementNavigationMetrics)
 
 	var noMovementTicks: PackedInt32Array = PackedInt32Array()
@@ -479,6 +493,8 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 	var tickStart: int = 0
 	startTime = Time.get_ticks_usec()
 	while result.tickCount < MOVEMENT_MAX_TICKS and not _AreAllAgentsSettled(agents):
+		if movementNavigationMetrics.capturePortalBatchDetails:
+			movementNavigationMetrics.portalBatchTick = result.tickCount + 1
 		if movementNavigationMetrics.captureStaticQueryDetails:
 			movementNavigationMetrics.staticQueryTick = result.tickCount + 1
 		if enableDiagnostics:
@@ -559,6 +575,8 @@ func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
 	result.commandMetrics = commandMetrics.ToDictionary()
 	result.commandStaticQueryDetails = commandMetrics.GetStaticQueryDetails()
 	result.movementStaticQueryDetails = movementNavigationMetrics.GetStaticQueryDetails()
+	result.commandPortalBatchDetails = commandMetrics.GetPortalBatchDetails()
+	result.movementPortalBatchDetails = movementNavigationMetrics.GetPortalBatchDetails()
 	result.navigationMetrics = movementNavigationMetrics.ToDictionary()
 	result.movementMetrics = movementMetrics.ToDictionary()
 
@@ -942,14 +960,15 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
-		"change_revision": "static-row-pruning-v1",
+		"change_revision": "portal-batch-probe-v1",
+		"portal_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
 		"static_row_pruning_enabled": true,
 		"static_query_details_enabled": enableDiagnostics and enableStaticQueryDetails,
 		"path_rebuild_recovery_enabled": enablePathRebuildRecovery,
 		"reached_waypoint_advance_enabled": true,
 		"rebuild_policy": "One individual fallback per unit per move command; at most one new request per tick; existing Agent target retained; no target correction.",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "Git HEAD identifies the commit, not uncommitted changes. Changes: observability-v1 plus repath-v1 plus static-query-probe-v1 plus static-row-pruning-v1. Record any other local changes separately.",
+		"working_tree_note": "Git HEAD identifies the commit, not uncommitted changes. Changes: observability-v1 plus repath-v1 plus static-query-probe-v1 plus static-row-pruning-v1 plus portal-batch-probe-v1 (observation only). Record any other local changes separately.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
@@ -973,6 +992,9 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 			"meaning": "Observation only; no repath or movement change. First event per unit per run. Small oscillations may only appear in final unfinished states.",
 		},
 		"timing_notes": [
+			"Portal Batch details partition preparation (including scratch reset), Grid FillPathsToTargets, and finalization through anchor endpoint checks. Timers/collection after finalization are excluded; do not add details to the existing inclusive Batch/Navigation/rebuild times.",
+			"grid_batch_usec includes Grid setup, search and path reconstruction INSIDE FillPathsToTargets. It is not pure heap/search-loop time. The worst batch is independent of the worst tick and is tagged with its movement tick (0 for command/Path Build).",
+			"Portal Batch detail timings are optional observation overhead; no search, heap, cache, target, movement or retry behavior changed in this probe.",
 			"Static row pruning narrows per-row blocked-cell candidates; the final intersection predicate is unchanged. broad_blocked_count still describes the ORIGINAL full rectangle; intersection_checks counts the actual pruned tests.",
 			"Static query detail endpoint_checks_usec and sweep_usec are disjoint INTERNAL intervals, not additional time to add to Navigation/command/tick metrics. Sweep includes recovery for an invalid start. Bookkeeping is excluded between and after the intervals.",
 			"Static query details count ALL NavigationStaticQuery.SegmentClear calls, including internal direct calls and FurthestClearPoint probes; service segment_clear_query_usec/calls only cover the NavigationService wrapper. Their scopes differ.",
