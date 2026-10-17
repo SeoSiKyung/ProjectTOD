@@ -71,6 +71,9 @@ var _isSavingScreenshots: bool = false
 @onready var _targetAnchorBar: ProgressBar = _phaseGrid.get_node("TargetAnchorBar")
 @onready var _anchorGraphBar: ProgressBar = _phaseGrid.get_node("AnchorGraphBar")
 @onready var _fallbackGridBar: ProgressBar = _phaseGrid.get_node("FallbackGridBar")
+@onready var _rebuildLabel: Label = _phaseGrid.get_node("RebuildLabel")
+@onready var _rebuildValue: Label = _phaseGrid.get_node("RebuildValue")
+@onready var _rebuildBar: ProgressBar = _phaseGrid.get_node("RebuildBar")
 
 @onready var _rightDetail: VBoxContainer = _detailRow.get_node("RightDetail")
 @onready var _segmentVBox: VBoxContainer = _rightDetail.get_node("SegmentPanel/VBox")
@@ -106,6 +109,9 @@ var _isSavingScreenshots: bool = false
 @onready var _worstExpandedValue: Label = _worstGrid.get_node("WorstExpandedValue")
 @onready var _worstRelaxedValue: Label = _worstGrid.get_node("WorstRelaxedValue")
 @onready var _worstTargetsValue: Label = _worstGrid.get_node("WorstTargetsValue")
+@onready var _tickPanel: PanelContainer = _content.get_node("TickPanel")
+@onready var _tickStatistics: Label = _tickPanel.get_node("VBox/Statistics")
+@onready var _slowestTick: Label = _tickPanel.get_node("VBox/SlowestTick")
 
 #endregion
 
@@ -425,12 +431,15 @@ func _ShowSelectedMovementResult() -> void:
 		runCount,
 	)
 	var arrivalUsec: int = _GetMetricAverageInt(movementMetrics, "arrival_resolve_usec", runCount)
+	var rebuildUsec: int = _GetMetricAverageInt(movementMetrics, "path_rebuild_usec", runCount)
 
 	_startAnchorValue.text = _FormatDurationUsec(commandUsec)
 	_targetAnchorValue.text = _FormatDurationUsec(pathFollowUsec)
 	_anchorGraphValue.text = _FormatDurationUsec(collisionUsec)
 	_fallbackGridValue.text = _FormatDurationUsec(arrivalUsec)
-	_UpdatePhaseBars(commandUsec, pathFollowUsec, collisionUsec, arrivalUsec)
+	_rebuildValue.text = _FormatDurationUsec(rebuildUsec)
+	_UpdatePhaseBars(commandUsec, pathFollowUsec, collisionUsec, arrivalUsec, rebuildUsec)
+	_UpdateTickResult(result)
 
 	_UpdateMovementSegmentClearResult(
 		navigationMetrics,
@@ -609,16 +618,56 @@ func _FormatOverlapRatio(ratio: int) -> String:
 	return "%d.%d%%" % [percent, decimal]
 
 
-func _UpdatePhaseBars(firstUsec: int, secondUsec: int, thirdUsec: int, fourthUsec: int) -> void:
-	var maxValue: int = maxi(1, maxi(firstUsec, maxi(secondUsec, maxi(thirdUsec, fourthUsec))))
+func _UpdatePhaseBars(
+	firstUsec: int,
+	secondUsec: int,
+	thirdUsec: int,
+	fourthUsec: int,
+	rebuildUsec: int = 0,
+) -> void:
+	var maxValue: int = maxi(
+		1,
+		maxi(rebuildUsec, maxi(firstUsec, maxi(secondUsec, maxi(thirdUsec, fourthUsec)))),
+	)
 
-	for bar: ProgressBar in [_startAnchorBar, _targetAnchorBar, _anchorGraphBar, _fallbackGridBar]:
+	for bar: ProgressBar in [
+		_startAnchorBar,
+		_targetAnchorBar,
+		_anchorGraphBar,
+		_fallbackGridBar,
+		_rebuildBar,
+	]:
 		bar.max_value = maxValue
 
 	_startAnchorBar.value = firstUsec
 	_targetAnchorBar.value = secondUsec
 	_anchorGraphBar.value = thirdUsec
 	_fallbackGridBar.value = fourthUsec
+	_rebuildBar.value = rebuildUsec
+
+
+func _UpdateTickResult(result: Dictionary) -> void:
+	var statistics: Dictionary = result.get("tickStatistics", { })
+	var slowest: Dictionary = result.get("slowestTick", { })
+	if statistics.is_empty():
+		_tickStatistics.text = "Not captured (diagnostics disabled or no measured ticks)"
+		_slowestTick.text = "Slowest tick: -"
+		return
+
+	_tickStatistics.text = "Avg %s    P50 %s    P95 %s    Max %s" % [
+		_FormatDurationUsec(int(statistics["average_usec"])),
+		_FormatDurationUsec(int(statistics["p50_usec"])),
+		_FormatDurationUsec(int(statistics["p95_usec"])),
+		_FormatDurationUsec(int(statistics["max_usec"])),
+	]
+	if slowest.is_empty():
+		_slowestTick.text = "Slowest tick: -"
+	else:
+		_slowestTick.text = "Slowest: run %d / tick %d    Rebuild in this tick: %s" % [
+			int(slowest["run"]),
+			int(slowest["tick"]),
+			_FormatDurationUsec(int(slowest["rebuild_usec"])),
+		]
 
 
 func _UpdateWorstAnchorBatch(metrics: Dictionary) -> void:
@@ -666,6 +715,11 @@ func _UpdateGroupInputResult(result: Dictionary) -> void:
 
 
 func _ApplyModeLabels(mode: int) -> void:
+	var isMovement: bool = mode == Mode.MOVEMENT
+	_rebuildLabel.visible = isMovement
+	_rebuildValue.visible = isMovement
+	_rebuildBar.visible = isMovement
+	_tickPanel.visible = isMovement
 	if mode == Mode.MOVEMENT:
 		_ApplyMovementLabels()
 	else:
@@ -680,7 +734,7 @@ func _ApplyMovementLabels() -> void:
 	_SetLabelText(_resultGrid, "OverlapLabel", "Avg target error")
 	_SetLabelText(_resultGrid, "PathLengthLabel", "Avg move CPU")
 
-	_SetLabelText(_phaseVBox, "Heading", "Movement Phase")
+	_SetLabelText(_phaseVBox, "Heading", "Command / Movement (avg per run)")
 	_SetLabelText(_phaseGrid, "StartAnchorLabel", "Command Build")
 	_SetLabelText(_phaseGrid, "TargetAnchorLabel", "Path Follow / Commit")
 	_SetLabelText(_phaseGrid, "AnchorGraphLabel", "Collision Resolve")
@@ -771,6 +825,9 @@ func _SetEmptyResult() -> void:
 		_targetAnchorValue,
 		_anchorGraphValue,
 		_fallbackGridValue,
+		_rebuildValue,
+		_tickStatistics,
+		_slowestTick,
 		_gridCallsValue,
 		_gridExpandedValue,
 		_gridRelaxedValue,
@@ -794,7 +851,13 @@ func _SetEmptyResult() -> void:
 	]:
 		label.text = "-"
 
-	for bar: ProgressBar in [_startAnchorBar, _targetAnchorBar, _anchorGraphBar, _fallbackGridBar]:
+	for bar: ProgressBar in [
+		_startAnchorBar,
+		_targetAnchorBar,
+		_anchorGraphBar,
+		_fallbackGridBar,
+		_rebuildBar,
+	]:
 		bar.max_value = 1.0
 		bar.value = 0.0
 

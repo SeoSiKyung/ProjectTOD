@@ -779,6 +779,9 @@ func _ShowMovementResult(
 	var movementTimes: Array[int] = []
 	var navigationMetricTotals: Dictionary = { }
 	var movementMetricTotals: Dictionary = { }
+	var measuredTickTimes: Array[int] = []
+	var slowestTick: Dictionary = { }
+	var runNumber: int = 0
 
 	var tickTotal: int = 0
 	var completedUnitTotal: int = 0
@@ -790,6 +793,16 @@ func _ShowMovementResult(
 	var failedRunCount: int = 0
 
 	for result: MovementRunResult in results:
+		runNumber += 1
+		measuredTickTimes.append_array(result.tickTimesUsec)
+		if not result.worstTick.is_empty():
+			if slowestTick.is_empty() or int(result.worstTick["elapsed_usec"]) > int(slowestTick["elapsed_usec"]):
+				slowestTick = {
+					"run": runNumber,
+					"tick": result.worstTick["tick"],
+					"elapsed_usec": result.worstTick["elapsed_usec"],
+					"rebuild_usec": result.worstTick["exclusive_phases"].get("path_rebuild_usec", 0),
+				}
 		elapsedTimes.append(result.elapsedUsec)
 		commandTimes.append(result.commandUsec)
 		movementTimes.append(result.movementUsec)
@@ -834,6 +847,8 @@ func _ShowMovementResult(
 			"elapsedTimes": elapsedTimes,
 			"commandTimes": commandTimes,
 			"movementTimes": movementTimes,
+			"tickStatistics": _TimeStatistics(measuredTickTimes),
+			"slowestTick": slowestTick,
 			"navigationMetrics": navigationMetricTotals,
 			"movementMetrics": movementMetricTotals,
 			"tickTotal": tickTotal,
@@ -961,6 +976,7 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
 		"change_revision": "grid-h-reuse-v1",
+		"display_revision": "movement-display-v1",
 		"grid_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
 		"portal_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
 		"static_row_pruning_enabled": true,

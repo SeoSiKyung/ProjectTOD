@@ -328,6 +328,22 @@ layout_mode = 2
 size_flags_horizontal = 3
 show_percentage = false
 
+[node name="RebuildLabel" type="Label" parent="Panel/Margin/VBox/DetailRow/PhasePanel/VBox/Grid"]
+visible = false
+layout_mode = 2
+text = "Path Rebuild"
+
+[node name="RebuildValue" type="Label" parent="Panel/Margin/VBox/DetailRow/PhasePanel/VBox/Grid"]
+visible = false
+layout_mode = 2
+text = "-"
+
+[node name="RebuildBar" type="ProgressBar" parent="Panel/Margin/VBox/DetailRow/PhasePanel/VBox/Grid"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+
 [node name="AnchorGraphLabel" type="Label" parent="Panel/Margin/VBox/DetailRow/PhasePanel/VBox/Grid" unique_id=531687238]
 layout_mode = 2
 text = "Anchor Graph"
@@ -596,6 +612,36 @@ text = "Targets"
 unique_name_in_owner = true
 layout_mode = 2
 text = "-"
+
+[node name="TickPanel" type="PanelContainer" parent="Panel/Margin/VBox"]
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxSection")
+
+[node name="VBox" type="VBoxContainer" parent="Panel/Margin/VBox/TickPanel"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Heading" type="Label" parent="Panel/Margin/VBox/TickPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Simulation Tick CPU (all measured ticks)"
+
+[node name="Statistics" type="Label" parent="Panel/Margin/VBox/TickPanel/VBox"]
+layout_mode = 2
+text = "-"
+autowrap_mode = 2
+
+[node name="SlowestTick" type="Label" parent="Panel/Margin/VBox/TickPanel/VBox"]
+layout_mode = 2
+text = "-"
+autowrap_mode = 2
+
+[node name="Note" type="Label" parent="Panel/Margin/VBox/TickPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Included in movement time; not rendered frame time. Rebuild is part of the tick, not extra time."
+autowrap_mode = 2
 
 [node name="Hint" type="Label" parent="Panel/Margin/VBox" unique_id=1838453157]
 layout_mode = 2
