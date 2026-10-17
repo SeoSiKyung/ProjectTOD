@@ -796,7 +796,10 @@ func _ShowMovementResult(
 		runNumber += 1
 		measuredTickTimes.append_array(result.tickTimesUsec)
 		if not result.worstTick.is_empty():
-			if slowestTick.is_empty() or int(result.worstTick["elapsed_usec"]) > int(slowestTick["elapsed_usec"]):
+			if (
+				slowestTick.is_empty()
+				or int(result.worstTick["elapsed_usec"]) > int(slowestTick["elapsed_usec"])
+			):
 				slowestTick = {
 					"run": runNumber,
 					"tick": result.worstTick["tick"],
@@ -975,7 +978,7 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
-		"change_revision": "grid-h-reuse-v1",
+		"change_revision": "arrival-goal-entry-v1",
 		"display_revision": "movement-display-v1",
 		"grid_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
 		"portal_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
@@ -985,7 +988,7 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 		"reached_waypoint_advance_enabled": true,
 		"rebuild_policy": "One individual fallback per unit per move command; at most one new request per tick; existing Agent target retained; no target correction.",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "Based on commit 4 (5f9c95b12465dba5437d0321a657da386c1c2af0) plus grid-batch-probe-v1 and grid-h-reuse-v1 (reuse existing per-search h in FillPathsToTargets only). Git HEAD does not identify uncommitted changes. Record any other local changes separately.",
+		"working_tree_note": "Based on delivered grid-h-reuse-v1 and movement-display-v1. arrival-goal-entry-v1 permits a collision-safe short step only when it brings the move target into the unit footprint. Git HEAD does not identify uncommitted changes. Record any other local changes separately.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
