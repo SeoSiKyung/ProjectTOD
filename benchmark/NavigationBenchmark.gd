@@ -960,7 +960,8 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
-		"change_revision": "portal-batch-probe-v1",
+		"change_revision": "grid-h-reuse-v1",
+		"grid_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
 		"portal_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
 		"static_row_pruning_enabled": true,
 		"static_query_details_enabled": enableDiagnostics and enableStaticQueryDetails,
@@ -968,7 +969,7 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 		"reached_waypoint_advance_enabled": true,
 		"rebuild_policy": "One individual fallback per unit per move command; at most one new request per tick; existing Agent target retained; no target correction.",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "Git HEAD identifies the commit, not uncommitted changes. Changes: observability-v1 plus repath-v1 plus static-query-probe-v1 plus static-row-pruning-v1 plus portal-batch-probe-v1 (observation only). Record any other local changes separately.",
+		"working_tree_note": "Based on commit 4 (5f9c95b12465dba5437d0321a657da386c1c2af0) plus grid-batch-probe-v1 and grid-h-reuse-v1 (reuse existing per-search h in FillPathsToTargets only). Git HEAD does not identify uncommitted changes. Record any other local changes separately.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
@@ -992,6 +993,9 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 			"meaning": "Observation only; no repath or movement change. First event per unit per run. Small oscillations may only appear in final unfinished states.",
 		},
 		"timing_notes": [
+			"grid_internal partitions Grid preparation/initialization, the search loop excluding reconstruction, and _ReconstructPath calls. These are NESTED inside grid_batch_usec; do not add them to parent Batch/rebuild/tick times.",
+			"Only batch boundaries and goal reconstruction calls read extra timers. Search-exclusive time includes loop bookkeeping/observation overhead. The outer Grid timer includes call/return and final timing assignments not included in internal intervals.",
+			"worst_batch.grid_internal describes that SAME outer worst Batch; it is not an independently selected worst Grid call. Existing Portal Batch Details toggle controls both levels; no new cases or warmup/cache policy changes.",
 			"Portal Batch details partition preparation (including scratch reset), Grid FillPathsToTargets, and finalization through anchor endpoint checks. Timers/collection after finalization are excluded; do not add details to the existing inclusive Batch/Navigation/rebuild times.",
 			"grid_batch_usec includes Grid setup, search and path reconstruction INSIDE FillPathsToTargets. It is not pure heap/search-loop time. The worst batch is independent of the worst tick and is tagged with its movement tick (0 for command/Path Build).",
 			"Portal Batch detail timings are optional observation overhead; no search, heap, cache, target, movement or retry behavior changed in this probe.",

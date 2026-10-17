@@ -95,6 +95,12 @@ var portalDetailGridCalls: int = 0
 var portalDetailPreparationUsec: int = 0
 var portalDetailGridUsec: int = 0
 var portalDetailFinalizationUsec: int = 0
+var portalDetailGridPreparationUsec: int = 0
+var portalDetailGridSearchUsec: int = 0
+var portalDetailGridReconstructionUsec: int = 0
+var portalDetailGridReconstructionCalls: int = 0
+var portalDetailGridReturnedPaths: int = 0
+var portalDetailGridReconstructedWaypoints: int = 0
 var portalDetailWorstUsec: int = -1
 var portalDetailWorstPreparationUsec: int = 0
 var portalDetailWorstGridUsec: int = 0
@@ -106,6 +112,12 @@ var portalDetailWorstTargetCount: int = 0
 var portalDetailWorstExpanded: int = 0
 var portalDetailWorstRelaxed: int = 0
 var portalDetailWorstSearchArea: int = 0
+var portalDetailWorstGridPreparationUsec: int = 0
+var portalDetailWorstGridSearchUsec: int = 0
+var portalDetailWorstGridReconstructionUsec: int = 0
+var portalDetailWorstGridReconstructionCalls: int = 0
+var portalDetailWorstGridReturnedPaths: int = 0
+var portalDetailWorstGridReconstructedWaypoints: int = 0
 
 #endregion
 
@@ -195,6 +207,12 @@ func RecordPortalBatchDetails(
 	relaxed: int = 0,
 	searchArea: int = 0,
 	gridCalled: bool = false,
+	gridPreparationUsec: int = 0,
+	gridSearchUsec: int = 0,
+	gridReconstructionUsec: int = 0,
+	reconstructionCalls: int = 0,
+	returnedPaths: int = 0,
+	reconstructedWaypoints: int = 0,
 ) -> void:
 	portalDetailCalls += 1
 	if gridCalled:
@@ -202,6 +220,12 @@ func RecordPortalBatchDetails(
 	portalDetailPreparationUsec += preparationUsec
 	portalDetailGridUsec += gridUsec
 	portalDetailFinalizationUsec += finalizationUsec
+	portalDetailGridPreparationUsec += gridPreparationUsec
+	portalDetailGridSearchUsec += gridSearchUsec
+	portalDetailGridReconstructionUsec += gridReconstructionUsec
+	portalDetailGridReconstructionCalls += reconstructionCalls
+	portalDetailGridReturnedPaths += returnedPaths
+	portalDetailGridReconstructedWaypoints += reconstructedWaypoints
 	var elapsed: int = preparationUsec + gridUsec + finalizationUsec
 	if elapsed > portalDetailWorstUsec:
 		portalDetailWorstUsec = elapsed
@@ -215,6 +239,12 @@ func RecordPortalBatchDetails(
 		portalDetailWorstExpanded = expanded
 		portalDetailWorstRelaxed = relaxed
 		portalDetailWorstSearchArea = searchArea
+		portalDetailWorstGridPreparationUsec = gridPreparationUsec
+		portalDetailWorstGridSearchUsec = gridSearchUsec
+		portalDetailWorstGridReconstructionUsec = gridReconstructionUsec
+		portalDetailWorstGridReconstructionCalls = reconstructionCalls
+		portalDetailWorstGridReturnedPaths = returnedPaths
+		portalDetailWorstGridReconstructedWaypoints = reconstructedWaypoints
 
 
 func GetPortalBatchDetails() -> Dictionary:
@@ -234,6 +264,14 @@ func GetPortalBatchDetails() -> Dictionary:
 			"expanded": portalDetailWorstExpanded,
 			"relaxed": portalDetailWorstRelaxed,
 			"search_area": portalDetailWorstSearchArea,
+			"grid_internal": {
+				"preparation_usec": portalDetailWorstGridPreparationUsec,
+				"search_excluding_reconstruction_usec": portalDetailWorstGridSearchUsec,
+				"reconstruction_usec": portalDetailWorstGridReconstructionUsec,
+				"reconstruction_calls": portalDetailWorstGridReconstructionCalls,
+				"returned_paths": portalDetailWorstGridReturnedPaths,
+				"reconstructed_waypoints": portalDetailWorstGridReconstructedWaypoints,
+			},
 		}
 	return {
 		"calls": portalDetailCalls,
@@ -245,6 +283,15 @@ func GetPortalBatchDetails() -> Dictionary:
 		"measured_total_usec": portalDetailPreparationUsec + portalDetailGridUsec
 		+ portalDetailFinalizationUsec,
 		"worst_batch": worst,
+		"grid_internal": {
+			"calls": portalDetailGridCalls,
+			"preparation_usec": portalDetailGridPreparationUsec,
+			"search_excluding_reconstruction_usec": portalDetailGridSearchUsec,
+			"reconstruction_usec": portalDetailGridReconstructionUsec,
+			"reconstruction_calls": portalDetailGridReconstructionCalls,
+			"returned_paths": portalDetailGridReturnedPaths,
+			"reconstructed_waypoints": portalDetailGridReconstructedWaypoints,
+		},
 	}
 
 

@@ -14,6 +14,12 @@ var lastExpandedCount: int = 0
 var lastRelaxedCount: int = 0
 var lastSearchArea: int = 0
 
+var lastBatchPreparationUsec: int = 0
+var lastBatchSearchUsec: int = 0
+var lastBatchReconstructionUsec: int = 0
+var lastBatchReconstructionCalls: int = 0
+var lastBatchReconstructedWaypoints: int = 0
+
 var _state: NavigationPathSearchState = NavigationPathSearchState.new()
 
 var _targetStamp: PackedInt32Array = PackedInt32Array()
@@ -211,14 +217,23 @@ func FillPathsToTargets(
 	navigationMap: NavigationFootprintMapData,
 	regionId: int,
 	searchMarginCells: int,
+	captureDetails: bool = false,
 ) -> void:
+	var preparationStart: int = Time.get_ticks_usec() if captureDetails else 0
 	result.clear()
 
 	lastExpandedCount = 0
 	lastRelaxedCount = 0
 	lastSearchArea = 0
+	lastBatchPreparationUsec = 0
+	lastBatchSearchUsec = 0
+	lastBatchReconstructionUsec = 0
+	lastBatchReconstructionCalls = 0
+	lastBatchReconstructedWaypoints = 0
 
 	if targetCells.is_empty():
+		if captureDetails:
+			lastBatchPreparationUsec = Time.get_ticks_usec() - preparationStart
 		return
 
 	var startIndex: int = Grid.CellToIndex(startCell, _gridWidth)
@@ -270,6 +285,7 @@ func FillPathsToTargets(
 		_targetStamp[targetIndex] = _targetGeneration
 		remainingTargetCount += 1
 
+	var searchStart: int = Time.get_ticks_usec() if captureDetails else 0
 	while not _heap.IsEmpty():
 		if remainingTargetCount <= 0:
 			break
@@ -282,12 +298,17 @@ func FillPathsToTargets(
 		lastExpandedCount += 1
 
 		if _targetStamp[currentIndex] == _targetGeneration:
+			var reconstructionStart: int = Time.get_ticks_usec() if captureDetails else 0
 			var path: PackedVector2Array = _ReconstructPath(
 				_state.parent,
 				startIndex,
 				currentIndex,
 				pathOffset,
 			)
+			if captureDetails:
+				lastBatchReconstructionUsec += Time.get_ticks_usec() - reconstructionStart
+				lastBatchReconstructionCalls += 1
+				lastBatchReconstructedWaypoints += path.size()
 			if not path.is_empty():
 				result[currentIndex] = path
 
@@ -343,7 +364,7 @@ func FillPathsToTargets(
 					if verticalRegionId != regionId and verticalRegionId != PATH_REGION_PORTAL:
 						continue
 
-			_state.Touch(nextIndex)
+			var isFirstTouch: bool = _state.Touch(nextIndex)
 
 			var stepCost: float = 1.0
 			if direction.x != 0 and direction.y != 0:
@@ -376,16 +397,23 @@ func FillPathsToTargets(
 			_state.parent[nextIndex] = currentIndex
 			_state.incomingDirection[nextIndex] = dirIndex
 
+			# 이번 탐색의 targetCells는 고정이므로 같은 셀의 h는 다시 계산하지 않는다.
 			var h: float
-			if singleTargetMode:
-				h = Math.OctileDistance(nextCell, singleTargetCell)
+			if isFirstTouch:
+				if singleTargetMode:
+					h = Math.OctileDistance(nextCell, singleTargetCell)
+				else:
+					h = _GetNearestTargetHeuristic(nextCell, targetCells)
+				_state.h[nextIndex] = h
 			else:
-				h = _GetNearestTargetHeuristic(nextCell, targetCells)
-
-			_state.h[nextIndex] = h
+				h = _state.h[nextIndex]
 			_state.f[nextIndex] = tentativeG + h * heuristicWeight
 
 			_heap.PushOrUpdate(nextIndex)
+	if captureDetails:
+		var searchEnd: int = Time.get_ticks_usec()
+		lastBatchPreparationUsec = searchStart - preparationStart
+		lastBatchSearchUsec = searchEnd - searchStart - lastBatchReconstructionUsec
 
 
 func _BeginPathSearch(startIndex: int, startH: float, heuristicWeight: float) -> void:

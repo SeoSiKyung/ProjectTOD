@@ -1498,6 +1498,7 @@ func _FillLocalPathsToPortalAnchors(
 		navigationMap,
 		regionId,
 		localSearchMarginCells,
+		details != null,
 	)
 	var gridEnd: int = Time.get_ticks_usec() if details != null else 0
 
@@ -1539,6 +1540,12 @@ func _FillLocalPathsToPortalAnchors(
 			_gridPathfinder.lastRelaxedCount,
 			_gridPathfinder.lastSearchArea,
 			true,
+			_gridPathfinder.lastBatchPreparationUsec,
+			_gridPathfinder.lastBatchSearchUsec,
+			_gridPathfinder.lastBatchReconstructionUsec,
+			_gridPathfinder.lastBatchReconstructionCalls,
+			_portalGridPathsByTargetIndex.size(),
+			_gridPathfinder.lastBatchReconstructedWaypoints,
 		)
 
 #endregion
