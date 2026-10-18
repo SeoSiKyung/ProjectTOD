@@ -19,6 +19,12 @@ var _unitTargetAcquisitionCursor: int = 0
 var _machineTargetAcquisitionCursor: int = 0
 var _trapTargetAcquisitionCursor: int = 0
 
+var timingEnabled: bool = false
+var timingExistingTargetsUsec: int = 0
+var timingAcquisitionUsec: int = 0
+var timingDefaultSelectionUsec: int = 0
+var timingMissingEnemyCount: int = 0
+
 
 func _init(battleContext: DefenseBattleFacade, unitRuntime: UnitRuntime) -> void:
 	_battleContext = battleContext
@@ -43,8 +49,24 @@ func Reset() -> void:
 
 
 func Update() -> void:
+	var phaseStart: int = Time.get_ticks_usec() if timingEnabled else 0
 	_UpdateExistingTargets()
+	if timingEnabled:
+		timingExistingTargetsUsec += Time.get_ticks_usec() - phaseStart
+		phaseStart = Time.get_ticks_usec()
 	_UpdateTargetAcquisition()
+	if timingEnabled:
+		timingAcquisitionUsec += Time.get_ticks_usec() - phaseStart
+
+
+func BeginTimingSample(enabled: bool) -> void:
+	timingEnabled = enabled
+	if not enabled:
+		return
+	timingExistingTargetsUsec = 0
+	timingAcquisitionUsec = 0
+	timingDefaultSelectionUsec = 0
+	timingMissingEnemyCount = 0
 
 
 func SetTarget(attacker: Unit, target: Unit) -> bool:
@@ -134,7 +156,10 @@ func IssueInitialEnemyChases(enemies: Array[Unit]) -> void:
 	if enemies.is_empty():
 		return
 
+	var selectionStart: int = Time.get_ticks_usec() if timingEnabled else 0
 	var target: Unit = _GetDefaultEnemyTarget(enemies[0] as Enemy)
+	if timingEnabled:
+		timingDefaultSelectionUsec += Time.get_ticks_usec() - selectionStart
 	if target == null:
 		return
 
@@ -233,6 +258,8 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterType.Typ
 func _HandleMissingTarget(character: Unit, characterType: CharacterType.Type) -> void:
 	match characterType:
 		CharacterType.ENEMY:
+			if timingEnabled:
+				timingMissingEnemyCount += 1
 			_IssueDefaultEnemyChase(character as Enemy)
 
 		CharacterType.TOWER, \
@@ -335,7 +362,10 @@ func _IsBetterTarget(
 
 
 func _IssueDefaultEnemyChase(enemy: Enemy) -> bool:
+	var selectionStart: int = Time.get_ticks_usec() if timingEnabled else 0
 	var target: Unit = _GetDefaultEnemyTarget(enemy)
+	if timingEnabled:
+		timingDefaultSelectionUsec += Time.get_ticks_usec() - selectionStart
 	if target == null:
 		return false
 

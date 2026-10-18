@@ -24,6 +24,14 @@ enum DefensePhase {
 @export_range(8, 256, 8) var navigationLocalSearchMarginCells: int = 64
 @export_range(8, 256, 8) var navigationAnchorConnectionCacheCapacity: int = 64
 
+@export_group("Timing Diagnostics")
+@export var enableTimingDiagnostics: bool = false
+@export_range(1.0, 1000.0, 1.0) var slowCallbackThresholdMs: float = 100.0
+
+var _timingHeaderPrinted: bool = false
+var _timingCPFollowup: bool = false
+var _timingCPEventPending: bool = false
+
 var _startData: DefenseStartData
 
 var _cp: CommandPost
@@ -128,25 +136,60 @@ func _process(_delta: float) -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
+	_BeginTimingSample()
+	var callbackStart: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
 	_timeManager.Update()
 
 	var elapsedTimeMs: int = _timeManager.GetElapsedTimeMs()
 	_spawnManager.Update(elapsedTimeMs)
 
 	_CheckVictory()
+	if enableTimingDiagnostics:
+		var elapsed: int = Time.get_ticks_usec() - callbackStart
+		if elapsed >= slowCallbackThresholdMs * 1000.0:
+			print(
+				"[디펜스 계측/process] 프레임=%d 콜백전체=%.3fms CP파괴=%s"
+				% [Engine.get_process_frames(), elapsed / 1000.0, _cpDestroyed],
+			)
+			_PrintTargetTimingSample()
+			_unitRuntime.PrintTimingSample(0)
 
 
 func _physics_process(fixedDelta: float) -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
+	_BeginTimingSample()
+	var callbackStart: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
 	_unitRuntime.Simulate(fixedDelta)
+	var movementEnd: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
 
 	_targetingManager.Update()
+	var targetingEnd: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
 	_combatManager.Update()
 	_combatManager.FlushAttacks()
 
 	_ResolvePendingBattleEnd()
+	if enableTimingDiagnostics:
+		var callbackEnd: int = Time.get_ticks_usec()
+		var elapsed: int = callbackEnd - callbackStart
+		var cpChanged: bool = _timingCPEventPending
+		_timingCPEventPending = false
+		if elapsed >= slowCallbackThresholdMs * 1000.0 or cpChanged or _timingCPFollowup:
+			print(
+				"[디펜스 계측/physics] 틱=%d 콜백전체=%.3fms 이동=%.3f 목표갱신=%.3f 전투및종료=%.3fms"
+				% [
+					Engine.get_physics_frames(),
+					elapsed / 1000.0,
+					(movementEnd - callbackStart) / 1000.0,
+					(targetingEnd - movementEnd) / 1000.0,
+					(callbackEnd - targetingEnd) / 1000.0,
+				],
+				" | CP파괴=%s 파괴감지=%s 파괴다음틱=%s" % [_cpDestroyed, cpChanged, _timingCPFollowup],
+			)
+			_PrintTargetTimingSample()
+			_unitRuntime.PrintTimingSample(movementEnd - callbackStart)
+		_timingCPFollowup = cpChanged
 
 
 func _InitializeNavigation() -> bool:
@@ -264,6 +307,9 @@ func _StartBattle() -> void:
 	_installableDeploymentController.CompleteDeployment()
 
 	_targetingManager.Reset()
+	_timingHeaderPrinted = false
+	_timingCPFollowup = false
+	_timingCPEventPending = false
 
 	_pendingDefeat = false
 	_cpDestroyed = false
@@ -710,6 +756,8 @@ func _OnCPDestroyed() -> void:
 		return
 
 	_cpDestroyed = true
+	if enableTimingDiagnostics:
+		_timingCPEventPending = true
 
 	if not _mercenaryBuffService.RemoveCPBuffs():
 		push_error("DefenseSceneManager: 지휘소 용병 버프 제거에 실패했습니다.")
@@ -738,3 +786,81 @@ func _CalculateAttackBufferCapacity() -> int:
 	return (maxFriendlyCount + totalEnemyCount) * ATTACK_BUFFER_CAPACITY_MULTIPLIER
 
 #endregion
+
+
+func _BeginTimingSample() -> void:
+	_unitRuntime.BeginTimingSample(enableTimingDiagnostics)
+	_targetingManager.BeginTimingSample(enableTimingDiagnostics)
+	if not enableTimingDiagnostics:
+		_timingCPFollowup = false
+		_timingCPEventPending = false
+		return
+	if _timingHeaderPrinted:
+		return
+	_timingHeaderPrinted = true
+	print(
+		"[디펜스 계측/시작] revision=defense-timing-v2 commit=%s Godot=%s physics_hz=%d 기준=%.1fms"
+		% [
+			_ReadTimingSourceCommit(),
+			Engine.get_version_info().get("string", ""),
+			Engine.physics_ticks_per_second,
+			slowCallbackThresholdMs,
+		],
+		" | 실제 플레이 단일 실행; 캐시 초기화/추가 워밍업 없음; 출력 비용은 콜백 시간에서 제외",
+	)
+	print(
+		"[디펜스 계측/조건] 맵=%s local_margin=%d anchor_cache_capacity=%d"
+		% [
+			navigationData.resource_path,
+			navigationLocalSearchMarginCells,
+			navigationAnchorConnectionCacheCapacity,
+		],
+	)
+	print(
+		"[디펜스 계측/소스] Scene=%s Targeting=%s Runtime=%s IntHeap=%s NavigationHeap=%s"
+		% [
+			FileAccess.get_sha256("res://scripts/defense/DefenseSceneManager.gd"),
+			FileAccess.get_sha256("res://scripts/defense/managers/DefenseTargetingManager.gd"),
+			FileAccess.get_sha256("res://unit/UnitRuntime.gd"),
+			FileAccess.get_sha256("res://scripts/common/dataStructures/IntHeap.gd"),
+			FileAccess.get_sha256("res://scripts/navigation/NavigationPathHeap.gd"),
+		],
+	)
+
+
+func _PrintTargetTimingSample() -> void:
+	print(
+		"[디펜스 계측/목표] 기존목표확인=%.3f 일반목표탐색=%.3fms | 내부참고 기본목표선택=%.3fms 목표상실적=%d"
+		% [
+			_targetingManager.timingExistingTargetsUsec / 1000.0,
+			_targetingManager.timingAcquisitionUsec / 1000.0,
+			_targetingManager.timingDefaultSelectionUsec / 1000.0,
+			_targetingManager.timingMissingEnemyCount,
+		],
+	)
+
+
+func _ReadTimingSourceCommit() -> String:
+	var gitDirectory: String = "res://.git"
+	if FileAccess.file_exists(gitDirectory):
+		var pointer: String = FileAccess.get_file_as_string(gitDirectory).strip_edges()
+		if pointer.begins_with("gitdir: "):
+			gitDirectory = pointer.trim_prefix("gitdir: ")
+			if not gitDirectory.is_absolute_path():
+				gitDirectory = ProjectSettings.globalize_path("res://").path_join(gitDirectory)
+	var headPath: String = gitDirectory.path_join("HEAD")
+	if not FileAccess.file_exists(headPath):
+		return "UNAVAILABLE"
+	var head: String = FileAccess.get_file_as_string(headPath).strip_edges()
+	if not head.begins_with("ref: "):
+		return head
+	var reference: String = head.trim_prefix("ref: ")
+	var referencePath: String = gitDirectory.path_join(reference)
+	if FileAccess.file_exists(referencePath):
+		return FileAccess.get_file_as_string(referencePath).strip_edges()
+	var packedPath: String = gitDirectory.path_join("packed-refs")
+	if FileAccess.file_exists(packedPath):
+		for line: String in FileAccess.get_file_as_string(packedPath).split("\n"):
+			if line.ends_with(" " + reference):
+				return line.get_slice(" ", 0)
+	return "UNAVAILABLE"

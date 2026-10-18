@@ -41,6 +41,9 @@ var groupJoinFallbackSuccesses: int = 0
 
 #region Phase Time
 
+var regionLookupUsec: int = 0
+var sameRegionPathUsec: int = 0
+var pathAssemblyUsec: int = 0
 var startAnchorConnectionUsec: int = 0
 var targetAnchorConnectionUsec: int = 0
 var anchorGraphUsec: int = 0

@@ -213,8 +213,11 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 	if footprintData == null:
 		return _FindFallbackGridPath(start, target, halfSize)
 
+	phaseStart = _ProfileBegin()
 	_regionQuery.FillRegionIds(_startRegionIds, start)
 	_regionQuery.FillRegionIds(_targetRegionIds, target)
+	if _benchmarkMetrics != null:
+		_benchmarkMetrics.regionLookupUsec += Time.get_ticks_usec() - phaseStart
 	if _startRegionIds.is_empty() or _targetRegionIds.is_empty():
 		return _FindFallbackGridPath(start, target, halfSize)
 
@@ -226,6 +229,7 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 		and _startRegionIds[0] == _targetRegionIds[0]
 	)
 
+	phaseStart = _ProfileBegin()
 	if isSingleSharedRegion:
 		var localPath: PackedVector2Array = _FindPathInsideRegion(
 			start,
@@ -234,6 +238,8 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 			_startRegionIds[0],
 		)
 		if not localPath.is_empty():
+			if _benchmarkMetrics != null:
+				_benchmarkMetrics.sameRegionPathUsec += Time.get_ticks_usec() - phaseStart
 			return localPath
 	else:
 		# Portal 위의 시작/목표처럼 여러 Region에 연결되는 경우에는 양쪽이 공유하는 Region들의 Local Path를 후보로 비교한다.
@@ -256,6 +262,7 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 				bestPath = localPath
 
 	if _benchmarkMetrics != null:
+		_benchmarkMetrics.sameRegionPathUsec += Time.get_ticks_usec() - phaseStart
 		phaseStart = Time.get_ticks_usec()
 	var startConnections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnectionsForRegions(
 		start,
@@ -295,8 +302,11 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 				_benchmarkMetrics.anchorGraphUsec += (Time.get_ticks_usec() - phaseStart)
 
 			if graphPathFound and _hierarchicalPathfinder.lastPathCost < bestCost - Math.EPSILON:
+				phaseStart = _ProfileBegin()
 				bestPath = _hierarchicalPathfinder.BuildPath(target)
 				bestCost = _hierarchicalPathfinder.lastPathCost
+				if _benchmarkMetrics != null:
+					_benchmarkMetrics.pathAssemblyUsec += Time.get_ticks_usec() - phaseStart
 
 	if not bestPath.is_empty():
 		return bestPath
@@ -1617,6 +1627,10 @@ func _GetWaypointPathCost(start: Vector2, path: PackedVector2Array) -> float:
 
 
 #region Profiling
+
+func GetProfileMetrics() -> NavigationProfileMetrics:
+	return _benchmarkMetrics
+
 
 func SetProfileMetrics(metrics: NavigationProfileMetrics) -> void:
 	_benchmarkMetrics = metrics
