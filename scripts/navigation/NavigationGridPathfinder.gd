@@ -84,7 +84,7 @@ func FindPath(
 	)
 
 	while not _heap.IsEmpty():
-		var currentIndex: int = int(_heap.Pop())
+		var currentIndex: int = _heap.Pop()
 		if _state.IsClosed(currentIndex):
 			continue
 
@@ -290,7 +290,7 @@ func FillPathsToTargets(
 		if remainingTargetCount <= 0:
 			break
 
-		var currentIndex: int = int(_heap.Pop())
+		var currentIndex: int = _heap.Pop()
 		if _state.IsClosed(currentIndex):
 			continue
 
