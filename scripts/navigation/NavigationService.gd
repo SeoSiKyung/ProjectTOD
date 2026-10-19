@@ -54,6 +54,7 @@ var _staticQuery: NavigationStaticQuery
 
 var _benchmarkMetrics: NavigationProfileMetrics = null
 var _useIndividualPortalPaths: bool = true
+var _individualPortalHeuristicWeight: float = 1.5
 
 
 #region Public API
@@ -1511,6 +1512,7 @@ func _FillLocalPathsToPortalAnchors(
 			regionId,
 			localSearchMarginCells,
 			details != null,
+			_individualPortalHeuristicWeight,
 		)
 	else:
 		_gridPathfinder.FillPathsToTargets(
@@ -1707,10 +1709,13 @@ func BuildRegionConnectionsForBenchmark(
 	halfSize: int,
 	regionId: int,
 	individual: bool,
+	heuristicWeight: float = 1.0,
 ) -> Array[NavigationAnchorTypes.Connection]:
 	var footprint: NavigationFootprintData = _GetFootprintData(halfSize)
 	if footprint == null:
 		return []
+	var previousWeight: float = _individualPortalHeuristicWeight
+	_individualPortalHeuristicWeight = heuristicWeight
 	var previous: bool = _useIndividualPortalPaths
 	_useIndividualPortalPaths = individual
 	var connections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnections(
@@ -1720,6 +1725,7 @@ func BuildRegionConnectionsForBenchmark(
 		footprint,
 	)
 	_useIndividualPortalPaths = previous
+	_individualPortalHeuristicWeight = previousWeight
 	return connections
 
 

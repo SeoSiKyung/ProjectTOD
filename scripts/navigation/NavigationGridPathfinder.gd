@@ -519,6 +519,7 @@ func FillPathsToTargetsIndividually(
 	regionId: int,
 	searchMarginCells: int,
 	captureDetails: bool,
+	multiTargetWeight: float = 1.0,
 ) -> void:
 	if targetCells.size() <= 1:
 		FillPathsToTargets(
@@ -554,7 +555,7 @@ func FillPathsToTargetsIndividually(
 			searchMarginCells,
 			captureDetails,
 			targetCells,
-			1.0,
+			multiTargetWeight,
 		)
 		result.merge(oneResult)
 		totalExpanded += lastExpandedCount

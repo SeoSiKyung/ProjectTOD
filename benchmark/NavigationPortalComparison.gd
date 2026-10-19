@@ -1,7 +1,7 @@
 class_name NavigationPortalComparison
 extends RefCounted
 
-const REVISION: String = "portal-comparison-v1"
+const REVISION: String = "portal-comparison-v2"
 const LENGTH_TOLERANCE: float = 0.05
 
 
@@ -32,6 +32,7 @@ static func RunPair(
 	service: NavigationService,
 	position: Vector2,
 	individualFirst: bool,
+	compareWeights: bool = false,
 ) -> Dictionary:
 	if not service.CanPlaceStatic(position, 16):
 		return { "error": "로그 좌표에 반크기 16 유닛을 배치할 수 없습니다." }
@@ -39,11 +40,11 @@ static func RunPair(
 	var batch: Dictionary
 	var individual: Dictionary
 	if individualFirst:
-		individual = _Measure(service, position, true)
-		batch = _Measure(service, position, false)
+		individual = _Measure(service, position, true, 1.5 if compareWeights else 1.0)
+		batch = _Measure(service, position, compareWeights, 1.0)
 	else:
-		batch = _Measure(service, position, false)
-		individual = _Measure(service, position, true)
+		batch = _Measure(service, position, compareWeights, 1.0)
+		individual = _Measure(service, position, true, 1.5 if compareWeights else 1.0)
 	service.ClearProfileMetrics()
 	var validation: Dictionary = _Validate(
 		service,
@@ -56,6 +57,7 @@ static func RunPair(
 	service.ClearBenchmarkRequestCache()
 	service.SetProfileMetrics(previousMetrics)
 	return {
+		"weight_comparison": compareWeights,
 		"order": "individual,batch" if individualFirst else "batch,individual",
 		"batch": batch,
 		"individual": individual,
@@ -63,7 +65,12 @@ static func RunPair(
 	}
 
 
-static func _Measure(service: NavigationService, position: Vector2, individual: bool) -> Dictionary:
+static func _Measure(
+	service: NavigationService,
+	position: Vector2,
+	individual: bool,
+	heuristicWeight: float,
+) -> Dictionary:
 	service.ClearBenchmarkRequestCache()
 	var metrics: NavigationProfileMetrics = NavigationProfileMetrics.new()
 	metrics.capturePortalBatchDetails = true
@@ -74,6 +81,7 @@ static func _Measure(service: NavigationService, position: Vector2, individual: 
 		16,
 		0,
 		individual,
+		heuristicWeight,
 	)
 	var elapsed: int = Time.get_ticks_usec() - started
 	service.ClearProfileMetrics()
@@ -168,6 +176,7 @@ static func Summarize(
 	error: String,
 ) -> Dictionary:
 	var summary: Dictionary = {
+		"weight_comparison": not runs.is_empty() and bool(runs[0].get("weight_comparison", false)),
 		"id": caseData["id"],
 		"label": caseData["label"],
 		"start": [caseData["start"].x, caseData["start"].y],
@@ -258,7 +267,13 @@ static func FormatResult(result: Dictionary) -> String:
 		result["warmup_pairs"],
 		result["measurement_pairs"],
 	]
-	output += "[table=3][cell][b]시작 Region 연결[/b][/cell][cell][b]기존 Batch[/b][/cell][cell][b]목표별 개별 탐색[/b][/cell]"
+	var compareWeights: bool = bool(result.get("weight_comparison", false))
+	var baselineLabel: String = "현재 개별 / 1.0" if compareWeights else "기존 Batch"
+	var candidateLabel: String = "후보 개별 / 1.5" if compareWeights else "목표별 개별 탐색"
+	output += "[table=3][cell][b]시작 Region 연결[/b][/cell][cell][b]%s[/b][/cell][cell][b]%s[/b][/cell]" % [
+		baselineLabel,
+		candidateLabel,
+	]
 	for row: Array in [
 		["평균", "average_usec"],
 		["P50", "p50_usec"],
@@ -288,7 +303,7 @@ static func FormatResult(result: Dictionary) -> String:
 		result["valid_pairs"],
 		result["measurement_pairs"],
 	]
-	output += "개별 탐색의 길이 증가 %d건 · 감소 %d건 (반복 합계)\n" % [
+	output += "후보 탐색의 길이 증가 %d건 · 감소 %d건 (반복 합계)\n" % [
 		result["longer_paths"],
 		result["shorter_paths"],
 	]
@@ -300,7 +315,12 @@ static func FormatResult(result: Dictionary) -> String:
 		result["passed_pairs"],
 		result["measurement_pairs"],
 	]
-	output += "복수 목표 가중치 1.0 · 동일 탐색 경계 · 길이 허용 오차 0.05px\n"
+	output += (
+		"복수 목표 가중치 1.0 대 1.5 · 단일 목표는 양쪽 1.5\n"
+		if compareWeights
+		else "복수 목표 가중치 양쪽 1.0 · 단일 목표는 양쪽 1.5\n"
+	)
+	output += "동일 탐색 경계 · 길이 허용 오차 0.05px\n"
 	output += "각 방식 실행 전 요청 캐시 초기화 · 사전 계산/연결 구조 유지\n"
 	output += "로그의 반올림 좌표로 만든 비교 실험 / 실제 이동 완료는 별도 검증\n"
 	output += "%s / commit %s" % [

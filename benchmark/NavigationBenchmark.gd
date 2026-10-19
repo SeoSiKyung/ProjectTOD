@@ -22,6 +22,7 @@ const MOVEMENT_SPEED: float = 96.0
 @export var enablePathRebuildRecovery: bool = true
 @export var enableStaticQueryDetails: bool = true
 @export var enablePortalBatchDetails: bool = true
+@export var comparePortalHeuristicWeights: bool = true
 @export var sourceCommitOverride: String = ""
 
 const DIAGNOSTICS_REVISION: String = "observability-v1"
@@ -86,7 +87,7 @@ func _ready() -> void:
 	_navigationService.navigationData = navigationData
 	_navigationService.Ready()
 
-	_benchmarkUI.SetImplementationLabel("portal-individual-v1")
+	_benchmarkUI.SetImplementationLabel("portal-weighted-v1")
 	_benchmarkUI.SetCases(_cases)
 	_benchmarkUI.RunAllRequested.connect(_RunAllBenchmarks)
 	_benchmarkUI.RunSelectedRequested.connect(_RunSelectedBenchmark)
@@ -989,8 +990,8 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
-		"change_revision": "portal-individual-v1",
-		"portal_path_strategy": "목표별 개별 탐색. 복수 목표는 기존 Batch 경계와 가중치 1.0 유지. 단일 목표는 기존 1.5 유지.",
+		"change_revision": "portal-weighted-v1",
+		"portal_path_strategy": "목표별 개별 탐색. 복수 목표와 단일 목표 가중치 1.5. 기존 탐색 경계 유지. 경로 길이 증가를 허용하여 탐색량 감소.",
 		"navigation_source_sha256": {
 			"NavigationService.gd": FileAccess.get_sha256(
 				"res://scripts/navigation/NavigationService.gd"
@@ -1312,7 +1313,16 @@ func _RunPortalComparison(selectedIndex: int) -> void:
 		"cache_condition": "각 방식 직전에 요청 캐시 초기화. 사전 계산·연결 구조 유지. 검증 후에도 요청 캐시 초기화.",
 		"order": "준비 실행부터 A/B의 선행 순서를 교대로 변경",
 		"scope": "로그의 반올림 좌표에서 시작 Region 0의 연결을 재현. 전체 경로나 실제 Movement 측정은 아님.",
-		"comparison": "복수 목표는 양쪽 h 가중치 1.0과 동일 탐색 경계. 단일 목표 Batch는 기존 1.5 유지.",
+		"comparison": (
+			"현재 개별 탐색 1.0 대 후보 개별 탐색 1.5. 동일 경계. 원래 단일 목표는 양쪽 1.5 유지."
+			if comparePortalHeuristicWeights
+			else "기존 Batch 대 개별 탐색. 복수 목표 양쪽 1.0, 동일 경계. 원래 단일 목표는 양쪽 1.5 유지."
+		),
+		"weight_comparison": comparePortalHeuristicWeights,
+		"variants": {
+			"batch": "현재 개별 / 복수 목표 1.0" if comparePortalHeuristicWeights else "기존 Batch",
+			"individual": "후보 개별 / 복수 목표 1.5" if comparePortalHeuristicWeights else "개별 / 복수 목표 1.0",
+		},
 		"length_tolerance_pixels": PORTAL_COMPARISON.LENGTH_TOLERANCE,
 		"profiling": { "portal_batch_details": true, "static_query_details": false },
 		"source_sha256": { },
@@ -1349,6 +1359,7 @@ func _RunPortalComparison(selectedIndex: int) -> void:
 				_navigationService,
 				caseData["start"],
 				iteration % 2 == 1,
+				comparePortalHeuristicWeights,
 			)
 			if pair.has("error"):
 				error = pair["error"]
@@ -1395,7 +1406,7 @@ func _SavePortalSummary(path: String) -> void:
 			lines.append(
 				"| %s | %.3f | %.3f | %.3f | %.3f | %.2f |"
 				% [
-					"기존 Batch" if variant == "batch" else "목표별 개별 탐색",
+					str(_report["variants"][variant]),
 					float(stats["average_usec"]) / 1000.0,
 					float(stats["p50_usec"]) / 1000.0,
 					float(stats["p95_usec"]) / 1000.0,
