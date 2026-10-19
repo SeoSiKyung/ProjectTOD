@@ -12,6 +12,18 @@ var _stageSnapshot: StageSnapshot
 var _candidateUnitIdBuffer: PackedInt32Array = []
 
 var _targetByAttacker: Dictionary[Unit, Unit] = { }
+var _pendingEnemyRetargets: Array[Enemy] = []
+var _pendingEnemyIds: Dictionary[Enemy, int] = { }
+var _retargetCycleActive: bool = false
+var _retargetCycleStartTick: int = 0
+var _retargetCycleQueued: int = 0
+var _retargetCycleSucceeded: int = 0
+var _retargetCycleFailed: int = 0
+var _retargetCycleCancelled: int = 0
+var _retargetCycleMaxPending: int = 0
+var _retargetCycleRequestUsec: int = 0
+var _retargetCycleMaxRequestUsec: int = 0
+var lastRetargetSummary: Dictionary = { }
 
 var _targetAcquisitionIntervalFrames: int = 1
 var _enemyTargetAcquisitionCursor: int = 0
@@ -24,6 +36,7 @@ var timingExistingTargetsUsec: int = 0
 var timingAcquisitionUsec: int = 0
 var timingDefaultSelectionUsec: int = 0
 var timingMissingEnemyCount: int = 0
+var timingRetargetUsec: int = 0
 
 
 func _init(battleContext: DefenseBattleFacade, unitRuntime: UnitRuntime) -> void:
@@ -42,6 +55,10 @@ func _init(battleContext: DefenseBattleFacade, unitRuntime: UnitRuntime) -> void
 
 func Reset() -> void:
 	_targetByAttacker.clear()
+	_pendingEnemyRetargets.clear()
+	_pendingEnemyIds.clear()
+	_retargetCycleActive = false
+	lastRetargetSummary.clear()
 	_enemyTargetAcquisitionCursor = 0
 	_unitTargetAcquisitionCursor = 0
 	_machineTargetAcquisitionCursor = 0
@@ -49,24 +66,38 @@ func Reset() -> void:
 
 
 func Update() -> void:
+	lastRetargetSummary.clear()
 	var phaseStart: int = Time.get_ticks_usec() if timingEnabled else 0
 	_UpdateExistingTargets()
+
 	if timingEnabled:
 		timingExistingTargetsUsec += Time.get_ticks_usec() - phaseStart
 		phaseStart = Time.get_ticks_usec()
+
 	_UpdateTargetAcquisition()
+
 	if timingEnabled:
 		timingAcquisitionUsec += Time.get_ticks_usec() - phaseStart
+		phaseStart = Time.get_ticks_usec()
+
+	_ProcessPendingEnemyRetarget()
+
+	if timingEnabled:
+		timingRetargetUsec += Time.get_ticks_usec() - phaseStart
+
+	_FinishRetargetCycle()
 
 
 func BeginTimingSample(enabled: bool) -> void:
 	timingEnabled = enabled
 	if not enabled:
 		return
+
 	timingExistingTargetsUsec = 0
 	timingAcquisitionUsec = 0
 	timingDefaultSelectionUsec = 0
 	timingMissingEnemyCount = 0
+	timingRetargetUsec = 0
 
 
 func SetTarget(attacker: Unit, target: Unit) -> bool:
@@ -74,6 +105,7 @@ func SetTarget(attacker: Unit, target: Unit) -> bool:
 		return false
 
 	_targetByAttacker[attacker] = target
+	_CancelPendingEnemyRetarget(attacker)
 	return true
 
 
@@ -89,6 +121,7 @@ func ClearTarget(attacker: Unit) -> void:
 		return
 
 	_targetByAttacker.erase(attacker)
+	_CancelPendingEnemyRetarget(attacker)
 
 
 func RemoveUnit(unit: Unit) -> void:
@@ -204,7 +237,8 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterType.Typ
 	var target: Unit = GetTarget(character)
 
 	if target == null or not _battleContext.IsValidTarget(character, target):
-		ClearTarget(character)
+		if target != null:
+			ClearTarget(character)
 		_HandleMissingTarget(character, characterType)
 		return
 
@@ -260,12 +294,129 @@ func _HandleMissingTarget(character: Unit, characterType: CharacterType.Type) ->
 		CharacterType.ENEMY:
 			if timingEnabled:
 				timingMissingEnemyCount += 1
-			_IssueDefaultEnemyChase(character as Enemy)
+			_QueueEnemyRetarget(character as Enemy)
 
 		CharacterType.TOWER, \
 				CharacterType.MACHINE, \
 				CharacterType.TRAP:
 			_ReturnUnitToIdle(character)
+
+
+func HasPendingEnemyRetargets() -> bool:
+	return not _pendingEnemyRetargets.is_empty()
+
+
+func _QueueEnemyRetarget(enemy: Enemy) -> void:
+	if not is_instance_valid(enemy) or _pendingEnemyIds.has(enemy):
+		return
+
+	if not _battleContext.IsManagedUnit(enemy) or enemy.IsDead() or enemy.fsm == null:
+		return
+
+	if not enemy.fsm.CanReceiveCommands():
+		return
+
+	if (
+		enemy.fsm.currentState != UnitFSM.State.IDLE
+		and enemy.fsm.currentState != UnitFSM.State.CHASE
+		and enemy.fsm.currentState != UnitFSM.State.ATTACK
+	):
+		return
+
+	if enemy.fsm.currentState != UnitFSM.State.IDLE or _unitRuntime.IsUnitMoving(enemy.unitId):
+		_unitRuntime.StopUnit(enemy.unitId)
+		if not enemy.fsm.RequestIdle():
+			return
+
+	var selectionStart: int = Time.get_ticks_usec() if timingEnabled else 0
+	var target: Unit = _GetDefaultEnemyTarget(enemy)
+	if timingEnabled:
+		timingDefaultSelectionUsec += Time.get_ticks_usec() - selectionStart
+
+	if target == null:
+		return
+
+	if not _retargetCycleActive:
+		_retargetCycleActive = true
+		_retargetCycleStartTick = Engine.get_physics_frames()
+		_retargetCycleQueued = 0
+		_retargetCycleSucceeded = 0
+		_retargetCycleFailed = 0
+		_retargetCycleCancelled = 0
+		_retargetCycleMaxPending = 0
+		_retargetCycleRequestUsec = 0
+		_retargetCycleMaxRequestUsec = 0
+
+	_pendingEnemyRetargets.append(enemy)
+	_pendingEnemyIds[enemy] = enemy.unitId
+	_retargetCycleQueued += 1
+	_retargetCycleMaxPending = maxi(_retargetCycleMaxPending, _pendingEnemyRetargets.size())
+
+
+func _CancelPendingEnemyRetarget(unit: Unit) -> void:
+	if not _pendingEnemyIds.has(unit):
+		return
+
+	_pendingEnemyIds.erase(unit)
+	_pendingEnemyRetargets.erase(unit)
+	_retargetCycleCancelled += 1
+
+
+func _ProcessPendingEnemyRetarget() -> void:
+	while not _pendingEnemyRetargets.is_empty():
+		var enemy: Enemy = _pendingEnemyRetargets.pop_front()
+		var expectedId: int = _pendingEnemyIds.get(enemy, -1)
+		_pendingEnemyIds.erase(enemy)
+		if not is_instance_valid(enemy):
+			_retargetCycleCancelled += 1
+			continue
+
+		if (
+			enemy.unitId != expectedId or not _battleContext.IsManagedUnit(enemy)
+			or enemy.IsDead() or enemy.fsm == null
+		):
+			_retargetCycleCancelled += 1
+			continue
+
+		if (
+			enemy.fsm.currentState != UnitFSM.State.IDLE or not enemy.fsm.CanReceiveCommands()
+			or _unitRuntime.IsUnitMoving(enemy.unitId) or GetTarget(enemy) != null
+		):
+			_retargetCycleCancelled += 1
+			continue
+
+		var requestStart: int = Time.get_ticks_usec() if timingEnabled else 0
+		var succeeded: bool = _IssueDefaultEnemyChase(enemy)
+		if timingEnabled:
+			var elapsed: int = Time.get_ticks_usec() - requestStart
+			_retargetCycleRequestUsec += elapsed
+			_retargetCycleMaxRequestUsec = maxi(_retargetCycleMaxRequestUsec, elapsed)
+
+		if succeeded:
+			_retargetCycleSucceeded += 1
+		else:
+			_retargetCycleFailed += 1
+		break
+
+
+func _FinishRetargetCycle() -> void:
+	if not _retargetCycleActive or HasPendingEnemyRetargets():
+		return
+
+	_retargetCycleActive = false
+	if not timingEnabled:
+		return
+
+	lastRetargetSummary = {
+		"queued": _retargetCycleQueued,
+		"succeeded": _retargetCycleSucceeded,
+		"failed": _retargetCycleFailed,
+		"cancelled": _retargetCycleCancelled,
+		"max_pending": _retargetCycleMaxPending,
+		"ticks": Engine.get_physics_frames() - _retargetCycleStartTick + 1,
+		"request_usec": _retargetCycleRequestUsec,
+		"max_request_usec": _retargetCycleMaxRequestUsec,
+	}
 
 
 func _GetDefaultEnemyTarget(enemy: Enemy) -> Unit:
@@ -480,6 +631,9 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterType.Type, cursor: i
 			continue
 
 		if character.fsm == null or not character.fsm.CanReceiveCommands():
+			continue
+
+		if _pendingEnemyIds.has(character):
 			continue
 
 		var currentTarget: Unit = GetTarget(character)

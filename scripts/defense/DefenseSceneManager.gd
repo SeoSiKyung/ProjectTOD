@@ -26,11 +26,13 @@ enum DefensePhase {
 
 @export_group("Timing Diagnostics")
 @export var enableTimingDiagnostics: bool = false
+@export var enableDetailedTimingDiagnostics: bool = false
 @export_range(1.0, 1000.0, 1.0) var slowCallbackThresholdMs: float = 100.0
 
 var _timingHeaderPrinted: bool = false
 var _timingCPFollowup: bool = false
 var _timingCPEventPending: bool = false
+var _retargetPhysicsUsec: Array[int] = []
 
 var _startData: DefenseStartData
 
@@ -151,8 +153,10 @@ func _process(_delta: float) -> void:
 				"[디펜스 계측/process] 프레임=%d 콜백전체=%.3fms CP파괴=%s"
 				% [Engine.get_process_frames(), elapsed / 1000.0, _cpDestroyed],
 			)
-			_PrintTargetTimingSample()
-			_unitRuntime.PrintTimingSample(0)
+
+			if enableDetailedTimingDiagnostics:
+				_PrintTargetTimingSample()
+				_unitRuntime.PrintTimingSample(0)
 
 
 func _physics_process(fixedDelta: float) -> void:
@@ -163,6 +167,9 @@ func _physics_process(fixedDelta: float) -> void:
 	var callbackStart: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
 	_unitRuntime.Simulate(fixedDelta)
 	var movementEnd: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
+	var pendingRetargets: bool = (
+		enableTimingDiagnostics and _targetingManager.HasPendingEnemyRetargets()
+	)
 
 	_targetingManager.Update()
 	var targetingEnd: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
@@ -173,6 +180,7 @@ func _physics_process(fixedDelta: float) -> void:
 	if enableTimingDiagnostics:
 		var callbackEnd: int = Time.get_ticks_usec()
 		var elapsed: int = callbackEnd - callbackStart
+		_RecordRetargetTiming(elapsed, pendingRetargets)
 		var cpChanged: bool = _timingCPEventPending
 		_timingCPEventPending = false
 		if elapsed >= slowCallbackThresholdMs * 1000.0 or cpChanged or _timingCPFollowup:
@@ -187,8 +195,11 @@ func _physics_process(fixedDelta: float) -> void:
 				],
 				" | CP파괴=%s 파괴감지=%s 파괴다음틱=%s" % [_cpDestroyed, cpChanged, _timingCPFollowup],
 			)
-			_PrintTargetTimingSample()
-			_unitRuntime.PrintTimingSample(movementEnd - callbackStart)
+
+			if enableDetailedTimingDiagnostics:
+				_PrintTargetTimingSample()
+				_unitRuntime.PrintTimingSample(movementEnd - callbackStart)
+
 		_timingCPFollowup = cpChanged
 
 
@@ -310,6 +321,7 @@ func _StartBattle() -> void:
 	_timingHeaderPrinted = false
 	_timingCPFollowup = false
 	_timingCPEventPending = false
+	_retargetPhysicsUsec.clear()
 
 	_pendingDefeat = false
 	_cpDestroyed = false
@@ -794,12 +806,13 @@ func _BeginTimingSample() -> void:
 	if not enableTimingDiagnostics:
 		_timingCPFollowup = false
 		_timingCPEventPending = false
+		_retargetPhysicsUsec.clear()
 		return
 	if _timingHeaderPrinted:
 		return
 	_timingHeaderPrinted = true
 	print(
-		"[디펜스 계측/시작] revision=defense-timing-v2 commit=%s Godot=%s physics_hz=%d 기준=%.1fms"
+		"[디펜스 계측/시작] revision=defense-retarget-v1 commit=%s Godot=%s physics_hz=%d 기준=%.1fms"
 		% [
 			_ReadTimingSourceCommit(),
 			Engine.get_version_info().get("string", ""),
@@ -809,35 +822,74 @@ func _BeginTimingSample() -> void:
 		" | 실제 플레이 단일 실행; 캐시 초기화/추가 워밍업 없음; 출력 비용은 콜백 시간에서 제외",
 	)
 	print(
-		"[디펜스 계측/조건] 맵=%s local_margin=%d anchor_cache_capacity=%d"
+		"[디펜스 계측/조건] 맵=%s local_margin=%d anchor_cache_capacity=%d | 목표상실 재지정=1회/틱 상세출력=%s"
 		% [
 			navigationData.resource_path,
 			navigationLocalSearchMarginCells,
 			navigationAnchorConnectionCacheCapacity,
+			enableDetailedTimingDiagnostics,
 		],
 	)
 	print(
-		"[디펜스 계측/소스] Scene=%s Targeting=%s Runtime=%s IntHeap=%s NavigationHeap=%s"
+		"[디펜스 계측/소스] Scene=%s Targeting=%s Runtime=%s IntHeap=%s NavigationHeap=%s Service=%s Grid=%s"
 		% [
 			FileAccess.get_sha256("res://scripts/defense/DefenseSceneManager.gd"),
 			FileAccess.get_sha256("res://scripts/defense/managers/DefenseTargetingManager.gd"),
 			FileAccess.get_sha256("res://unit/UnitRuntime.gd"),
 			FileAccess.get_sha256("res://scripts/common/dataStructures/IntHeap.gd"),
 			FileAccess.get_sha256("res://scripts/navigation/NavigationPathHeap.gd"),
+			FileAccess.get_sha256("res://scripts/navigation/NavigationService.gd"),
+			FileAccess.get_sha256("res://scripts/navigation/NavigationGridPathfinder.gd"),
 		],
 	)
 
 
 func _PrintTargetTimingSample() -> void:
 	print(
-		"[디펜스 계측/목표] 기존목표확인=%.3f 일반목표탐색=%.3fms | 내부참고 기본목표선택=%.3fms 목표상실적=%d"
+		"[디펜스 계측/목표] 기존목표확인=%.3f 일반목표탐색=%.3f 재지정처리=%.3fms | 내부참고 기본목표선택=%.3fms 목표상실적=%d"
 		% [
 			_targetingManager.timingExistingTargetsUsec / 1000.0,
 			_targetingManager.timingAcquisitionUsec / 1000.0,
+			_targetingManager.timingRetargetUsec / 1000.0,
 			_targetingManager.timingDefaultSelectionUsec / 1000.0,
 			_targetingManager.timingMissingEnemyCount,
 		],
 	)
+
+
+func _RecordRetargetTiming(elapsed: int, pendingBefore: bool) -> void:
+	var summary: Dictionary = _targetingManager.lastRetargetSummary
+
+	if pendingBefore or _targetingManager.HasPendingEnemyRetargets() or not summary.is_empty():
+		_retargetPhysicsUsec.append(elapsed)
+	if summary.is_empty():
+		return
+
+	_retargetPhysicsUsec.sort()
+	var total: int = 0
+	for sample: int in _retargetPhysicsUsec:
+		total += sample
+
+	print(
+		"[디펜스 계측/재지정완료] 등록=%d 성공=%d 실패=%d 취소=%d 잔여=0 최대대기=%d 틱수=%d"
+		% [
+			summary["queued"],
+			summary["succeeded"],
+			summary["failed"],
+			summary["cancelled"],
+			summary["max_pending"],
+			summary["ticks"],
+		],
+		" | 재지정합계=%.3fms 최대요청=%.3fms physics평균=%.3f P95=%.3f 최대=%.3fms"
+		% [
+			summary["request_usec"] / 1000.0,
+			summary["max_request_usec"] / 1000.0,
+			float(total) / _retargetPhysicsUsec.size() / 1000.0,
+			Math.Percentile(_retargetPhysicsUsec, 95) / 1000.0,
+			_retargetPhysicsUsec.back() / 1000.0,
+		],
+	)
+	_retargetPhysicsUsec.clear()
 
 
 func _ReadTimingSourceCommit() -> String:
@@ -848,19 +900,24 @@ func _ReadTimingSourceCommit() -> String:
 			gitDirectory = pointer.trim_prefix("gitdir: ")
 			if not gitDirectory.is_absolute_path():
 				gitDirectory = ProjectSettings.globalize_path("res://").path_join(gitDirectory)
+
 	var headPath: String = gitDirectory.path_join("HEAD")
 	if not FileAccess.file_exists(headPath):
 		return "UNAVAILABLE"
+
 	var head: String = FileAccess.get_file_as_string(headPath).strip_edges()
 	if not head.begins_with("ref: "):
 		return head
+
 	var reference: String = head.trim_prefix("ref: ")
 	var referencePath: String = gitDirectory.path_join(reference)
 	if FileAccess.file_exists(referencePath):
 		return FileAccess.get_file_as_string(referencePath).strip_edges()
+
 	var packedPath: String = gitDirectory.path_join("packed-refs")
 	if FileAccess.file_exists(packedPath):
 		for line: String in FileAccess.get_file_as_string(packedPath).split("\n"):
 			if line.ends_with(" " + reference):
 				return line.get_slice(" ", 0)
+
 	return "UNAVAILABLE"
