@@ -53,7 +53,7 @@ var _hierarchicalPathfinder: NavigationHierarchicalPathfinder
 var _staticQuery: NavigationStaticQuery
 
 var _benchmarkMetrics: NavigationProfileMetrics = null
-var _benchmarkIndividualPortalPaths: bool = false
+var _useIndividualPortalPaths: bool = true
 
 
 #region Public API
@@ -1501,8 +1501,8 @@ func _FillLocalPathsToPortalAnchors(
 		return
 
 	var gridStart: int = Time.get_ticks_usec() if details != null else 0
-	if _benchmarkIndividualPortalPaths:
-		_gridPathfinder.FillPathsToTargetsIndividuallyForBenchmark(
+	if _useIndividualPortalPaths:
+		_gridPathfinder.FillPathsToTargetsIndividually(
 			_portalGridPathsByTargetIndex,
 			startCell,
 			_portalTargetCells,
@@ -1711,15 +1711,15 @@ func BuildRegionConnectionsForBenchmark(
 	var footprint: NavigationFootprintData = _GetFootprintData(halfSize)
 	if footprint == null:
 		return []
-	var previous: bool = _benchmarkIndividualPortalPaths
-	_benchmarkIndividualPortalPaths = individual
+	var previous: bool = _useIndividualPortalPaths
+	_useIndividualPortalPaths = individual
 	var connections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnections(
 		position,
 		halfSize,
 		regionId,
 		footprint,
 	)
-	_benchmarkIndividualPortalPaths = previous
+	_useIndividualPortalPaths = previous
 	return connections
 
 

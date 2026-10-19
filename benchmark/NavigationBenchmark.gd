@@ -86,7 +86,7 @@ func _ready() -> void:
 	_navigationService.navigationData = navigationData
 	_navigationService.Ready()
 
-	_benchmarkUI.SetImplementationLabel("int-heap-v2")
+	_benchmarkUI.SetImplementationLabel("portal-individual-v1")
 	_benchmarkUI.SetCases(_cases)
 	_benchmarkUI.RunAllRequested.connect(_RunAllBenchmarks)
 	_benchmarkUI.RunSelectedRequested.connect(_RunSelectedBenchmark)
@@ -989,7 +989,16 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
-		"change_revision": "int-heap-v2",
+		"change_revision": "portal-individual-v1",
+		"portal_path_strategy": "목표별 개별 탐색. 복수 목표는 기존 Batch 경계와 가중치 1.0 유지. 단일 목표는 기존 1.5 유지.",
+		"navigation_source_sha256": {
+			"NavigationService.gd": FileAccess.get_sha256(
+				"res://scripts/navigation/NavigationService.gd"
+			),
+			"NavigationGridPathfinder.gd": FileAccess.get_sha256(
+				"res://scripts/navigation/NavigationGridPathfinder.gd"
+			),
+		},
 		"heap_implementation": "IntHeap / 정수 배열 / 빈자리 이동 정렬 / 양방향 갱신",
 		"heap_comparison": "f → 회전 비용 → h → 인덱스. 기존 EPSILON 비교 유지",
 		"heap_source_sha256": {
@@ -1008,7 +1017,7 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 		"reached_waypoint_advance_enabled": true,
 		"rebuild_policy": "이동 명령당 유닛별 개별 재탐색 1회, 틱당 새 요청 최대 1회. 기존 Agent 목표를 유지하며 목표 보정은 하지 않습니다.",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "ProjectTOD (2).zip 원본 기준. 공통 Heap을 IntHeap으로 교체하고 길찾기와 Baker에 적용했습니다. 도착 수정은 유지했습니다. Git HEAD만으로 미커밋 변경을 식별할 수 없습니다.",
+		"working_tree_note": "changes(4).diff 기준. 검증한 목표별 개별 탐색을 Portal 연결의 기본 방식으로 적용했습니다. Git HEAD만으로 미커밋 변경을 식별할 수 없으므로 길찾기 소스 해시를 함께 기록합니다.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
@@ -1386,7 +1395,7 @@ func _SavePortalSummary(path: String) -> void:
 			lines.append(
 				"| %s | %.3f | %.3f | %.3f | %.3f | %.2f |"
 				% [
-					"현재 Batch" if variant == "batch" else "목표별 개별 탐색",
+					"기존 Batch" if variant == "batch" else "목표별 개별 탐색",
 					float(stats["average_usec"]) / 1000.0,
 					float(stats["p50_usec"]) / 1000.0,
 					float(stats["p95_usec"]) / 1000.0,

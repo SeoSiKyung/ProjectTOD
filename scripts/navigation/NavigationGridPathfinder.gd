@@ -510,7 +510,7 @@ func _BeginTargetGeneration() -> void:
 	_targetGeneration += 1
 
 
-func FillPathsToTargetsIndividuallyForBenchmark(
+func FillPathsToTargetsIndividually(
 	result: Dictionary[int, PackedVector2Array],
 	startCell: Vector2i,
 	targetCells: Array[Vector2i],

@@ -258,7 +258,7 @@ static func FormatResult(result: Dictionary) -> String:
 		result["warmup_pairs"],
 		result["measurement_pairs"],
 	]
-	output += "[table=3][cell][b]시작 Region 연결[/b][/cell][cell][b]현재 Batch[/b][/cell][cell][b]목표별 개별 탐색[/b][/cell]"
+	output += "[table=3][cell][b]시작 Region 연결[/b][/cell][cell][b]기존 Batch[/b][/cell][cell][b]목표별 개별 탐색[/b][/cell]"
 	for row: Array in [
 		["평균", "average_usec"],
 		["P50", "p50_usec"],
