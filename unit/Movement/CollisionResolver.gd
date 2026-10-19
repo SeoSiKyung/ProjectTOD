@@ -5,7 +5,11 @@ const MIN_SPEED_RATIO: float = 0.10
 const EPSILON: float = 0.00001
 const INVALID_UNIT_ID: int = -1
 
-enum VisitState { UNVISITED, VISITING, DONE }
+enum VisitState {
+	UNVISITED,
+	VISITING,
+	DONE,
+}
 
 
 class MoveCandidate:
@@ -25,7 +29,7 @@ var lastError: String = ""
 var _query: MovementCollisionQuery
 var _avoidance: MovementAvoidancePlanner
 var _group: CollisionGroup
-var _states: Dictionary[int, int] = {}
+var _states: Dictionary[int, int] = { }
 var _stack: Array[ResolveFrame] = []
 var _occupancy: StageSnapshot
 var _occupancyCellSize: float = 0.0
@@ -68,7 +72,7 @@ func _ResetOccupancy() -> void:
 
 
 func _ChooseSpatialCellSize() -> float:
-	var counts: Dictionary[int, int] = {}
+	var counts: Dictionary[int, int] = { }
 	var mostCommonSize: int = 16
 	var highestCount: int = 0
 	for data: CollisionGroup.AgentData in _group.agents:
@@ -106,11 +110,13 @@ func _ResolveStack() -> void:
 			if frame.candidateIndex > 0:
 				_profileMetrics.alternateCandidateQueries += 1
 		var travel: MovementCollisionQuery.TravelQuery = _query.QueryTravel(
-			frame.data, candidate.direction, candidate.staticDistance, _occupancy,
+			frame.data,
+			candidate.direction,
+			candidate.staticDistance,
+			_occupancy,
 		)
 		if (
-			_profileMetrics != null
-			and not travel.blockerIds.is_empty()
+			_profileMetrics != null and not travel.blockerIds.is_empty()
 			and travel.distance + EPSILON < candidate.staticDistance
 		):
 			_profileMetrics.dynamicBlockedCandidates += 1
@@ -142,10 +148,18 @@ func _PushAgent(data: CollisionGroup.AgentData) -> void:
 	_stack.append(frame)
 
 
-func _TryUpdateDetour(frame: ResolveFrame, candidate: MoveCandidate, blockerIds: Array[int]) -> bool:
+func _TryUpdateDetour(
+	frame: ResolveFrame,
+	candidate: MoveCandidate,
+	blockerIds: Array[int],
+) -> bool:
 	if frame.candidateIndex != 0:
 		return false
-	var blocker: CollisionGroup.AgentData = _FindStationaryBlocker(frame.data, candidate.direction, blockerIds)
+	var blocker: CollisionGroup.AgentData = _FindStationaryBlocker(
+		frame.data,
+		candidate.direction,
+		blockerIds,
+	)
 	if blocker == null:
 		return false
 	var detour: MovementAvoidancePlanner.Detour
@@ -170,10 +184,16 @@ func _FindStationaryBlocker(
 		if _states[unitId] != VisitState.DONE:
 			continue
 		var blocker: CollisionGroup.AgentData = _group.GetAgent(unitId)
-		if blocker.desiredPosition != blocker.startPosition or blocker.nextPosition != blocker.startPosition:
+		if (
+			blocker.desiredPosition != blocker.startPosition
+			or blocker.nextPosition != blocker.startPosition
+		):
 			continue
 		var distance: float = MovementCollisionQuery.FirstContactDistance(
-			data.startPosition, direction, blocker.nextPosition, float(data.halfSize + blocker.halfSize),
+			data.startPosition,
+			direction,
+			blocker.nextPosition,
+			float(data.halfSize + blocker.halfSize),
 		)
 		if distance < shortest:
 			shortest = distance
@@ -185,9 +205,15 @@ func _ApplyDetour(frame: ResolveFrame, detour: MovementAvoidancePlanner.Detour) 
 	frame.isDetouring = true
 	frame.candidateIndex = 0
 	frame.candidates.clear()
-	var delta: Vector2 = _avoidance.GetDesiredPosition(frame.data, detour) - frame.data.startPosition
+	var delta: Vector2 = _avoidance.GetDesiredPosition(frame.data, detour) - frame \
+			.data \
+			.startPosition
 	if delta.length() > EPSILON:
-		_AddCandidate(frame.candidates, delta.normalized(), minf(delta.length(), frame.data.maxStepDistance))
+		_AddCandidate(
+			frame.candidates,
+			delta.normalized(),
+			minf(delta.length(), frame.data.maxStepDistance),
+		)
 
 
 func _BuildCandidates(data: CollisionGroup.AgentData) -> Array[MoveCandidate]:
@@ -223,7 +249,9 @@ func _AddCandidate(result: Array[MoveCandidate], direction: Vector2, distance: f
 func _PrepareStaticDistance(data: CollisionGroup.AgentData, candidate: MoveCandidate) -> void:
 	if candidate.staticDistance < 0.0:
 		candidate.staticDistance = _query.GetStaticTravelDistance(
-			data, candidate.direction, candidate.distance,
+			data,
+			candidate.direction,
+			candidate.distance,
 		)
 
 
@@ -245,9 +273,23 @@ func _TryReserveCandidate(
 		return false
 	var shortened: bool = actualDistance + EPSILON < candidate.distance
 	if shortened and actualDistance + EPSILON < data.maxStepDistance * MIN_SPEED_RATIO:
-		return false
+		# 안전한 짧은 이동으로 목표가 몸체 안에 들어오면 기존 도착 판정까지 진행한다.
+		if not _EntersGoalFootprint(data, endpoint):
+			return false
 	_ReservePosition(data, endpoint)
 	return true
+
+
+func _EntersGoalFootprint(data: CollisionGroup.AgentData, endpoint: Vector2) -> bool:
+	if data.agent.moveCommandId < 0:
+		return false
+
+	var target: Vector2 = data.agent.moveTarget
+	var extent: float = float(data.halfSize)
+	var before: Vector2 = (data.startPosition - target).abs()
+	var after: Vector2 = (endpoint - target).abs()
+
+	return ((before.x > extent or before.y > extent) and after.x <= extent and after.y <= extent)
 
 
 func _ReservePosition(data: CollisionGroup.AgentData, position: Vector2) -> void:

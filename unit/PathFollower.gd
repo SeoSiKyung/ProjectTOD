@@ -100,6 +100,10 @@ func _UpdateIndex(curPosition: Vector2) -> void:
 func _UpdateOriginalPathIndex(curPosition: Vector2) -> void:
 	if _shortcutIndex < 0:
 		return
+
+	if _IsReached(curPosition, _path[_shortcutIndex]):
+		_originalPathIndex = maxi(_originalPathIndex, _shortcutIndex + 1)
+		return
 	var target: Vector2 = _path[_shortcutIndex] - curPosition
 	var candidateIdx: int = _originalPathIndex
 	for idx in range(_originalPathIndex, _shortcutIndex):
@@ -156,3 +160,7 @@ func GetDiagnosticState() -> Dictionary:
 		"waypoint_index": _shortcutIndex,
 		"waypoint": waypoint,
 	}
+
+
+func NeedsPathRebuild() -> bool:
+	return not IsEmpty() and not _isAvoiding and _shortcutIndex < 0

@@ -1404,9 +1404,23 @@ func _FillLocalPathsToPortalAnchors(
 	regionId: int,
 	footprint: NavigationFootprintData,
 ) -> void:
+	var details: NavigationProfileMetrics = (
+		_benchmarkMetrics
+		if _benchmarkMetrics != null and _benchmarkMetrics.capturePortalBatchDetails
+		else null
+	)
+	var detailStart: int = Time.get_ticks_usec() if details != null else 0
 	_ResetPortalAnchorSearchScratch()
 
 	if nodeKeys.is_empty():
+		if details != null:
+			details.RecordPortalBatchDetails(
+				start,
+				regionId,
+				Time.get_ticks_usec() - detailStart,
+				0,
+				0,
+			)
 		return
 
 	var benchmarkStartUsec: int = 0
@@ -1419,11 +1433,27 @@ func _FillLocalPathsToPortalAnchors(
 	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
 	var startCell: Vector2i = _GetNearestPathCell(start, halfSize, pathOffset)
 	if startCell.x < 0:
+		if details != null:
+			details.RecordPortalBatchDetails(
+				start,
+				regionId,
+				Time.get_ticks_usec() - detailStart,
+				0,
+				0,
+			)
 		return
 
 	var startIndex: int = Grid.CellToIndex(startCell, _gridWidth)
 	var startComponent: int = navigationMap.componentMap[startIndex]
 	if startComponent < 0:
+		if details != null:
+			details.RecordPortalBatchDetails(
+				start,
+				regionId,
+				Time.get_ticks_usec() - detailStart,
+				0,
+				0,
+			)
 		return
 
 	for nodeKey: Vector2i in nodeKeys:
@@ -1449,8 +1479,17 @@ func _FillLocalPathsToPortalAnchors(
 		nodes.append(nodeKey)
 
 	if _portalTargetCells.is_empty():
+		if details != null:
+			details.RecordPortalBatchDetails(
+				start,
+				regionId,
+				Time.get_ticks_usec() - detailStart,
+				0,
+				0,
+			)
 		return
 
+	var gridStart: int = Time.get_ticks_usec() if details != null else 0
 	_gridPathfinder.FillPathsToTargets(
 		_portalGridPathsByTargetIndex,
 		startCell,
@@ -1459,7 +1498,9 @@ func _FillLocalPathsToPortalAnchors(
 		navigationMap,
 		regionId,
 		localSearchMarginCells,
+		details != null,
 	)
+	var gridEnd: int = Time.get_ticks_usec() if details != null else 0
 
 	if _benchmarkMetrics != null:
 		_benchmarkMetrics.anchorPortalBatchExpanded += _gridPathfinder.lastExpandedCount
@@ -1478,6 +1519,7 @@ func _FillLocalPathsToPortalAnchors(
 			if _EnsurePathEndsAtAnchor(start, path, anchor, halfSize, regionId):
 				_portalAnchorPathsByNode[nodeKey] = path
 
+	var detailEnd: int = Time.get_ticks_usec() if details != null else 0
 	if _benchmarkMetrics != null:
 		var elapsedUsec: int = (Time.get_ticks_usec() - benchmarkStartUsec)
 		if elapsedUsec > _benchmarkMetrics.anchorBatchMaxUsec:
@@ -1486,6 +1528,25 @@ func _FillLocalPathsToPortalAnchors(
 			_benchmarkMetrics.anchorBatchMaxRelaxed = _gridPathfinder.lastRelaxedCount
 			_benchmarkMetrics.anchorBatchMaxTargetCount = _portalTargetCells.size()
 			_benchmarkMetrics.anchorBatchMaxSearchArea = _gridPathfinder.lastSearchArea
+	if details != null:
+		details.RecordPortalBatchDetails(
+			start,
+			regionId,
+			gridStart - detailStart,
+			gridEnd - gridStart,
+			detailEnd - gridEnd,
+			_portalTargetCells.size(),
+			_gridPathfinder.lastExpandedCount,
+			_gridPathfinder.lastRelaxedCount,
+			_gridPathfinder.lastSearchArea,
+			true,
+			_gridPathfinder.lastBatchPreparationUsec,
+			_gridPathfinder.lastBatchSearchUsec,
+			_gridPathfinder.lastBatchReconstructionUsec,
+			_gridPathfinder.lastBatchReconstructionCalls,
+			_portalGridPathsByTargetIndex.size(),
+			_gridPathfinder.lastBatchReconstructedWaypoints,
+		)
 
 #endregion
 

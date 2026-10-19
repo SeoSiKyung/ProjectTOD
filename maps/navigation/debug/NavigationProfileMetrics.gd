@@ -56,6 +56,71 @@ var staticSegmentChecks: int = 0
 
 #endregion
 
+#region Optional Static Query Details
+
+var captureStaticQueryDetails: bool = false
+var staticQueryTick: int = 0 # 0: 명령 처리 또는 Path Build, 1 이상: 이동 틱.
+var staticDetailCalls: int = 0
+var staticDetailClearCalls: int = 0
+var staticDetailInvalidEndCalls: int = 0
+var staticDetailRecoveryCalls: int = 0
+var staticDetailEndpointUsec: int = 0
+var staticDetailSweepUsec: int = 0
+var staticDetailBroadCalls: int = 0
+var staticDetailBroadCells: int = 0
+var staticDetailBroadBlocked: int = 0
+var staticDetailPrefixEmptyCalls: int = 0
+var staticDetailRowsVisited: int = 0
+var staticDetailIntersectionChecks: int = 0
+var staticDetailWorstUsec: int = -1
+var staticDetailWorstEndpointUsec: int = 0
+var staticDetailWorstSweepUsec: int = 0
+var staticDetailWorstStart: Vector2 = Vector2.ZERO
+var staticDetailWorstEnd: Vector2 = Vector2.ZERO
+var staticDetailWorstHalfSize: int = 0
+var staticDetailWorstClear: bool = false
+var staticDetailWorstTick: int = 0
+var staticDetailWorstBroadCells: int = 0
+var staticDetailWorstBroadBlocked: int = 0
+var staticDetailWorstIntersectionChecks: int = 0
+
+#endregion
+
+#region Optional Portal Batch Details
+
+var capturePortalBatchDetails: bool = false
+var portalBatchTick: int = 0
+var portalDetailCalls: int = 0
+var portalDetailGridCalls: int = 0
+var portalDetailPreparationUsec: int = 0
+var portalDetailGridUsec: int = 0
+var portalDetailFinalizationUsec: int = 0
+var portalDetailGridPreparationUsec: int = 0
+var portalDetailGridSearchUsec: int = 0
+var portalDetailGridReconstructionUsec: int = 0
+var portalDetailGridReconstructionCalls: int = 0
+var portalDetailGridReturnedPaths: int = 0
+var portalDetailGridReconstructedWaypoints: int = 0
+var portalDetailWorstUsec: int = -1
+var portalDetailWorstPreparationUsec: int = 0
+var portalDetailWorstGridUsec: int = 0
+var portalDetailWorstFinalizationUsec: int = 0
+var portalDetailWorstStart: Vector2 = Vector2.ZERO
+var portalDetailWorstRegion: int = -1
+var portalDetailWorstTick: int = 0
+var portalDetailWorstTargetCount: int = 0
+var portalDetailWorstExpanded: int = 0
+var portalDetailWorstRelaxed: int = 0
+var portalDetailWorstSearchArea: int = 0
+var portalDetailWorstGridPreparationUsec: int = 0
+var portalDetailWorstGridSearchUsec: int = 0
+var portalDetailWorstGridReconstructionUsec: int = 0
+var portalDetailWorstGridReconstructionCalls: int = 0
+var portalDetailWorstGridReturnedPaths: int = 0
+var portalDetailWorstGridReconstructedWaypoints: int = 0
+
+#endregion
+
 #region Grid A*
 
 # _FindGridPathInternal() 전체 계측.
@@ -129,6 +194,140 @@ var anchorBatchMaxTargetCount: int = 0
 var anchorBatchMaxSearchArea: int = 0
 
 #endregion
+
+
+func RecordPortalBatchDetails(
+	start: Vector2,
+	regionId: int,
+	preparationUsec: int,
+	gridUsec: int,
+	finalizationUsec: int,
+	targetCount: int = 0,
+	expanded: int = 0,
+	relaxed: int = 0,
+	searchArea: int = 0,
+	gridCalled: bool = false,
+	gridPreparationUsec: int = 0,
+	gridSearchUsec: int = 0,
+	gridReconstructionUsec: int = 0,
+	reconstructionCalls: int = 0,
+	returnedPaths: int = 0,
+	reconstructedWaypoints: int = 0,
+) -> void:
+	portalDetailCalls += 1
+	if gridCalled:
+		portalDetailGridCalls += 1
+	portalDetailPreparationUsec += preparationUsec
+	portalDetailGridUsec += gridUsec
+	portalDetailFinalizationUsec += finalizationUsec
+	portalDetailGridPreparationUsec += gridPreparationUsec
+	portalDetailGridSearchUsec += gridSearchUsec
+	portalDetailGridReconstructionUsec += gridReconstructionUsec
+	portalDetailGridReconstructionCalls += reconstructionCalls
+	portalDetailGridReturnedPaths += returnedPaths
+	portalDetailGridReconstructedWaypoints += reconstructedWaypoints
+	var elapsed: int = preparationUsec + gridUsec + finalizationUsec
+	if elapsed > portalDetailWorstUsec:
+		portalDetailWorstUsec = elapsed
+		portalDetailWorstPreparationUsec = preparationUsec
+		portalDetailWorstGridUsec = gridUsec
+		portalDetailWorstFinalizationUsec = finalizationUsec
+		portalDetailWorstStart = start
+		portalDetailWorstRegion = regionId
+		portalDetailWorstTick = portalBatchTick
+		portalDetailWorstTargetCount = targetCount
+		portalDetailWorstExpanded = expanded
+		portalDetailWorstRelaxed = relaxed
+		portalDetailWorstSearchArea = searchArea
+		portalDetailWorstGridPreparationUsec = gridPreparationUsec
+		portalDetailWorstGridSearchUsec = gridSearchUsec
+		portalDetailWorstGridReconstructionUsec = gridReconstructionUsec
+		portalDetailWorstGridReconstructionCalls = reconstructionCalls
+		portalDetailWorstGridReturnedPaths = returnedPaths
+		portalDetailWorstGridReconstructedWaypoints = reconstructedWaypoints
+
+
+func GetPortalBatchDetails() -> Dictionary:
+	if not capturePortalBatchDetails:
+		return { }
+	var worst: Dictionary = { }
+	if portalDetailCalls > 0:
+		worst = {
+			"elapsed_usec": portalDetailWorstUsec,
+			"preparation_usec": portalDetailWorstPreparationUsec,
+			"grid_batch_usec": portalDetailWorstGridUsec,
+			"finalization_usec": portalDetailWorstFinalizationUsec,
+			"start": [portalDetailWorstStart.x, portalDetailWorstStart.y],
+			"region_id": portalDetailWorstRegion,
+			"tick": portalDetailWorstTick,
+			"target_count": portalDetailWorstTargetCount,
+			"expanded": portalDetailWorstExpanded,
+			"relaxed": portalDetailWorstRelaxed,
+			"search_area": portalDetailWorstSearchArea,
+			"grid_internal": {
+				"preparation_usec": portalDetailWorstGridPreparationUsec,
+				"search_excluding_reconstruction_usec": portalDetailWorstGridSearchUsec,
+				"reconstruction_usec": portalDetailWorstGridReconstructionUsec,
+				"reconstruction_calls": portalDetailWorstGridReconstructionCalls,
+				"returned_paths": portalDetailWorstGridReturnedPaths,
+				"reconstructed_waypoints": portalDetailWorstGridReconstructedWaypoints,
+			},
+		}
+	return {
+		"calls": portalDetailCalls,
+		"grid_calls": portalDetailGridCalls,
+		"skipped_before_grid": portalDetailCalls - portalDetailGridCalls,
+		"preparation_usec": portalDetailPreparationUsec,
+		"grid_batch_usec": portalDetailGridUsec,
+		"finalization_usec": portalDetailFinalizationUsec,
+		"measured_total_usec": portalDetailPreparationUsec + portalDetailGridUsec
+		+ portalDetailFinalizationUsec,
+		"worst_batch": worst,
+		"grid_internal": {
+			"calls": portalDetailGridCalls,
+			"preparation_usec": portalDetailGridPreparationUsec,
+			"search_excluding_reconstruction_usec": portalDetailGridSearchUsec,
+			"reconstruction_usec": portalDetailGridReconstructionUsec,
+			"reconstruction_calls": portalDetailGridReconstructionCalls,
+			"returned_paths": portalDetailGridReturnedPaths,
+			"reconstructed_waypoints": portalDetailGridReconstructedWaypoints,
+		},
+	}
+
+
+func GetStaticQueryDetails() -> Dictionary:
+	if not captureStaticQueryDetails:
+		return { }
+	var worst: Dictionary = { }
+	if staticDetailCalls > 0:
+		worst = {
+			"elapsed_usec": staticDetailWorstUsec,
+			"endpoint_checks_usec": staticDetailWorstEndpointUsec,
+			"sweep_usec": staticDetailWorstSweepUsec,
+			"start": [staticDetailWorstStart.x, staticDetailWorstStart.y],
+			"end": [staticDetailWorstEnd.x, staticDetailWorstEnd.y],
+			"half_size": staticDetailWorstHalfSize,
+			"clear": staticDetailWorstClear,
+			"tick": staticDetailWorstTick,
+			"broad_cell_count": staticDetailWorstBroadCells,
+			"broad_blocked_count": staticDetailWorstBroadBlocked,
+			"intersection_checks": staticDetailWorstIntersectionChecks,
+		}
+	return {
+		"calls": staticDetailCalls,
+		"clear_calls": staticDetailClearCalls,
+		"invalid_end_calls": staticDetailInvalidEndCalls,
+		"recovery_calls": staticDetailRecoveryCalls,
+		"endpoint_checks_usec": staticDetailEndpointUsec,
+		"sweep_usec": staticDetailSweepUsec,
+		"broad_calls": staticDetailBroadCalls,
+		"broad_cell_count": staticDetailBroadCells,
+		"broad_blocked_count": staticDetailBroadBlocked,
+		"prefix_empty_calls": staticDetailPrefixEmptyCalls,
+		"rows_visited": staticDetailRowsVisited,
+		"intersection_checks": staticDetailIntersectionChecks,
+		"worst_query": worst,
+	}
 
 
 func ToDictionary() -> Dictionary:
