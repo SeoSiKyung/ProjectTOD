@@ -53,6 +53,7 @@ var _hierarchicalPathfinder: NavigationHierarchicalPathfinder
 var _staticQuery: NavigationStaticQuery
 
 var _benchmarkMetrics: NavigationProfileMetrics = null
+var _benchmarkIndividualPortalPaths: bool = false
 
 
 #region Public API
@@ -1500,16 +1501,28 @@ func _FillLocalPathsToPortalAnchors(
 		return
 
 	var gridStart: int = Time.get_ticks_usec() if details != null else 0
-	_gridPathfinder.FillPathsToTargets(
-		_portalGridPathsByTargetIndex,
-		startCell,
-		_portalTargetCells,
-		pathOffset,
-		navigationMap,
-		regionId,
-		localSearchMarginCells,
-		details != null,
-	)
+	if _benchmarkIndividualPortalPaths:
+		_gridPathfinder.FillPathsToTargetsIndividuallyForBenchmark(
+			_portalGridPathsByTargetIndex,
+			startCell,
+			_portalTargetCells,
+			pathOffset,
+			navigationMap,
+			regionId,
+			localSearchMarginCells,
+			details != null,
+		)
+	else:
+		_gridPathfinder.FillPathsToTargets(
+			_portalGridPathsByTargetIndex,
+			startCell,
+			_portalTargetCells,
+			pathOffset,
+			navigationMap,
+			regionId,
+			localSearchMarginCells,
+			details != null,
+		)
 	var gridEnd: int = Time.get_ticks_usec() if details != null else 0
 
 	if _benchmarkMetrics != null:
@@ -1687,3 +1700,48 @@ func _ResetPortalAnchorSearchScratch() -> void:
 
 	_portalActiveTargetIndices.clear()
 	_portalTargetCells.clear()
+
+
+func BuildRegionConnectionsForBenchmark(
+	position: Vector2,
+	halfSize: int,
+	regionId: int,
+	individual: bool,
+) -> Array[NavigationAnchorTypes.Connection]:
+	var footprint: NavigationFootprintData = _GetFootprintData(halfSize)
+	if footprint == null:
+		return []
+	var previous: bool = _benchmarkIndividualPortalPaths
+	_benchmarkIndividualPortalPaths = individual
+	var connections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnections(
+		position,
+		halfSize,
+		regionId,
+		footprint,
+	)
+	_benchmarkIndividualPortalPaths = previous
+	return connections
+
+
+func ValidateRegionConnectionsForBenchmark(
+	position: Vector2,
+	halfSize: int,
+	regionId: int,
+	connections: Array[NavigationAnchorTypes.Connection],
+) -> int:
+	var footprint: NavigationFootprintData = _GetFootprintData(halfSize)
+	if footprint == null:
+		return maxi(1, connections.size())
+	var invalidCount: int = 0
+	for connection: NavigationAnchorTypes.Connection in connections:
+		var anchor: Vector2 = NavigationAnchorGraph.GetAnchorPosition(footprint, connection.nodeKey)
+		var valid: bool = _PathEndsAtPoint(connection.path, anchor)
+		var previous: Vector2 = position
+		for waypoint: Vector2 in connection.path:
+			if not _IsSegmentClearInsideRegion(previous, waypoint, halfSize, regionId):
+				valid = false
+				break
+			previous = waypoint
+		if not valid:
+			invalidCount += 1
+	return invalidCount

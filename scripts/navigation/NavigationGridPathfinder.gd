@@ -218,6 +218,8 @@ func FillPathsToTargets(
 	regionId: int,
 	searchMarginCells: int,
 	captureDetails: bool = false,
+	boundsTargets: Array[Vector2i] = [],
+	singleTargetWeight: float = HEURISTIC_WEIGHT,
 ) -> void:
 	var preparationStart: int = Time.get_ticks_usec() if captureDetails else 0
 	result.clear()
@@ -244,7 +246,7 @@ func FillPathsToTargets(
 
 	# Target이 하나뿐이면 기존 Local A*와 동일한 Weighted A* 사용.
 	if singleTargetMode:
-		heuristicWeight = HEURISTIC_WEIGHT
+		heuristicWeight = singleTargetWeight
 		singleTargetCell = targetCells[0]
 
 	# Portal 하나의 Anchor들은 서로 가까우므로 Start ↔ Target 주변으로만 먼저 탐색한다.
@@ -253,7 +255,8 @@ func FillPathsToTargets(
 	var searchMaxX: int = startCell.x
 	var searchMaxY: int = startCell.y
 
-	for targetCell: Vector2i in targetCells:
+	var boundaryTargets: Array[Vector2i] = targetCells if boundsTargets.is_empty() else boundsTargets
+	for targetCell: Vector2i in boundaryTargets:
 		searchMinX = mini(searchMinX, targetCell.x)
 		searchMinY = mini(searchMinY, targetCell.y)
 		searchMaxX = maxi(searchMaxX, targetCell.x)
@@ -505,3 +508,68 @@ func _BeginTargetGeneration() -> void:
 		return
 
 	_targetGeneration += 1
+
+
+func FillPathsToTargetsIndividuallyForBenchmark(
+	result: Dictionary[int, PackedVector2Array],
+	startCell: Vector2i,
+	targetCells: Array[Vector2i],
+	pathOffset: Vector2,
+	navigationMap: NavigationFootprintMapData,
+	regionId: int,
+	searchMarginCells: int,
+	captureDetails: bool,
+) -> void:
+	if targetCells.size() <= 1:
+		FillPathsToTargets(
+			result,
+			startCell,
+			targetCells,
+			pathOffset,
+			navigationMap,
+			regionId,
+			searchMarginCells,
+			captureDetails,
+		)
+		return
+	result.clear()
+	var oneResult: Dictionary[int, PackedVector2Array] = { }
+	var totalExpanded: int = 0
+	var totalRelaxed: int = 0
+	var searchArea: int = 0
+	var preparation: int = 0
+	var search: int = 0
+	var reconstruction: int = 0
+	var reconstructionCalls: int = 0
+	var waypoints: int = 0
+	for targetCell: Vector2i in targetCells:
+		var oneTarget: Array[Vector2i] = [targetCell]
+		FillPathsToTargets(
+			oneResult,
+			startCell,
+			oneTarget,
+			pathOffset,
+			navigationMap,
+			regionId,
+			searchMarginCells,
+			captureDetails,
+			targetCells,
+			1.0,
+		)
+		result.merge(oneResult)
+		totalExpanded += lastExpandedCount
+		totalRelaxed += lastRelaxedCount
+		searchArea = maxi(searchArea, lastSearchArea)
+		preparation += lastBatchPreparationUsec
+		search += lastBatchSearchUsec
+		reconstruction += lastBatchReconstructionUsec
+		reconstructionCalls += lastBatchReconstructionCalls
+		waypoints += lastBatchReconstructedWaypoints
+	lastExpandedCount = totalExpanded
+	lastRelaxedCount = totalRelaxed
+	lastSearchArea = searchArea
+	lastBatchPreparationUsec = preparation
+	lastBatchSearchUsec = search
+	lastBatchReconstructionUsec = reconstruction
+	lastBatchReconstructionCalls = reconstructionCalls
+	lastBatchReconstructedWaypoints = waypoints

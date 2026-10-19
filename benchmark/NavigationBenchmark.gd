@@ -1,5 +1,7 @@
 extends Node2D
 
+const PORTAL_COMPARISON = preload("res://benchmark/NavigationPortalComparison.gd")
+
 const PATH_WARMUP_COUNT: int = 3
 const PATH_MEASUREMENT_COUNT: int = 25
 
@@ -89,6 +91,8 @@ func _ready() -> void:
 	_benchmarkUI.RunAllRequested.connect(_RunAllBenchmarks)
 	_benchmarkUI.RunSelectedRequested.connect(_RunSelectedBenchmark)
 	_runBenchmarkButton.pressed.connect(_OnRunBenchmarkButtonPressed)
+	_benchmarkUI.show()
+	_runBenchmarkButton.hide()
 
 
 func _OnRunBenchmarkButtonPressed() -> void:
@@ -127,6 +131,9 @@ func _draw() -> void:
 
 
 func _RunAllBenchmarks(mode: int) -> void:
+	if mode == NavigationBenchmarkUI.Mode.PORTAL_COMPARISON:
+		await _RunPortalComparison(-1)
+		return
 	if _isRunning:
 		return
 
@@ -152,6 +159,9 @@ func _RunAllBenchmarks(mode: int) -> void:
 
 
 func _RunSelectedBenchmark(mode: int, caseIndex: int) -> void:
+	if mode == NavigationBenchmarkUI.Mode.PORTAL_COMPARISON:
+		await _RunPortalComparison(caseIndex)
+		return
 	if _isRunning:
 		return
 
@@ -1148,6 +1158,9 @@ func _SaveReport() -> void:
 
 
 func _SaveKoreanSummary(path: String) -> void:
+	if _report["mode"] == "PortalComparison":
+		_SavePortalSummary(path)
+		return
 	var lines: PackedStringArray = PackedStringArray()
 	var movement: bool = _report["mode"] == "Movement"
 	lines.append("# 길찾기 벤치마크 결과\n")
@@ -1203,9 +1216,11 @@ func _SaveKoreanSummary(path: String) -> void:
 						run["tick_count"],
 						targetError,
 						"예" if run["timed_out"] else "아니오",
-						"없음" if str(run["error"]).is_empty() else str(run["error"])
-						.replace("|", "/")
-						.replace("\n", " "),
+						(
+							"없음"
+							if str(run["error"]).is_empty()
+							else str(run["error"]).replace("|", "/").replace("\n", " ")
+						),
 					]
 				)
 		else:
@@ -1248,3 +1263,149 @@ func _KoreanStatisticsRow(label: String, statistics: Dictionary) -> String:
 	]
 
 #endregion
+
+
+func _RunPortalComparison(selectedIndex: int) -> void:
+	if _isRunning:
+		return
+	if not _navigationService.IsReady():
+		_benchmarkUI.SetPortalStatus("NavigationData 초기화를 확인하세요")
+		return
+	var comparisonCases: Array[Dictionary] = PORTAL_COMPARISON.CreateCases()
+	if selectedIndex >= comparisonCases.size() or selectedIndex < -1:
+		return
+	var runAll: bool = selectedIndex == -1
+	var warmups: int = PATH_WARMUP_COUNT if runAll else SELECTED_PATH_WARMUP_COUNT
+	var repeats: int = PATH_MEASUREMENT_COUNT if runAll else SELECTED_PATH_MEASUREMENT_COUNT
+	_isRunning = true
+	_runBenchmarkButton.hide()
+	_benchmarkUI.SetRunning(true, NavigationBenchmarkUI.Mode.PORTAL_COMPARISON, runAll)
+	_report = {
+		"schema": PORTAL_COMPARISON.REVISION,
+		"change_revision": PORTAL_COMPARISON.REVISION,
+		"source": _ReadSourceCommit(),
+		"timestamp": Time.get_datetime_string_from_system(),
+		"mode": "PortalComparison",
+		"selection": "Run All" if runAll else "Run Selected",
+		"warmup_pairs": warmups,
+		"measurement_pairs": repeats,
+		"expected_case_count": comparisonCases.size() if runAll else 1,
+		"navigation_data": navigationData.resource_path,
+		"navigation_data_sha256": FileAccess.get_sha256(navigationData.resource_path),
+		"engine": Engine.get_version_info(),
+		"os": OS.get_name(),
+		"processor": OS.get_processor_name(),
+		"debug_build": OS.is_debug_build(),
+		"region": 0,
+		"half_size": 16,
+		"local_search_margin": _navigationService.localSearchMarginCells,
+		"anchor_cache_capacity": _navigationService.anchorConnectionCacheCapacity,
+		"cache_condition": "각 방식 직전에 요청 캐시 초기화. 사전 계산·연결 구조 유지. 검증 후에도 요청 캐시 초기화.",
+		"order": "준비 실행부터 A/B의 선행 순서를 교대로 변경",
+		"scope": "로그의 반올림 좌표에서 시작 Region 0의 연결을 재현. 전체 경로나 실제 Movement 측정은 아님.",
+		"comparison": "복수 목표는 양쪽 h 가중치 1.0과 동일 탐색 경계. 단일 목표 Batch는 기존 1.5 유지.",
+		"length_tolerance_pixels": PORTAL_COMPARISON.LENGTH_TOLERANCE,
+		"profiling": { "portal_batch_details": true, "static_query_details": false },
+		"source_sha256": { },
+		"cases": [],
+	}
+	for sourcePath: String in [
+		"res://benchmark/NavigationPortalComparison.gd",
+		"res://benchmark/NavigationBenchmark.gd",
+		"res://benchmark/NavigationBenchmarkUI.gd",
+		"res://scripts/navigation/NavigationService.gd",
+		"res://scripts/navigation/NavigationGridPathfinder.gd",
+		"res://scripts/navigation/NavigationPathHeap.gd",
+		"res://scripts/common/dataStructures/IntHeap.gd",
+	]:
+		_report["source_sha256"][sourcePath] = FileAccess.get_sha256(sourcePath)
+	for caseIndex: int in range(comparisonCases.size()):
+		if not runAll and caseIndex != selectedIndex:
+			continue
+		var caseData: Dictionary = comparisonCases[caseIndex]
+		var runs: Array[Dictionary] = []
+		var error: String = ""
+		for iteration: int in range(warmups + repeats):
+			_benchmarkUI.SetPortalStatus(
+				"%s / %s %d/%d"
+				% [
+					caseData["label"],
+					"준비" if iteration < warmups else "측정",
+					iteration + 1 if iteration < warmups else iteration - warmups + 1,
+					warmups if iteration < warmups else repeats,
+				],
+			)
+			await get_tree().process_frame
+			var pair: Dictionary = PORTAL_COMPARISON.RunPair(
+				_navigationService,
+				caseData["start"],
+				iteration % 2 == 1,
+			)
+			if pair.has("error"):
+				error = pair["error"]
+				break
+			if iteration >= warmups:
+				runs.append(pair)
+		var summary: Dictionary = PORTAL_COMPARISON.Summarize(caseData, runs, warmups, error)
+		summary["source_commit"] = _report["source"]["commit"]
+		_report["cases"].append(summary)
+		_benchmarkUI.ShowPortalResult(summary)
+	_benchmarkUI.SetRunning(false, NavigationBenchmarkUI.Mode.PORTAL_COMPARISON, false)
+	_SaveReport()
+	_isRunning = false
+
+
+func _SavePortalSummary(path: String) -> void:
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_error("Portal 비교 요약 저장 실패")
+		return
+	var lines: PackedStringArray = [
+		"# Portal 연결 비교",
+		"",
+		"- 커밋: " + str(_report["source"]["commit"]),
+		"- 구현: " + PORTAL_COMPARISON.REVISION,
+		"- 실행 범위: " + str(_report["selection"]),
+		"- 캐시: " + str(_report["cache_condition"]),
+		"- 비교 조건: " + str(_report["comparison"]),
+		"- 측정 범위: " + str(_report["scope"]),
+		"",
+	]
+	for result: Dictionary in _report["cases"]:
+		lines.append("## " + str(result["label"]))
+		lines.append("")
+		if not str(result["error"]).is_empty():
+			lines.append("측정 중단: " + str(result["error"]))
+			continue
+		lines.append("준비 %d쌍 / 측정 %d쌍" % [result["warmup_pairs"], result["measurement_pairs"]])
+		lines.append("")
+		lines.append("| 방식 | 평균 ms | P50 | P95 | 최대 | 평균 확장 수 |")
+		lines.append("|---|---:|---:|---:|---:|---:|")
+		for variant: String in ["batch", "individual"]:
+			var stats: Dictionary = result[variant]
+			lines.append(
+				"| %s | %.3f | %.3f | %.3f | %.3f | %.2f |"
+				% [
+					"현재 Batch" if variant == "batch" else "목표별 개별 탐색",
+					float(stats["average_usec"]) / 1000.0,
+					float(stats["p50_usec"]) / 1000.0,
+					float(stats["p95_usec"]) / 1000.0,
+					float(stats["max_usec"]) / 1000.0,
+					stats["expanded_avg"],
+				]
+			)
+		lines.append("")
+		lines.append(
+			"집합 일치 %d/%d쌍 / 양쪽 유효 %d/%d쌍 / 길이 증가 %d건 / 최대 증가 %.4fpx"
+			% [
+				result["same_set_pairs"],
+				result["measurement_pairs"],
+				result["valid_pairs"],
+				result["measurement_pairs"],
+				result["longer_paths"],
+				result["max_length_increase"],
+			]
+		)
+		lines.append("")
+	file.store_string("\n".join(lines))
+	file.close()
