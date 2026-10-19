@@ -71,6 +71,9 @@ var _isSavingScreenshots: bool = false
 @onready var _targetAnchorBar: ProgressBar = _phaseGrid.get_node("TargetAnchorBar")
 @onready var _anchorGraphBar: ProgressBar = _phaseGrid.get_node("AnchorGraphBar")
 @onready var _fallbackGridBar: ProgressBar = _phaseGrid.get_node("FallbackGridBar")
+@onready var _rebuildLabel: Label = _phaseGrid.get_node("RebuildLabel")
+@onready var _rebuildValue: Label = _phaseGrid.get_node("RebuildValue")
+@onready var _rebuildBar: ProgressBar = _phaseGrid.get_node("RebuildBar")
 
 @onready var _rightDetail: VBoxContainer = _detailRow.get_node("RightDetail")
 @onready var _segmentVBox: VBoxContainer = _rightDetail.get_node("SegmentPanel/VBox")
@@ -106,14 +109,17 @@ var _isSavingScreenshots: bool = false
 @onready var _worstExpandedValue: Label = _worstGrid.get_node("WorstExpandedValue")
 @onready var _worstRelaxedValue: Label = _worstGrid.get_node("WorstRelaxedValue")
 @onready var _worstTargetsValue: Label = _worstGrid.get_node("WorstTargetsValue")
+@onready var _tickPanel: PanelContainer = _content.get_node("TickPanel")
+@onready var _tickStatistics: Label = _tickPanel.get_node("VBox/Statistics")
+@onready var _slowestTick: Label = _tickPanel.get_node("VBox/SlowestTick")
 
 #endregion
 
 
 func _ready() -> void:
 	_modeSelect.clear()
-	_modeSelect.add_item("Path Build", Mode.PATH_BUILD)
-	_modeSelect.add_item("Movement", Mode.MOVEMENT)
+	_modeSelect.add_item("경로 생성", Mode.PATH_BUILD)
+	_modeSelect.add_item("실제 이동", Mode.MOVEMENT)
 	_modeSelect.select(0)
 
 	_runAllButton.pressed.connect(_OnRunAllButtonPressed)
@@ -125,11 +131,17 @@ func _ready() -> void:
 	_ApplyModeLabels(GetSelectedMode())
 
 
+func SetImplementationLabel(revision: String) -> void:
+	var title: Label = _content.get_node("Title")
+	title.text = "길찾기 벤치마크 / " + revision
+
+
 func SetCases(cases: Array[NavigationBenchmarkCase]) -> void:
 	_caseSelect.clear()
 
 	for benchmarkCase: NavigationBenchmarkCase in cases:
-		_caseSelect.add_item(benchmarkCase.caseName)
+		_caseSelect.add_item(GetCaseDisplayName(benchmarkCase.caseName))
+		_caseSelect.set_item_metadata(_caseSelect.item_count - 1, benchmarkCase.caseName)
 
 	if not cases.is_empty():
 		_caseSelect.select(0)
@@ -158,11 +170,9 @@ func SetRunning(isRunning: bool, mode: int, clearResults: bool = true) -> void:
 			_ClearModeResults(mode)
 
 		_SetEmptyResult()
-		_statusLabel.text = (
-			"Running movement benchmark..."
+		_statusLabel.text = ("실제 이동 측정 중..."
 			if mode == Mode.MOVEMENT
-			else "Running path build benchmark..."
-		)
+			else "경로 생성 측정 중...")
 	else:
 		_ShowSelectedResult()
 
@@ -235,7 +245,7 @@ func _SaveAllScreenshots() -> void:
 	)
 
 	if results.is_empty():
-		_statusLabel.text = "No results to save - run the selected benchmark first"
+		_statusLabel.text = "저장할 결과가 없습니다. 먼저 측정하세요"
 		return
 
 	var originalCaseIndex: int = _caseSelect.selected
@@ -244,15 +254,15 @@ func _SaveAllScreenshots() -> void:
 	var absoluteDirectory: String = ProjectSettings.globalize_path(directory)
 	var makeDirectoryError: Error = DirAccess.make_dir_recursive_absolute(absoluteDirectory)
 	if makeDirectoryError != OK:
-		push_error("Failed to create benchmark screenshot directory: %s" % absoluteDirectory)
-		_statusLabel.text = "Failed to create screenshot directory"
+		push_error("이미지 저장 폴더 생성 실패: %s" % absoluteDirectory)
+		_statusLabel.text = "이미지 저장 폴더를 만들지 못했습니다"
 		return
 
 	_isSavingScreenshots = true
 
 	var savedCount: int = 0
 	for caseIndex: int in range(_caseSelect.item_count):
-		var caseName: String = _caseSelect.get_item_text(caseIndex)
+		var caseName: String = str(_caseSelect.get_item_metadata(caseIndex))
 		if not results.has(caseName):
 			continue
 
@@ -270,7 +280,7 @@ func _SaveAllScreenshots() -> void:
 			"%s/%s" % [directory, fileName],
 		)
 		if saveError != OK:
-			push_error("Failed to save benchmark screenshot: %s" % fileName)
+			push_error("이미지 저장 실패: %s" % fileName)
 			continue
 
 		savedCount += 1
@@ -280,8 +290,8 @@ func _SaveAllScreenshots() -> void:
 		_ShowSelectedResult()
 
 	_isSavingScreenshots = false
-	_statusLabel.text = "Saved %d screenshot(s): %s" % [savedCount, absoluteDirectory]
-	print("Benchmark screenshots saved: ", absoluteDirectory)
+	_statusLabel.text = "이미지 %d장 저장: %s" % [savedCount, absoluteDirectory]
+	print("벤치마크 이미지 저장: ", absoluteDirectory)
 
 
 func _OnModeSelected(_index: int) -> void:
@@ -425,12 +435,15 @@ func _ShowSelectedMovementResult() -> void:
 		runCount,
 	)
 	var arrivalUsec: int = _GetMetricAverageInt(movementMetrics, "arrival_resolve_usec", runCount)
+	var rebuildUsec: int = _GetMetricAverageInt(movementMetrics, "path_rebuild_usec", runCount)
 
 	_startAnchorValue.text = _FormatDurationUsec(commandUsec)
 	_targetAnchorValue.text = _FormatDurationUsec(pathFollowUsec)
 	_anchorGraphValue.text = _FormatDurationUsec(collisionUsec)
 	_fallbackGridValue.text = _FormatDurationUsec(arrivalUsec)
-	_UpdatePhaseBars(commandUsec, pathFollowUsec, collisionUsec, arrivalUsec)
+	_rebuildValue.text = _FormatDurationUsec(rebuildUsec)
+	_UpdatePhaseBars(commandUsec, pathFollowUsec, collisionUsec, arrivalUsec, rebuildUsec)
+	_UpdateTickResult(result)
 
 	_UpdateMovementSegmentClearResult(
 		navigationMetrics,
@@ -446,9 +459,9 @@ func _ShowSelectedMovementResult() -> void:
 	var timedOutCount: int = int(result["timedOutRunCount"])
 	var failedCount: int = int(result["failedRunCount"])
 	if timedOutCount > 0 or failedCount > 0:
-		_statusLabel.text = "Complete - timeout %d / failed %d" % [timedOutCount, failedCount]
+		_statusLabel.text = "측정 종료 — 시간 초과 %d회 / 실패 %d회" % [timedOutCount, failedCount]
 	else:
-		_statusLabel.text = "Complete - all movement runs settled"
+		_statusLabel.text = "측정 종료 — 모든 실행에서 도착 처리 완료"
 
 
 func _UpdateExecutionTimes(elapsedTimes: Array) -> void:
@@ -609,16 +622,56 @@ func _FormatOverlapRatio(ratio: int) -> String:
 	return "%d.%d%%" % [percent, decimal]
 
 
-func _UpdatePhaseBars(firstUsec: int, secondUsec: int, thirdUsec: int, fourthUsec: int) -> void:
-	var maxValue: int = maxi(1, maxi(firstUsec, maxi(secondUsec, maxi(thirdUsec, fourthUsec))))
+func _UpdatePhaseBars(
+	firstUsec: int,
+	secondUsec: int,
+	thirdUsec: int,
+	fourthUsec: int,
+	rebuildUsec: int = 0,
+) -> void:
+	var maxValue: int = maxi(
+		1,
+		maxi(rebuildUsec, maxi(firstUsec, maxi(secondUsec, maxi(thirdUsec, fourthUsec)))),
+	)
 
-	for bar: ProgressBar in [_startAnchorBar, _targetAnchorBar, _anchorGraphBar, _fallbackGridBar]:
+	for bar: ProgressBar in [
+		_startAnchorBar,
+		_targetAnchorBar,
+		_anchorGraphBar,
+		_fallbackGridBar,
+		_rebuildBar,
+	]:
 		bar.max_value = maxValue
 
 	_startAnchorBar.value = firstUsec
 	_targetAnchorBar.value = secondUsec
 	_anchorGraphBar.value = thirdUsec
 	_fallbackGridBar.value = fourthUsec
+	_rebuildBar.value = rebuildUsec
+
+
+func _UpdateTickResult(result: Dictionary) -> void:
+	var statistics: Dictionary = result.get("tickStatistics", { })
+	var slowest: Dictionary = result.get("slowestTick", { })
+	if statistics.is_empty():
+		_tickStatistics.text = "기록 없음 (진단 꺼짐 또는 측정된 틱 없음)"
+		_slowestTick.text = "최대 지연 틱: -"
+		return
+
+	_tickStatistics.text = "평균 %s    P50 %s    P95 %s    최대 %s" % [
+		_FormatDurationUsec(int(statistics["average_usec"])),
+		_FormatDurationUsec(int(statistics["p50_usec"])),
+		_FormatDurationUsec(int(statistics["p95_usec"])),
+		_FormatDurationUsec(int(statistics["max_usec"])),
+	]
+	if slowest.is_empty():
+		_slowestTick.text = "최대 지연 틱: -"
+	else:
+		_slowestTick.text = "최대 지연: %d회차 / %d틱    해당 틱 재탐색: %s" % [
+			int(slowest["run"]),
+			int(slowest["tick"]),
+			_FormatDurationUsec(int(slowest["rebuild_usec"])),
+		]
 
 
 func _UpdateWorstAnchorBatch(metrics: Dictionary) -> void:
@@ -666,6 +719,11 @@ func _UpdateGroupInputResult(result: Dictionary) -> void:
 
 
 func _ApplyModeLabels(mode: int) -> void:
+	var isMovement: bool = mode == Mode.MOVEMENT
+	_rebuildLabel.visible = isMovement
+	_rebuildValue.visible = isMovement
+	_rebuildBar.visible = isMovement
+	_tickPanel.visible = isMovement
 	if mode == Mode.MOVEMENT:
 		_ApplyMovementLabels()
 	else:
@@ -673,83 +731,83 @@ func _ApplyModeLabels(mode: int) -> void:
 
 
 func _ApplyMovementLabels() -> void:
-	_SetLabelText(_executionVBox, "Heading", "End-to-End CPU Time")
-	_SetLabelText(_resultVBox, "Heading", "Movement Result")
-	_SetLabelText(_resultGrid, "PathSizeLabel", "Avg ticks")
-	_SetLabelText(_resultGrid, "EmptyLabel", "Completed")
-	_SetLabelText(_resultGrid, "OverlapLabel", "Avg target error")
-	_SetLabelText(_resultGrid, "PathLengthLabel", "Avg move CPU")
+	_SetLabelText(_executionVBox, "Heading", "명령부터 이동 완료까지 CPU 시간")
+	_SetLabelText(_resultVBox, "Heading", "실제 이동 결과")
+	_SetLabelText(_resultGrid, "PathSizeLabel", "평균 틱")
+	_SetLabelText(_resultGrid, "EmptyLabel", "완료 유닛")
+	_SetLabelText(_resultGrid, "OverlapLabel", "평균 목표 오차")
+	_SetLabelText(_resultGrid, "PathLengthLabel", "평균 이동 CPU")
 
-	_SetLabelText(_phaseVBox, "Heading", "Movement Phase")
-	_SetLabelText(_phaseGrid, "StartAnchorLabel", "Command Build")
-	_SetLabelText(_phaseGrid, "TargetAnchorLabel", "Path Follow / Commit")
-	_SetLabelText(_phaseGrid, "AnchorGraphLabel", "Collision Resolve")
-	_SetLabelText(_phaseGrid, "FallbackGridLabel", "Arrival Resolve")
+	_SetLabelText(_phaseVBox, "Heading", "명령 / 이동 (실행당 평균)")
+	_SetLabelText(_phaseGrid, "StartAnchorLabel", "명령 처리")
+	_SetLabelText(_phaseGrid, "TargetAnchorLabel", "경로 추종 / 반영")
+	_SetLabelText(_phaseGrid, "AnchorGraphLabel", "충돌 해소")
+	_SetLabelText(_phaseGrid, "FallbackGridLabel", "도착 판정")
 
-	_SetLabelText(_segmentVBox, "Heading", "Movement Segment Clear")
-	_SetLabelText(_segmentGrid, "TimeLabel", "Time")
-	_SetLabelText(_segmentGrid, "CallsLabel", "Calls")
-	_SetLabelText(_segmentGrid, "AverageLabel", "CPU / Tick")
-	_SetLabelText(_segmentGrid, "StaticLabel", "Calls / Tick")
+	_SetLabelText(_segmentVBox, "Heading", "이동 중 구간 검사")
+	_SetLabelText(_segmentGrid, "TimeLabel", "시간")
+	_SetLabelText(_segmentGrid, "CallsLabel", "호출")
+	_SetLabelText(_segmentGrid, "AverageLabel", "CPU / 틱")
+	_SetLabelText(_segmentGrid, "StaticLabel", "호출 / 틱")
 
-	_SetLabelText(_groupVBox, "Heading", "Collision / Arrival")
-	_SetLabelText(_groupGrid, "JoinPointLabel", "Ticks")
-	_SetLabelText(_groupGrid, "SharedPathLabel", "Candidates")
-	_SetLabelText(_groupGrid, "UnitPathsLabel", "Blocked")
-	_SetLabelText(_groupGrid, "SegmentJoinLabel", "Alt Candidate")
-	_SetLabelText(_groupGrid, "WaypointJoinLabel", "Stalled")
-	_SetLabelText(_groupGrid, "FallbackLabel", "Settled")
+	_SetLabelText(_groupVBox, "Heading", "충돌 / 도착")
+	_SetLabelText(_groupGrid, "JoinPointLabel", "틱")
+	_SetLabelText(_groupGrid, "SharedPathLabel", "후보")
+	_SetLabelText(_groupGrid, "UnitPathsLabel", "막힘")
+	_SetLabelText(_groupGrid, "SegmentJoinLabel", "대체 후보")
+	_SetLabelText(_groupGrid, "WaypointJoinLabel", "정체 틱")
+	_SetLabelText(_groupGrid, "FallbackLabel", "도착 처리")
 
-	_SetLabelText(_gridVBox, "Heading", "Movement Runs")
-	_SetLabelText(_grid, "CallsLabel", "Runs")
-	_SetLabelText(_grid, "ExpandedLabel", "Complete")
-	_SetLabelText(_grid, "RelaxedLabel", "Timeout / Fail")
+	_SetLabelText(_gridVBox, "Heading", "이동 반복 실행")
+	_SetLabelText(_grid, "CallsLabel", "실행")
+	_SetLabelText(_grid, "ExpandedLabel", "완료")
+	_SetLabelText(_grid, "RelaxedLabel", "시간 초과 / 실패")
 
-	_SetLabelText(_worstVBox, "Heading", "Worst Movement Run")
-	_SetLabelText(_worstGrid, "TimeLabel", "Time")
-	_SetLabelText(_worstGrid, "ExpandedLabel", "Ticks")
-	_SetLabelText(_worstGrid, "RelaxedLabel", "Blocked")
-	_SetLabelText(_worstGrid, "TargetsLabel", "Settled")
+	_SetLabelText(_worstVBox, "Heading", "가장 느린 이동 실행")
+	_SetLabelText(_worstGrid, "TimeLabel", "시간")
+	_SetLabelText(_worstGrid, "ExpandedLabel", "틱")
+	_SetLabelText(_worstGrid, "RelaxedLabel", "막힘")
+	_SetLabelText(_worstGrid, "TargetsLabel", "도착 처리")
 
 
 func _ApplyPathBuildLabels() -> void:
-	_SetLabelText(_executionVBox, "Heading", "Execution Time")
-	_SetLabelText(_resultVBox, "Heading", "Path Result")
-	_SetLabelText(_resultGrid, "PathSizeLabel", "Avg total size")
-	_SetLabelText(_resultGrid, "EmptyLabel", "Empty")
-	_SetLabelText(_resultGrid, "OverlapLabel", "Overlap")
-	_SetLabelText(_resultGrid, "PathLengthLabel", "Avg total length")
+	_SetLabelText(_executionVBox, "Heading", "실행 시간")
+	_SetLabelText(_resultVBox, "Heading", "경로 생성 결과")
+	_SetLabelText(_resultGrid, "PathSizeLabel", "평균 경유점 수")
+	_SetLabelText(_resultGrid, "EmptyLabel", "빈 경로")
+	_SetLabelText(_resultGrid, "OverlapLabel", "경로 중복")
+	_SetLabelText(_resultGrid, "PathLengthLabel", "평균 총 길이")
 
-	_SetLabelText(_phaseVBox, "Heading", "FindPath Phase")
-	_SetLabelText(_phaseGrid, "StartAnchorLabel", "Start Anchor")
-	_SetLabelText(_phaseGrid, "TargetAnchorLabel", "Target Anchor")
-	_SetLabelText(_phaseGrid, "AnchorGraphLabel", "Anchor Graph")
-	_SetLabelText(_phaseGrid, "FallbackGridLabel", "Fallback Grid")
+	_SetLabelText(_phaseVBox, "Heading", "경로 생성 구간")
+	_SetLabelText(_phaseGrid, "StartAnchorLabel", "시작점 연결")
+	_SetLabelText(_phaseGrid, "TargetAnchorLabel", "목표점 연결")
+	_SetLabelText(_phaseGrid, "AnchorGraphLabel", "연결 그래프")
+	_SetLabelText(_phaseGrid, "FallbackGridLabel", "대체 격자 탐색")
 
-	_SetLabelText(_segmentVBox, "Heading", "Segment Clear")
-	_SetLabelText(_segmentGrid, "TimeLabel", "Time")
-	_SetLabelText(_segmentGrid, "CallsLabel", "Calls")
-	_SetLabelText(_segmentGrid, "AverageLabel", "Avg")
-	_SetLabelText(_segmentGrid, "StaticLabel", "Static")
+	_SetLabelText(_segmentVBox, "Heading", "구간 통과 검사")
+	_SetLabelText(_segmentGrid, "TimeLabel", "시간")
+	_SetLabelText(_segmentGrid, "CallsLabel", "호출")
+	_SetLabelText(_segmentGrid, "AverageLabel", "평균")
+	_SetLabelText(_segmentGrid, "StaticLabel", "정적 검사")
 
-	_SetLabelText(_groupVBox, "Heading", "Group Build")
-	_SetLabelText(_groupGrid, "JoinPointLabel", "Join Point")
-	_SetLabelText(_groupGrid, "SharedPathLabel", "Shared Path")
-	_SetLabelText(_groupGrid, "UnitPathsLabel", "Unit Paths")
-	_SetLabelText(_groupGrid, "SegmentJoinLabel", "Segment Join")
-	_SetLabelText(_groupGrid, "WaypointJoinLabel", "Waypoint Join")
-	_SetLabelText(_groupGrid, "FallbackLabel", "Fallback")
+	_SetLabelText(_groupVBox, "Heading", "그룹 경로 생성")
+	_SetLabelText(_groupGrid, "JoinPointLabel", "합류점")
+	_SetLabelText(_groupGrid, "SharedPathLabel", "공통 경로")
+	_SetLabelText(_groupGrid, "UnitPathsLabel", "개별 경로")
+	_SetLabelText(_groupGrid, "SegmentJoinLabel", "구간 합류")
+	_SetLabelText(_groupGrid, "WaypointJoinLabel", "경유점 합류")
+	_SetLabelText(_groupGrid, "FallbackLabel", "대체 탐색")
 
-	_SetLabelText(_gridVBox, "Heading", "Grid A* Search")
-	_SetLabelText(_grid, "CallsLabel", "Calls")
-	_SetLabelText(_grid, "ExpandedLabel", "Expanded")
-	_SetLabelText(_grid, "RelaxedLabel", "Relaxed")
+	_SetLabelText(_gridVBox, "Heading", "격자 A* 탐색")
+	_SetLabelText(_grid, "CallsLabel", "호출")
+	_SetLabelText(_grid, "ExpandedLabel", "확장")
+	_SetLabelText(_grid, "RelaxedLabel", "비용 갱신")
 
-	_SetLabelText(_worstVBox, "Heading", "Worst Anchor Batch")
-	_SetLabelText(_worstGrid, "TimeLabel", "Time")
-	_SetLabelText(_worstGrid, "ExpandedLabel", "Expanded")
-	_SetLabelText(_worstGrid, "RelaxedLabel", "Relaxed")
-	_SetLabelText(_worstGrid, "TargetsLabel", "Targets")
+	_SetLabelText(_worstVBox, "Heading", "가장 느린 연결 탐색")
+	_SetLabelText(_worstGrid, "TimeLabel", "시간")
+	_SetLabelText(_worstGrid, "ExpandedLabel", "확장")
+	_SetLabelText(_worstGrid, "RelaxedLabel", "비용 갱신")
+	_SetLabelText(_worstGrid, "TargetsLabel", "목표 수")
 
 
 func _SetLabelText(parent: Node, path: String, text: String) -> void:
@@ -771,6 +829,9 @@ func _SetEmptyResult() -> void:
 		_targetAnchorValue,
 		_anchorGraphValue,
 		_fallbackGridValue,
+		_rebuildValue,
+		_tickStatistics,
+		_slowestTick,
 		_gridCallsValue,
 		_gridExpandedValue,
 		_gridRelaxedValue,
@@ -794,12 +855,18 @@ func _SetEmptyResult() -> void:
 	]:
 		label.text = "-"
 
-	for bar: ProgressBar in [_startAnchorBar, _targetAnchorBar, _anchorGraphBar, _fallbackGridBar]:
+	for bar: ProgressBar in [
+		_startAnchorBar,
+		_targetAnchorBar,
+		_anchorGraphBar,
+		_fallbackGridBar,
+		_rebuildBar,
+	]:
 		bar.max_value = 1.0
 		bar.value = 0.0
 
 	if not _HasModeResults(GetSelectedMode()):
-		_statusLabel.text = "Press Run All"
+		_statusLabel.text = "전체 실행을 눌러 측정하세요"
 
 
 func _ClearModeResults(mode: int) -> void:
@@ -821,7 +888,7 @@ func _GetSelectedCaseName() -> String:
 	if _caseSelect.item_count <= 0 or _caseSelect.selected < 0:
 		return ""
 
-	return _caseSelect.get_item_text(_caseSelect.selected)
+	return str(_caseSelect.get_item_metadata(_caseSelect.selected))
 
 
 func _FormatDurationUsec(valueUsec: int) -> String:
@@ -850,9 +917,9 @@ func _UpdateResultDescription(
 	)
 
 	if hasPath and not usedMeasuredSearchPhase:
-		_statusLabel.text = "Direct path - A* / Anchor phases skipped"
+		_statusLabel.text = "직선 경로 — A* / 연결 탐색 생략"
 	else:
-		_statusLabel.text = "Complete - select a case to inspect"
+		_statusLabel.text = "측정 종료 — 사례를 선택하세요"
 
 
 func _GetAverage(values: Array) -> int:
@@ -878,3 +945,24 @@ func _GetMetricAverageFloat(metrics: Dictionary, key: String, count: int) -> flo
 		return 0.0
 
 	return float(metrics.get(key, 0)) / float(count)
+
+
+static func GetCaseDisplayName(caseName: String) -> String:
+	match caseName:
+		"Group5_Close_FarTarget":
+			return "5유닛 밀집 · 장거리"
+		"Group5_Medium_FarTarget":
+			return "5유닛 중간 간격 · 장거리"
+		"Group5_Spread_FarTarget":
+			return "5유닛 분산 · 장거리"
+		"Group5_Spread_Inline_FarTarget":
+			return "5유닛 종방향 분산 · 장거리"
+		"Group5_Spread_Lateral_FarTarget":
+			return "5유닛 횡방향 분산 · 장거리"
+		"Group5_Close_InsideRadius":
+			return "5유닛 밀집 · 반경 안쪽"
+		"Group5_Close_RadiusInsideEdge":
+			return "5유닛 밀집 · 반경 경계 안쪽"
+		"Group5_Close_RadiusOutsideEdge":
+			return "5유닛 밀집 · 반경 경계 바깥"
+	return caseName

@@ -176,3 +176,24 @@ func CommitMovement(newPosition: Vector2, fixedDelta: float) -> void:
 		OnAvoidanceEnded()
 	elif not _isAvoiding:
 		_pathFollower.OnMovementCommitted(position)
+
+
+func GetDiagnosticState() -> Dictionary:
+	var state: Dictionary = _pathFollower.GetDiagnosticState()
+	state.merge(
+		{
+			"unit_id": unitId,
+			"position": [position.x, position.y],
+			"agent_target": [moveTarget.x, moveTarget.y],
+			"last_move_delta": [lastMoveDelta.x, lastMoveDelta.y],
+			"settled": isSettled,
+			"paused": isPaused,
+			"command_id": moveCommandId,
+			"movement_revision": movementRevision,
+			"move_speed_per_tick": moveSpeed,
+			"half_size": halfSize,
+			"arrival_radius": arrivalRadius,
+			"avoiding": _isAvoiding,
+		}
+	)
+	return state

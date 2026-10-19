@@ -10,6 +10,11 @@ var _unitManager: UnitManager
 var _collisionResolver: CollisionResolver
 var _arrivalResolver: MovementArrivalResolver
 var _profileMetrics: MovementProfileMetrics
+
+# Benchmark에서만 마지막 틱을 보관한다. 유닛별 매 틱 로그를 만들지 않는다.
+var captureDiagnostics: bool = false
+var _lastDiagnosticTick: CollisionGroup
+var _lastDiagnosticTickCommitted: bool = false
 var _agents: Array[MovementAgent] = []
 var _agentIndexByUnitId: Dictionary[int, int] = { }
 
@@ -146,6 +151,9 @@ func TeleportUnit(unitId: int, position: Vector2, snapshot: StageSnapshot) -> bo
 
 
 func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
+	if captureDiagnostics:
+		_lastDiagnosticTick = null
+		_lastDiagnosticTickCommitted = false
 	lastError = ""
 	if snapshot == null or not is_finite(fixedDelta) or fixedDelta <= EPSILON:
 		lastError = "유효한 snapshot과 양수 fixedDelta가 필요합니다."
@@ -158,6 +166,9 @@ func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 
 	var phaseStart: int = Time.get_ticks_usec() if _profileMetrics != null else 0
 	var tick: CollisionGroup = _CaptureTick()
+	if captureDiagnostics:
+		_lastDiagnosticTick = tick
+		_lastDiagnosticTickCommitted = false
 	if _profileMetrics != null:
 		_profileMetrics.captureTickUsec += Time.get_ticks_usec() - phaseStart
 
@@ -172,6 +183,8 @@ func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 
 	phaseStart = Time.get_ticks_usec() if _profileMetrics != null else 0
 	_CommitTick(tick, snapshot, fixedDelta)
+	if captureDiagnostics:
+		_lastDiagnosticTickCommitted = true
 	if _profileMetrics != null:
 		_profileMetrics.commitTickUsec += Time.get_ticks_usec() - phaseStart
 
@@ -184,6 +197,8 @@ func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
 
 
 func Clear() -> void:
+	_lastDiagnosticTick = null
+	_lastDiagnosticTickCommitted = false
 	_agents.clear()
 	_agentIndexByUnitId.clear()
 	_collisionResolver = CollisionResolver.new(_navigationService)
@@ -249,3 +264,30 @@ func _GetAgent(unitId: int) -> MovementAgent:
 	if index == INVALID_INDEX:
 		return null
 	return _agents[index]
+
+
+func GetDiagnosticState(unitId: int) -> Dictionary:
+	var agent: MovementAgent = _GetAgent(unitId)
+	if agent == null:
+		return { }
+	var state: Dictionary = agent.GetDiagnosticState()
+	state["tick_available"] = false
+	if _lastDiagnosticTick == null:
+		return state
+	var data: CollisionGroup.AgentData = _lastDiagnosticTick.GetAgent(unitId)
+	if data == null:
+		return state
+	var desiredDelta: Vector2 = data.desiredPosition - data.startPosition
+	var committedDelta: Vector2 = data.nextPosition - data.startPosition if _lastDiagnosticTickCommitted else Vector2.ZERO
+	state.merge(
+		{
+			"tick_available": true,
+			"tick_committed": _lastDiagnosticTickCommitted,
+			"tick_start_position": [data.startPosition.x, data.startPosition.y],
+			"desired_delta": [desiredDelta.x, desiredDelta.y],
+			"actual_delta": [committedDelta.x, committedDelta.y],
+			"can_move_this_tick": data.canMove,
+		},
+		true,
+	)
+	return state
