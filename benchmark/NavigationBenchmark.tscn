@@ -20,17 +20,5 @@ zoom = Vector2(0.5, 0.27)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1455334438]
 
-[node name="RunBenchmarkButton" type="Button" parent="CanvasLayer" unique_id=1304841149]
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -198.0
-offset_top = 18.0
-offset_right = -18.0
-offset_bottom = 62.0
-grow_horizontal = 0
-focus_mode = 0
-text = "Run Benchmark"
-
 [node name="BenchmarkUI" parent="CanvasLayer" unique_id=39689797 instance=ExtResource("4_ui")]
 visible = true

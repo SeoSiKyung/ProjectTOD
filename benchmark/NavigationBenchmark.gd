@@ -35,7 +35,6 @@ var _navigationService: NavigationService
 var _isRunning: bool = false
 
 @onready var _benchmarkUI: NavigationBenchmarkUI = $CanvasLayer/BenchmarkUI
-@onready var _runBenchmarkButton: Button = $CanvasLayer/RunBenchmarkButton
 
 var _cases: Array[NavigationBenchmarkCase] = NavigationBenchmarkCase.CreateCases()
 
@@ -91,25 +90,7 @@ func _ready() -> void:
 	_benchmarkUI.SetCases(_cases)
 	_benchmarkUI.RunAllRequested.connect(_RunAllBenchmarks)
 	_benchmarkUI.RunSelectedRequested.connect(_RunSelectedBenchmark)
-	_runBenchmarkButton.pressed.connect(_OnRunBenchmarkButtonPressed)
 	_benchmarkUI.show()
-	_runBenchmarkButton.hide()
-
-
-func _OnRunBenchmarkButtonPressed() -> void:
-	_RunAllBenchmarks(_benchmarkUI.GetSelectedMode())
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			var pos: Vector2 = get_global_mouse_position()
-			print(
-				"Position: ",
-				pos,
-				" / CanPlace(16): ",
-				_navigationService.CanPlaceStatic(pos, 16),
-			)
 
 
 func _draw() -> void:
@@ -140,7 +121,6 @@ func _RunAllBenchmarks(mode: int) -> void:
 
 	_isRunning = true
 	_BeginReport(mode, true)
-	_runBenchmarkButton.hide()
 	_benchmarkUI.SetRunning(true, mode)
 
 	await get_tree().process_frame
@@ -171,7 +151,6 @@ func _RunSelectedBenchmark(mode: int, caseIndex: int) -> void:
 
 	_isRunning = true
 	_BeginReport(mode, false)
-	_runBenchmarkButton.hide()
 	_benchmarkUI.SetRunning(true, mode, false)
 
 	await get_tree().process_frame
@@ -1164,113 +1143,6 @@ func _SaveReport() -> void:
 		push_error("보고서 기록 실패: %s" % error_string(error))
 		return
 	print("벤치마크 JSON 저장: ", ProjectSettings.globalize_path(reportPath))
-	_SaveKoreanSummary(reportPath.get_basename() + ".md")
-
-
-func _SaveKoreanSummary(path: String) -> void:
-	if _report["mode"] == "PortalComparison":
-		_SavePortalSummary(path)
-		return
-	var lines: PackedStringArray = PackedStringArray()
-	var movement: bool = _report["mode"] == "Movement"
-	lines.append("# 길찾기 벤치마크 결과\n")
-	lines.append("- 측정 모드: " + ("실제 이동" if movement else "경로 생성"))
-	lines.append("- 실행 범위: " + ("전체 사례" if _report["selection"] == "Run All" else "선택 사례"))
-	lines.append("- 구현 버전: " + str(_report["change_revision"]))
-	lines.append("- 커밋: " + str(_report["source"]["commit"]))
-	lines.append("- 측정 시각: " + str(_report["timestamp"]))
-	lines.append("- 캐시 조건: " + str(_report["cache_condition"]))
-	lines.append(
-		"- 진단 / 재탐색 복구 / 정적 상세 / Portal 상세: %s / %s / %s / %s"
-		% [
-			str(enableDiagnostics),
-			str(enablePathRebuildRecovery),
-			str(enableStaticQueryDetails),
-			str(enablePortalBatchDetails),
-		]
-	)
-	lines.append("\n시간은 밀리초 단위의 CPU 경과 시간입니다. 실제 이동 시간이나 렌더링 프레임 시간과 다릅니다.")
-	lines.append("프로파일러 활성 여부는 자동 검출하지 않습니다. 전후 성능 비교에서는 프로파일러를 끄세요.\n")
-	for entry: Dictionary in _report["cases"]:
-		lines.append("## " + str(entry["case_display_name"]) + "\n")
-		lines.append("사례 식별자: `" + str(entry["case_name"]) + "`\n")
-		lines.append("준비 실행 %d회 / 측정 %d회\n" % [entry["warmup_count"], entry["measurement_count"]])
-		lines.append("| 측정 구간 | 평균 | P50 | P95 | 최대 |")
-		lines.append("|---|---:|---:|---:|---:|")
-		lines.append(_KoreanStatisticsRow("전체 처리", entry["elapsed_statistics"]))
-		if movement:
-			lines.append(_KoreanStatisticsRow("명령 처리", entry["command_statistics"]))
-			lines.append(_KoreanStatisticsRow("실제 이동", entry["movement_loop_statistics"]))
-			var ticks: Array[int] = []
-			var rebuilds: Array[int] = []
-			for run: Dictionary in entry["runs"]:
-				for tick: int in run["tick_times_usec"]:
-					ticks.append(tick)
-				rebuilds.append(int(run["movement_metrics_nested"].get("path_rebuild_usec", 0)))
-			lines.append(_KoreanStatisticsRow("개별 재탐색 (이동에 포함)", _TimeStatistics(rebuilds)))
-			lines.append(_KoreanStatisticsRow("이동 틱 (전체 측정 틱)", _TimeStatistics(ticks)))
-			lines.append("\n| 회차 | 완료 유닛 | 틱 수 | 목표 오차(px) | 시간 초과 | 실행 오류 |")
-			lines.append("|---|---:|---:|---:|---|---|")
-			var ordinal: int = 0
-			for run: Dictionary in entry["runs"]:
-				ordinal += 1
-				var targetError: String = "기록 없음"
-				if run["average_agent_target_error"] != null:
-					targetError = "%.3f" % float(run["average_agent_target_error"])
-				lines.append(
-					"| %d | %d / %d | %d | %s | %s | %s |"
-					% [
-						ordinal,
-						run["completed"],
-						run["expected"],
-						run["tick_count"],
-						targetError,
-						"예" if run["timed_out"] else "아니오",
-						(
-							"없음"
-							if str(run["error"]).is_empty()
-							else str(run["error"]).replace("|", "/").replace("\n", " ")
-						),
-					]
-				)
-		else:
-			lines.append("\n| 회차 | 경유점 수 | 총 경로 길이(px) | 빈 경로 수 |")
-			lines.append("|---|---:|---:|---:|")
-			var ordinal: int = 0
-			for run: Dictionary in entry["runs"]:
-				ordinal += 1
-				lines.append(
-					"| %d | %d | %d | %d |"
-					% [ordinal, run["path_size"], run["path_length_total"], run["empty_path_count"]]
-				)
-		lines.append("")
-	lines.append("## 해석 시 주의사항\n")
-	for note: String in _report["timing_notes"]:
-		lines.append("- " + note)
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		push_error("한국어 요약 보고서 열기 실패: " + error_string(FileAccess.get_open_error()))
-		return
-	file.store_string("\n".join(lines) + "\n")
-	file.flush()
-	var error: Error = file.get_error()
-	file.close()
-	if error != OK:
-		push_error("한국어 요약 보고서 기록 실패: " + error_string(error))
-		return
-	print("한국어 요약 보고서 저장: ", ProjectSettings.globalize_path(path))
-
-
-func _KoreanStatisticsRow(label: String, statistics: Dictionary) -> String:
-	if int(statistics.get("count", 0)) == 0:
-		return "| %s | 기록 없음 | - | - | - |" % label
-	return "| %s | %.3f | %.3f | %.3f | %.3f |" % [
-		label,
-		float(statistics["average_usec"]) / 1000.0,
-		float(statistics["p50_usec"]) / 1000.0,
-		float(statistics["p95_usec"]) / 1000.0,
-		float(statistics["max_usec"]) / 1000.0,
-	]
 
 #endregion
 
@@ -1288,7 +1160,6 @@ func _RunPortalComparison(selectedIndex: int) -> void:
 	var warmups: int = PATH_WARMUP_COUNT if runAll else SELECTED_PATH_WARMUP_COUNT
 	var repeats: int = PATH_MEASUREMENT_COUNT if runAll else SELECTED_PATH_MEASUREMENT_COUNT
 	_isRunning = true
-	_runBenchmarkButton.hide()
 	_benchmarkUI.SetRunning(true, NavigationBenchmarkUI.Mode.PORTAL_COMPARISON, runAll)
 	_report = {
 		"schema": PORTAL_COMPARISON.REVISION,
@@ -1373,59 +1244,3 @@ func _RunPortalComparison(selectedIndex: int) -> void:
 	_benchmarkUI.SetRunning(false, NavigationBenchmarkUI.Mode.PORTAL_COMPARISON, false)
 	_SaveReport()
 	_isRunning = false
-
-
-func _SavePortalSummary(path: String) -> void:
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		push_error("Portal 비교 요약 저장 실패")
-		return
-	var lines: PackedStringArray = [
-		"# Portal 연결 비교",
-		"",
-		"- 커밋: " + str(_report["source"]["commit"]),
-		"- 구현: " + PORTAL_COMPARISON.REVISION,
-		"- 실행 범위: " + str(_report["selection"]),
-		"- 캐시: " + str(_report["cache_condition"]),
-		"- 비교 조건: " + str(_report["comparison"]),
-		"- 측정 범위: " + str(_report["scope"]),
-		"",
-	]
-	for result: Dictionary in _report["cases"]:
-		lines.append("## " + str(result["label"]))
-		lines.append("")
-		if not str(result["error"]).is_empty():
-			lines.append("측정 중단: " + str(result["error"]))
-			continue
-		lines.append("준비 %d쌍 / 측정 %d쌍" % [result["warmup_pairs"], result["measurement_pairs"]])
-		lines.append("")
-		lines.append("| 방식 | 평균 ms | P50 | P95 | 최대 | 평균 확장 수 |")
-		lines.append("|---|---:|---:|---:|---:|---:|")
-		for variant: String in ["batch", "individual"]:
-			var stats: Dictionary = result[variant]
-			lines.append(
-				"| %s | %.3f | %.3f | %.3f | %.3f | %.2f |"
-				% [
-					str(_report["variants"][variant]),
-					float(stats["average_usec"]) / 1000.0,
-					float(stats["p50_usec"]) / 1000.0,
-					float(stats["p95_usec"]) / 1000.0,
-					float(stats["max_usec"]) / 1000.0,
-					stats["expanded_avg"],
-				]
-			)
-		lines.append("")
-		lines.append(
-			"집합 일치 %d/%d쌍 / 양쪽 유효 %d/%d쌍 / 길이 증가 %d건 / 최대 증가 %.4fpx"
-			% [
-				result["same_set_pairs"],
-				result["measurement_pairs"],
-				result["valid_pairs"],
-				result["measurement_pairs"],
-				result["longer_paths"],
-				result["max_length_increase"],
-			]
-		)
-		lines.append("")
-	file.store_string("\n".join(lines))
-	file.close()
