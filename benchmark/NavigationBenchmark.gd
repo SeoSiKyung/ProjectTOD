@@ -25,7 +25,7 @@ const MOVEMENT_SPEED: float = 96.0
 @export var comparePortalHeuristicWeights: bool = true
 @export var sourceCommitOverride: String = ""
 
-const DIAGNOSTICS_REVISION: String = "comparison-observability-v2"
+const DIAGNOSTICS_REVISION: String = "comparison-observability-v3"
 const DIAGNOSTIC_STALL_TICKS: int = 30
 const DIAGNOSTIC_STALL_DISTANCE_SQUARED: float = 0.000001
 var _report: Dictionary = { }
@@ -44,9 +44,9 @@ class BenchmarkRunResult:
 	var pathSize: int = 0
 	var pathLengthTotal: int = 0
 	var emptyPathCount: int = 0
-	var validatedPathCount: int = 0
-	var invalidPathCount: int = 0
-	var invalidSegmentCount: int = 0
+	var staticCheckedPathCount: int = 0
+	var initialBlockedPathCount: int = 0
+	var initialBlockedSegmentCount: int = 0
 	var overlapCellCount: int = 0
 	var comparedCellCount: int = 0
 	var metrics: Dictionary = { }
@@ -205,9 +205,9 @@ func _RunPathBenchmark(
 				"path_size": result.pathSize,
 				"path_length_total": result.pathLengthTotal,
 				"empty_path_count": result.emptyPathCount,
-				"validated_path_count": result.validatedPathCount,
-				"invalid_path_count": result.invalidPathCount,
-				"invalid_segment_count": result.invalidSegmentCount,
+				"static_checked_path_count": result.staticCheckedPathCount,
+				"initial_blocked_path_count": result.initialBlockedPathCount,
+				"initial_blocked_segment_count": result.initialBlockedSegmentCount,
 				"overlap_cell_count": result.overlapCellCount,
 				"compared_cell_count": result.comparedCellCount,
 				"navigation_metrics_nested": result.metrics,
@@ -331,7 +331,7 @@ func _ValidateBenchmarkCase(benchmarkCase: NavigationBenchmarkCase) -> bool:
 
 func _RunPathFinding(
 	benchmarkCase: NavigationBenchmarkCase,
-	validatePathSegments: bool,
+	measureInitialStaticBlockage: bool,
 ) -> BenchmarkRunResult:
 	# 동일 요청 반복으로 Anchor Connection Cache가 측정값을 가리지 않도록 요청 캐시만 제거한다.
 	_navigationService.ClearBenchmarkRequestCache()
@@ -404,8 +404,8 @@ func _RunPathFinding(
 
 	_navigationService.ClearProfileMetrics()
 
-	if validatePathSegments:
-		_ValidatePathSegments(
+	if measureInitialStaticBlockage:
+		_MeasureInitialStaticBlockage(
 			validationStarts,
 			validationPaths,
 			benchmarkCase.halfSize,
@@ -419,7 +419,7 @@ func _RunPathFinding(
 	return result
 
 
-func _ValidatePathSegments(
+func _MeasureInitialStaticBlockage(
 	starts: PackedVector2Array,
 	paths: Array[PackedVector2Array],
 	halfSize: int,
@@ -431,17 +431,17 @@ func _ValidatePathSegments(
 		if path.is_empty():
 			continue
 
-		result.validatedPathCount += 1
-		var pathValid: bool = true
+		result.staticCheckedPathCount += 1
+		var pathClear: bool = true
 		var previous: Vector2 = starts[index]
 		for waypoint: Vector2 in path:
 			if not _navigationService.SegmentClear(previous, waypoint, halfSize):
-				result.invalidSegmentCount += 1
-				pathValid = false
+				result.initialBlockedSegmentCount += 1
+				pathClear = false
 			previous = waypoint
 
-		if not pathValid:
-			result.invalidPathCount += 1
+		if not pathClear:
+			result.initialBlockedPathCount += 1
 
 
 func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
@@ -776,9 +776,9 @@ func _ShowPathResult(
 
 	var pathSizeTotal: int = 0
 	var emptyPathCount: int = 0
-	var validatedPathCount: int = 0
-	var invalidPathCount: int = 0
-	var invalidSegmentCount: int = 0
+	var staticCheckedPathCount: int = 0
+	var initialBlockedPathCount: int = 0
+	var initialBlockedSegmentCount: int = 0
 	var overlapCellTotal: int = 0
 	var comparedCellTotal: int = 0
 	var pathLengthTotal: int = 0
@@ -787,9 +787,9 @@ func _ShowPathResult(
 		elapsedTimes.append(result.elapsedUsec)
 		pathSizeTotal += result.pathSize
 		emptyPathCount += result.emptyPathCount
-		validatedPathCount += result.validatedPathCount
-		invalidPathCount += result.invalidPathCount
-		invalidSegmentCount += result.invalidSegmentCount
+		staticCheckedPathCount += result.staticCheckedPathCount
+		initialBlockedPathCount += result.initialBlockedPathCount
+		initialBlockedSegmentCount += result.initialBlockedSegmentCount
 		overlapCellTotal += result.overlapCellCount
 		comparedCellTotal += result.comparedCellCount
 		pathLengthTotal += result.pathLengthTotal
@@ -806,9 +806,9 @@ func _ShowPathResult(
 		metricTotals,
 		pathSizeTotal,
 		emptyPathCount,
-		validatedPathCount,
-		invalidPathCount,
-		invalidSegmentCount,
+		staticCheckedPathCount,
+		initialBlockedPathCount,
+		initialBlockedSegmentCount,
 		overlapCellTotal,
 		comparedCellTotal,
 		pathLengthTotal,
@@ -1098,8 +1098,8 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 			"meaning": "관측 전용입니다. 이 관측 자체가 이동이나 재탐색을 변경하지 않습니다. 실행당 유닛별 첫 정체를 기록하며 작은 진동은 최종 미완료 상태에만 나타날 수 있습니다.",
 		},
 		"timing_notes": [
-			"Path segment validation runs after timed path generation with navigation profiling detached, so it is not included in elapsed_usec or navigation phase metrics.",
-			"Path validation checks static segment clearance only. Empty paths are counted separately and target-policy correctness is not inferred from this check.",
+			"Initial static-blockage scanning runs after timed path generation with navigation profiling detached, so it is not included in elapsed_usec or navigation phase metrics.",
+			"Initial static-blockage scanning checks adjacent segments of the raw generated path only. A blocked raw segment is not the same as final movement failure because shortcutting, avoidance, and runtime path recovery when available can change execution. Empty paths are counted separately.",
 			"격자 내부 시간은 준비·초기화, 경로 복원을 제외한 탐색, 경로 복원으로 나뉩니다. 모두 grid_batch_usec 안에 포함되므로 상위 시간에 더하지 않습니다.",
 			"추가 타이머는 일괄 탐색 경계와 경로 복원에서만 읽습니다. 탐색 시간에는 반복문 관리와 관측 비용이 포함됩니다. 외부 격자 시간에는 호출·반환과 마지막 계측 대입도 포함됩니다.",
 			"최대 지연 일괄 탐색의 내부 시간은 동일한 호출을 나타냅니다. 별도로 고른 최대 격자 호출이 아닙니다. 기존 상세 계측 옵션을 사용합니다.",

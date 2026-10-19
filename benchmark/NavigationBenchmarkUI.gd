@@ -202,9 +202,9 @@ func ShowPathResult(
 	metrics: Dictionary,
 	pathSizeTotal: int,
 	emptyPathCount: int,
-	validatedPathCount: int,
-	invalidPathCount: int,
-	invalidSegmentCount: int,
+	staticCheckedPathCount: int,
+	initialBlockedPathCount: int,
+	initialBlockedSegmentCount: int,
 	overlapCellTotal: int,
 	comparedCellTotal: int,
 	pathLengthTotal: int,
@@ -219,9 +219,9 @@ func ShowPathResult(
 		"metrics": metrics.duplicate(),
 		"pathSizeTotal": pathSizeTotal,
 		"emptyPathCount": emptyPathCount,
-		"validatedPathCount": validatedPathCount,
-		"invalidPathCount": invalidPathCount,
-		"invalidSegmentCount": invalidSegmentCount,
+		"staticCheckedPathCount": staticCheckedPathCount,
+		"initialBlockedPathCount": initialBlockedPathCount,
+		"initialBlockedSegmentCount": initialBlockedSegmentCount,
 		"overlapCellTotal": overlapCellTotal,
 		"comparedCellTotal": comparedCellTotal,
 		"pathLengthTotal": pathLengthTotal,
@@ -363,7 +363,7 @@ func _ShowSelectedPathResult() -> void:
 	)
 	_emptyPathsValue.text = "%d / %d" % [
 		int(result["emptyPathCount"]),
-		int(result["invalidPathCount"]),
+		int(result["initialBlockedPathCount"]),
 	]
 	var overlapCellTotal: int = int(result["overlapCellTotal"])
 	var comparedCellTotal: int = int(result["comparedCellTotal"])
@@ -424,17 +424,17 @@ func _ShowSelectedPathResult() -> void:
 	)
 	_UpdateGroupInputResult(result)
 
-	var invalidPathCount: int = int(result["invalidPathCount"])
-	var invalidSegmentCount: int = int(result["invalidSegmentCount"])
-	var validatedPathCount: int = int(result["validatedPathCount"])
-	if invalidPathCount > 0:
-		_statusLabel.text = "측정 종료 — 경로 %d개 검사 / 오류 경로 %d개 / 오류 구간 %d개" % [
-			validatedPathCount,
-			invalidPathCount,
-			invalidSegmentCount,
+	var initialBlockedPathCount: int = int(result["initialBlockedPathCount"])
+	var initialBlockedSegmentCount: int = int(result["initialBlockedSegmentCount"])
+	var staticCheckedPathCount: int = int(result["staticCheckedPathCount"])
+	if initialBlockedPathCount > 0:
+		_statusLabel.text = "측정 종료 — 원시 경로 %d개 정적 검사 / 초기 막힘 %d개 / 막힌 인접 구간 %d개" % [
+			staticCheckedPathCount,
+			initialBlockedPathCount,
+			initialBlockedSegmentCount,
 		]
 	else:
-		_statusLabel.text = "측정 종료 — 경로 %d개 구간 검사 / 오류 0개" % validatedPathCount
+		_statusLabel.text = "측정 종료 — 원시 경로 %d개 정적 검사 / 초기 막힘 0개" % staticCheckedPathCount
 
 
 func _ShowSelectedMovementResult() -> void:
@@ -840,7 +840,7 @@ func _ApplyPathBuildLabels() -> void:
 	_SetLabelText(_executionVBox, "Heading", "실행 시간")
 	_SetLabelText(_resultVBox, "Heading", "경로 생성 결과")
 	_SetLabelText(_resultGrid, "PathSizeLabel", "평균 경유점 수")
-	_SetLabelText(_resultGrid, "EmptyLabel", "빈 경로 / 구간 오류")
+	_SetLabelText(_resultGrid, "EmptyLabel", "빈 경로 / 초기 막힘")
 	_SetLabelText(_resultGrid, "OverlapLabel", "경로 중복")
 	_SetLabelText(_resultGrid, "PathLengthLabel", "평균 총 길이")
 
