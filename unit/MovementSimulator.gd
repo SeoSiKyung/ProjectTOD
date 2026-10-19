@@ -12,6 +12,18 @@ var _collisionResolver: CollisionResolver
 var _arrivalResolver: MovementArrivalResolver
 var _profileMetrics: MovementProfileMetrics
 
+var capturePathRebuildTiming: bool = false
+var lastPathRebuildMetrics: NavigationProfileMetrics
+var lastPathRebuildUsec: int = 0
+var lastPathRebuildUnitId: int = -1
+var lastPathRebuildCommandId: int = -1
+var lastPathRebuildRevision: int = -1
+var lastPathRebuildStart: Vector2
+var lastPathRebuildTarget: Vector2
+var lastPathRebuildHalfSize: int = 0
+var lastPathRebuildSucceeded: bool = false
+var lastPathRebuildWaypointCount: int = 0
+
 # Benchmark에서만 마지막 틱을 보관한다. 유닛별 매 틱 로그를 만들지 않는다.
 var captureDiagnostics: bool = false
 var _lastDiagnosticTick: CollisionGroup
@@ -152,6 +164,8 @@ func TeleportUnit(unitId: int, position: Vector2, snapshot: StageSnapshot) -> bo
 
 
 func SimulateTick(snapshot: StageSnapshot, fixedDelta: float) -> bool:
+	if capturePathRebuildTiming:
+		lastPathRebuildMetrics = null
 	if captureDiagnostics:
 		_lastDiagnosticTick = null
 		_lastDiagnosticTickCommitted = false
@@ -313,18 +327,40 @@ func _RecoverInvalidPath() -> void:
 			continue
 		if _profileMetrics != null:
 			_profileMetrics.pathRebuildRequests += 1
+		var previousMetrics: NavigationProfileMetrics
+		if capturePathRebuildTiming:
+			previousMetrics = _navigationService.GetProfileMetrics()
+			lastPathRebuildMetrics = NavigationProfileMetrics.new()
+			lastPathRebuildMetrics.capturePortalBatchDetails = true
+			lastPathRebuildMetrics.portalBatchTick = Engine.get_physics_frames()
+			lastPathRebuildUnitId = agent.unitId
+			lastPathRebuildCommandId = agent.moveCommandId
+			lastPathRebuildRevision = agent.movementRevision
+			lastPathRebuildStart = agent.position
+			lastPathRebuildTarget = agent.moveTarget
+			lastPathRebuildHalfSize = agent.halfSize
+			_navigationService.SetProfileMetrics(lastPathRebuildMetrics)
+		var rebuildStart: int = Time.get_ticks_usec() if capturePathRebuildTiming else 0
 		var path: PackedVector2Array = _navigationService.RebuildPath(
 			agent.position,
 			agent.moveTarget,
 			agent.halfSize,
 		)
+		if capturePathRebuildTiming:
+			lastPathRebuildUsec = Time.get_ticks_usec() - rebuildStart
+			_navigationService.SetProfileMetrics(previousMetrics)
 		if (
 			not path.is_empty()
 			and path[path.size() - 1].distance_squared_to(agent.moveTarget) > Math.EPSILON
 		):
 			path = PackedVector2Array()
 		agent.ApplyRebuiltPath(path)
+		if capturePathRebuildTiming:
+			lastPathRebuildWaypointCount = path.size()
+			lastPathRebuildSucceeded = true
 		if path.is_empty() or agent.NeedsPathRebuild():
+			if capturePathRebuildTiming:
+				lastPathRebuildSucceeded = false
 			if not path.is_empty():
 				agent.ApplyRebuiltPath(PackedVector2Array())
 			if _profileMetrics != null:

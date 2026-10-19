@@ -1,5 +1,5 @@
 class_name NavigationPathHeap
-extends Heap.IndexedIntHeap
+extends IntHeap
 
 var _state: NavigationPathSearchState
 
@@ -9,10 +9,7 @@ func _init(state: NavigationPathSearchState) -> void:
 	super(state.heapPosition)
 
 
-func _Less(a: Variant, b: Variant) -> bool:
-	var aIndex: int = int(a)
-	var bIndex: int = int(b)
-
+func _Less(aIndex: int, bIndex: int) -> bool:
 	if absf(_state.f[aIndex] - _state.f[bIndex]) > Math.EPSILON:
 		return _state.f[aIndex] < _state.f[bIndex]
 

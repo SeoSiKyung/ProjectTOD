@@ -82,7 +82,7 @@ class RouteSearchState:
 		touched.append(index)
 
 
-class RouteHeap extends Heap.IndexedIntHeap:
+class RouteHeap extends IntHeap:
 	var _state: RouteSearchState
 
 
@@ -91,9 +91,7 @@ class RouteHeap extends Heap.IndexedIntHeap:
 		super(state.heapPosition)
 
 
-	func _Less(a: Variant, b: Variant) -> bool:
-		var aIndex: int = int(a)
-		var bIndex: int = int(b)
+	func _Less(aIndex: int, bIndex: int) -> bool:
 		if absf(_state.f[aIndex] - _state.f[bIndex]) > Math.EPSILON:
 			return _state.f[aIndex] < _state.f[bIndex]
 
@@ -1106,7 +1104,7 @@ func _FindPortalRoute(
 	var heap: RouteHeap = RouteHeap.new(state)
 	heap.PushOrUpdate(startIndex)
 	while not heap.IsEmpty():
-		var currentIndex: int = int(heap.Pop())
+		var currentIndex: int = heap.Pop()
 		if state.closed[currentIndex] != 0:
 			continue
 

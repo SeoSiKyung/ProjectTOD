@@ -1,5 +1,7 @@
 extends Node2D
 
+const PORTAL_COMPARISON = preload("res://benchmark/NavigationPortalComparison.gd")
+
 const PATH_WARMUP_COUNT: int = 3
 const PATH_MEASUREMENT_COUNT: int = 25
 
@@ -20,6 +22,7 @@ const MOVEMENT_SPEED: float = 96.0
 @export var enablePathRebuildRecovery: bool = true
 @export var enableStaticQueryDetails: bool = true
 @export var enablePortalBatchDetails: bool = true
+@export var comparePortalHeuristicWeights: bool = true
 @export var sourceCommitOverride: String = ""
 
 const DIAGNOSTICS_REVISION: String = "observability-v1"
@@ -32,7 +35,6 @@ var _navigationService: NavigationService
 var _isRunning: bool = false
 
 @onready var _benchmarkUI: NavigationBenchmarkUI = $CanvasLayer/BenchmarkUI
-@onready var _runBenchmarkButton: Button = $CanvasLayer/RunBenchmarkButton
 
 var _cases: Array[NavigationBenchmarkCase] = NavigationBenchmarkCase.CreateCases()
 
@@ -84,26 +86,11 @@ func _ready() -> void:
 	_navigationService.navigationData = navigationData
 	_navigationService.Ready()
 
+	_benchmarkUI.SetImplementationLabel("portal-weighted-v1")
 	_benchmarkUI.SetCases(_cases)
 	_benchmarkUI.RunAllRequested.connect(_RunAllBenchmarks)
 	_benchmarkUI.RunSelectedRequested.connect(_RunSelectedBenchmark)
-	_runBenchmarkButton.pressed.connect(_OnRunBenchmarkButtonPressed)
-
-
-func _OnRunBenchmarkButtonPressed() -> void:
-	_RunAllBenchmarks(_benchmarkUI.GetSelectedMode())
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			var pos: Vector2 = get_global_mouse_position()
-			print(
-				"Position: ",
-				pos,
-				" / CanPlace(16): ",
-				_navigationService.CanPlaceStatic(pos, 16),
-			)
+	_benchmarkUI.show()
 
 
 func _draw() -> void:
@@ -126,12 +113,14 @@ func _draw() -> void:
 
 
 func _RunAllBenchmarks(mode: int) -> void:
+	if mode == NavigationBenchmarkUI.Mode.PORTAL_COMPARISON:
+		await _RunPortalComparison(-1)
+		return
 	if _isRunning:
 		return
 
 	_isRunning = true
 	_BeginReport(mode, true)
-	_runBenchmarkButton.hide()
 	_benchmarkUI.SetRunning(true, mode)
 
 	await get_tree().process_frame
@@ -151,6 +140,9 @@ func _RunAllBenchmarks(mode: int) -> void:
 
 
 func _RunSelectedBenchmark(mode: int, caseIndex: int) -> void:
+	if mode == NavigationBenchmarkUI.Mode.PORTAL_COMPARISON:
+		await _RunPortalComparison(caseIndex)
+		return
 	if _isRunning:
 		return
 
@@ -159,7 +151,6 @@ func _RunSelectedBenchmark(mode: int, caseIndex: int) -> void:
 
 	_isRunning = true
 	_BeginReport(mode, false)
-	_runBenchmarkButton.hide()
 	_benchmarkUI.SetRunning(true, mode, false)
 
 	await get_tree().process_frame
@@ -978,17 +969,35 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
-		"change_revision": "arrival-goal-entry-v1",
-		"display_revision": "movement-display-v1",
+		"change_revision": "portal-weighted-v1",
+		"portal_path_strategy": "목표별 개별 탐색. 복수 목표와 단일 목표 가중치 1.5. 기존 탐색 경계 유지. 경로 길이 증가를 허용하여 탐색량 감소.",
+		"navigation_source_sha256": {
+			"NavigationService.gd": FileAccess.get_sha256(
+				"res://scripts/navigation/NavigationService.gd"
+			),
+			"NavigationGridPathfinder.gd": FileAccess.get_sha256(
+				"res://scripts/navigation/NavigationGridPathfinder.gd"
+			),
+		},
+		"heap_implementation": "IntHeap / 정수 배열 / 빈자리 이동 정렬 / 양방향 갱신",
+		"heap_comparison": "f → 회전 비용 → h → 인덱스. 기존 EPSILON 비교 유지",
+		"heap_source_sha256": {
+			"IntHeap.gd": FileAccess.get_sha256("res://scripts/common/dataStructures/IntHeap.gd"),
+			"NavigationPathHeap.gd": FileAccess.get_sha256(
+				"res://scripts/navigation/NavigationPathHeap.gd"
+			),
+		},
+		"report_language": "ko",
+		"display_revision": "movement-display-ko-v2",
 		"grid_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
 		"portal_batch_details_enabled": enableDiagnostics and enablePortalBatchDetails,
 		"static_row_pruning_enabled": true,
 		"static_query_details_enabled": enableDiagnostics and enableStaticQueryDetails,
 		"path_rebuild_recovery_enabled": enablePathRebuildRecovery,
 		"reached_waypoint_advance_enabled": true,
-		"rebuild_policy": "One individual fallback per unit per move command; at most one new request per tick; existing Agent target retained; no target correction.",
+		"rebuild_policy": "이동 명령당 유닛별 개별 재탐색 1회, 틱당 새 요청 최대 1회. 기존 Agent 목표를 유지하며 목표 보정은 하지 않습니다.",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "Based on delivered grid-h-reuse-v1 and movement-display-v1. arrival-goal-entry-v1 permits a collision-safe short step only when it brings the move target into the unit footprint. Git HEAD does not identify uncommitted changes. Record any other local changes separately.",
+		"working_tree_note": "changes(4).diff 기준. 검증한 목표별 개별 탐색을 Portal 연결의 기본 방식으로 적용했습니다. Git HEAD만으로 미커밋 변경을 식별할 수 없으므로 길찾기 소스 해시를 함께 기록합니다.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
@@ -1002,36 +1011,36 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 		"os": OS.get_name(),
 		"debug_build": OS.is_debug_build(),
 		"processor": OS.get_processor_name(),
-		"cache_condition": "Exact-position request cache cleared before EVERY warmup and measured run; baked graph, footprint data and lazy topology cache retained. Intra-run hits remain possible. Initialization is outside timed runs.",
+		"cache_condition": "모든 준비 실행과 측정 실행 직전에 정확한 위치 기반 요청 캐시를 초기화합니다. 사전 계산 그래프·유닛 크기 데이터·지연 생성 연결 캐시는 유지합니다. 한 실행 안의 캐시 적중은 가능하며 초기화 시간은 측정에서 제외합니다.",
 		"movement_fixed_delta": MOVEMENT_FIXED_DELTA,
 		"movement_speed_per_tick": MOVEMENT_SPEED,
 		"movement_max_ticks": MOVEMENT_MAX_TICKS,
 		"stall_observation": {
 			"ticks": DIAGNOSTIC_STALL_TICKS,
 			"max_displacement_squared_per_tick": DIAGNOSTIC_STALL_DISTANCE_SQUARED,
-			"meaning": "Observation only; no repath or movement change. First event per unit per run. Small oscillations may only appear in final unfinished states.",
+			"meaning": "관측 전용입니다. 이 관측 자체가 이동이나 재탐색을 변경하지 않습니다. 실행당 유닛별 첫 정체를 기록하며 작은 진동은 최종 미완료 상태에만 나타날 수 있습니다.",
 		},
 		"timing_notes": [
-			"grid_internal partitions Grid preparation/initialization, the search loop excluding reconstruction, and _ReconstructPath calls. These are NESTED inside grid_batch_usec; do not add them to parent Batch/rebuild/tick times.",
-			"Only batch boundaries and goal reconstruction calls read extra timers. Search-exclusive time includes loop bookkeeping/observation overhead. The outer Grid timer includes call/return and final timing assignments not included in internal intervals.",
-			"worst_batch.grid_internal describes that SAME outer worst Batch; it is not an independently selected worst Grid call. Existing Portal Batch Details toggle controls both levels; no new cases or warmup/cache policy changes.",
-			"Portal Batch details partition preparation (including scratch reset), Grid FillPathsToTargets, and finalization through anchor endpoint checks. Timers/collection after finalization are excluded; do not add details to the existing inclusive Batch/Navigation/rebuild times.",
-			"grid_batch_usec includes Grid setup, search and path reconstruction INSIDE FillPathsToTargets. It is not pure heap/search-loop time. The worst batch is independent of the worst tick and is tagged with its movement tick (0 for command/Path Build).",
-			"Portal Batch detail timings are optional observation overhead; no search, heap, cache, target, movement or retry behavior changed in this probe.",
-			"Static row pruning narrows per-row blocked-cell candidates; the final intersection predicate is unchanged. broad_blocked_count still describes the ORIGINAL full rectangle; intersection_checks counts the actual pruned tests.",
-			"Static query detail endpoint_checks_usec and sweep_usec are disjoint INTERNAL intervals, not additional time to add to Navigation/command/tick metrics. Sweep includes recovery for an invalid start. Bookkeeping is excluded between and after the intervals.",
-			"Static query details count ALL NavigationStaticQuery.SegmentClear calls, including internal direct calls and FurthestClearPoint probes; service segment_clear_query_usec/calls only cover the NavigationService wrapper. Their scopes differ.",
-			"broad_blocked_count is the full bounding-rectangle candidate count (prefix sum), NOT the number tested. intersection_checks counts actual exact tests up to early exit. worst_query is one maximum per run and phase; tick 0 means command processing or Path Build.",
-			"Static query details add timer/row bookkeeping overhead. This probe is for workload attribution and movement outcomes, not a speedup claim against detail-OFF timings. No cache/warmup/movement policy changed.",
-			"path_rebuild_usec is a separate Movement phase including calculation and replacement. Its nested Navigation metrics are not additional exclusive time.",
-			"Recovery OFF still uses reached-waypoint advancement; it does NOT restore the original PathFollower. Compare full recovery ON with the recorded original baseline for the combined change.",
-			"All times are CPU elapsed microseconds, not simulated travel time or rendered frame time.",
-			"command_exclusive_phases partition command_process_usec. Group/validation/bookkeeping/probe overhead is the residual.",
-			"Navigation metrics and movement metrics are NESTED views; do not add them to the exclusive phases.",
-			"Tick samples time SimulateTick only; movement_loop_usec also includes loop and diagnostic snapshot overhead.",
-			"Worst-tick phases partition that tick only. Capture/commit include path-follow work; collision can also query steering. They are not pure PathFollower timings.",
-			"Agent state and waypoint are AFTER the tick; desired_delta is the stored path request from that tick, before collision adjustment. actual_delta is committed displacement.",
-			"Warmups are executed but not included in the runs array. Current warmup and cache policy are unchanged.",
+			"격자 내부 시간은 준비·초기화, 경로 복원을 제외한 탐색, 경로 복원으로 나뉩니다. 모두 grid_batch_usec 안에 포함되므로 상위 시간에 더하지 않습니다.",
+			"추가 타이머는 일괄 탐색 경계와 경로 복원에서만 읽습니다. 탐색 시간에는 반복문 관리와 관측 비용이 포함됩니다. 외부 격자 시간에는 호출·반환과 마지막 계측 대입도 포함됩니다.",
+			"최대 지연 일괄 탐색의 내부 시간은 동일한 호출을 나타냅니다. 별도로 고른 최대 격자 호출이 아닙니다. 기존 상세 계측 옵션을 사용합니다.",
+			"Portal 일괄 탐색은 준비, 격자 탐색, 연결점 검사까지의 마무리로 나눕니다. 마무리 뒤의 계측 수집 비용은 제외합니다. 내부 시간을 상위 시간에 중복 합산하지 않습니다.",
+			"grid_batch_usec는 준비·탐색·경로 복원을 포함합니다. 순수 힙 시간은 아닙니다. 최대 일괄 탐색과 최대 지연 틱은 따로 선택되며 틱 0은 명령 처리 또는 경로 생성입니다.",
+			"Portal 상세 계측에는 관측 비용이 있습니다. 이번 힙 변경의 성능 비교는 동일한 계측 옵션에서 수행해야 합니다.",
+			"정적 검사에서 행별 장애물 후보만 줄이며 최종 교차 판정은 유지합니다. broad_blocked_count는 원래 사각형 전체 후보 수, intersection_checks는 실제 검사 수입니다.",
+			"정적 검사의 끝점 검사와 훑기 시간은 내부의 서로 겹치지 않는 구간입니다. 훑기에는 잘못된 시작점 복구가 포함됩니다. 구간 사이와 이후의 관리 비용은 제외합니다.",
+			"정적 상세 계측은 내부 직접 호출과 가장 먼 통과점 탐색을 포함한 모든 구간 검사를 셉니다. 서비스 래퍼의 호출 수·시간과 측정 범위가 다릅니다.",
+			"사각형 후보 수는 실제 검사 수가 아닙니다. 실제 검사는 조기 종료까지 집계합니다. 최대 지연 검사는 실행·단계별 1개이고 틱 0은 명령 처리 또는 경로 생성입니다.",
+			"정적 상세 계측에는 타이머와 행 관리 비용이 있습니다. 상세 계측을 끈 결과와 직접 속도 개선율을 계산하지 않습니다. 캐시·준비 실행·이동 정책은 유지합니다.",
+			"재탐색 시간은 계산과 경로 교체를 포함하는 이동 단계입니다. 그 내부 길찾기 시간은 추가 시간이 아닙니다.",
+			"복구를 꺼도 도달한 경유점을 넘기는 처리는 유지됩니다. 복구 끄기는 최초 구현으로 되돌리는 기능이 아닙니다.",
+			"시간 단위는 CPU 경과 마이크로초입니다. 시뮬레이션 이동 시간이나 렌더링 프레임 시간이 아닙니다.",
+			"명령 처리 구간은 전체 명령 시간을 나눕니다. 그룹·유효성 검사·관리·계측 비용은 나머지 구간에 포함됩니다.",
+			"길찾기와 이동 상세 시간은 상위 구간에 포함된 값이므로 서로 겹치지 않는 큰 구간에 다시 더하지 않습니다.",
+			"틱 시간은 SimulateTick만 측정합니다. 전체 이동 반복 시간에는 반복문과 진단 상태 수집도 포함됩니다.",
+			"최대 지연 틱의 세부 시간은 그 틱 하나만 나눕니다. 상태 수집·위치 반영에는 경로 추종이 포함되고 충돌 처리에서도 이동 방향을 조회할 수 있습니다.",
+			"유닛 상태와 경유점은 틱 처리 후 값입니다. 희망 이동량은 충돌 조정 전 요청이고 실제 이동량은 최종 반영된 변위입니다.",
+			"준비 실행은 수행하지만 측정 결과 배열에는 넣지 않습니다. 기존 준비 실행 횟수와 캐시 조건은 유지합니다.",
 		],
 		"cases": [],
 	}
@@ -1057,6 +1066,7 @@ func _AppendCaseReport(
 	cases.append(
 		{
 			"case_name": benchmarkCase.caseName,
+			"case_display_name": NavigationBenchmarkUI.GetCaseDisplayName(benchmarkCase.caseName),
 			"warmup_count": warmupCount,
 			"measurement_count": runs.size(),
 			"half_size": benchmarkCase.halfSize,
@@ -1112,7 +1122,7 @@ func _SaveReport() -> void:
 		ProjectSettings.globalize_path(directory)
 	)
 	if error != OK:
-		push_error("Failed to create benchmark report directory: %s" % error_string(error))
+		push_error("보고서 폴더 생성 실패: %s" % error_string(error))
 		return
 	var timestamp: String = str(_report["timestamp"]).replace(":", "").replace("-", "")
 	var reportPath: String = "%s/%s_%s_%d.json" % [
@@ -1123,17 +1133,114 @@ func _SaveReport() -> void:
 	]
 	var file: FileAccess = FileAccess.open(reportPath, FileAccess.WRITE)
 	if file == null:
-		push_error(
-			"Failed to save benchmark report: %s" % error_string(FileAccess.get_open_error())
-		)
+		push_error("보고서 저장 실패: %s" % error_string(FileAccess.get_open_error()))
 		return
 	file.store_string(JSON.stringify(_report, "\t"))
 	file.flush()
 	error = file.get_error()
 	file.close()
 	if error != OK:
-		push_error("Failed to write benchmark report: %s" % error_string(error))
+		push_error("보고서 기록 실패: %s" % error_string(error))
 		return
-	print("Benchmark report saved: ", ProjectSettings.globalize_path(reportPath))
+	print("벤치마크 JSON 저장: ", ProjectSettings.globalize_path(reportPath))
 
 #endregion
+
+
+func _RunPortalComparison(selectedIndex: int) -> void:
+	if _isRunning:
+		return
+	if not _navigationService.IsReady():
+		_benchmarkUI.SetPortalStatus("NavigationData 초기화를 확인하세요")
+		return
+	var comparisonCases: Array[Dictionary] = PORTAL_COMPARISON.CreateCases()
+	if selectedIndex >= comparisonCases.size() or selectedIndex < -1:
+		return
+	var runAll: bool = selectedIndex == -1
+	var warmups: int = PATH_WARMUP_COUNT if runAll else SELECTED_PATH_WARMUP_COUNT
+	var repeats: int = PATH_MEASUREMENT_COUNT if runAll else SELECTED_PATH_MEASUREMENT_COUNT
+	_isRunning = true
+	_benchmarkUI.SetRunning(true, NavigationBenchmarkUI.Mode.PORTAL_COMPARISON, runAll)
+	_report = {
+		"schema": PORTAL_COMPARISON.REVISION,
+		"change_revision": PORTAL_COMPARISON.REVISION,
+		"source": _ReadSourceCommit(),
+		"timestamp": Time.get_datetime_string_from_system(),
+		"mode": "PortalComparison",
+		"selection": "Run All" if runAll else "Run Selected",
+		"warmup_pairs": warmups,
+		"measurement_pairs": repeats,
+		"expected_case_count": comparisonCases.size() if runAll else 1,
+		"navigation_data": navigationData.resource_path,
+		"navigation_data_sha256": FileAccess.get_sha256(navigationData.resource_path),
+		"engine": Engine.get_version_info(),
+		"os": OS.get_name(),
+		"processor": OS.get_processor_name(),
+		"debug_build": OS.is_debug_build(),
+		"region": 0,
+		"half_size": 16,
+		"local_search_margin": _navigationService.localSearchMarginCells,
+		"anchor_cache_capacity": _navigationService.anchorConnectionCacheCapacity,
+		"cache_condition": "각 방식 직전에 요청 캐시 초기화. 사전 계산·연결 구조 유지. 검증 후에도 요청 캐시 초기화.",
+		"order": "준비 실행부터 A/B의 선행 순서를 교대로 변경",
+		"scope": "로그의 반올림 좌표에서 시작 Region 0의 연결을 재현. 전체 경로나 실제 Movement 측정은 아님.",
+		"comparison": (
+			"현재 개별 탐색 1.0 대 후보 개별 탐색 1.5. 동일 경계. 원래 단일 목표는 양쪽 1.5 유지."
+			if comparePortalHeuristicWeights
+			else "기존 Batch 대 개별 탐색. 복수 목표 양쪽 1.0, 동일 경계. 원래 단일 목표는 양쪽 1.5 유지."
+		),
+		"weight_comparison": comparePortalHeuristicWeights,
+		"variants": {
+			"batch": "현재 개별 / 복수 목표 1.0" if comparePortalHeuristicWeights else "기존 Batch",
+			"individual": "후보 개별 / 복수 목표 1.5" if comparePortalHeuristicWeights else "개별 / 복수 목표 1.0",
+		},
+		"length_tolerance_pixels": PORTAL_COMPARISON.LENGTH_TOLERANCE,
+		"profiling": { "portal_batch_details": true, "static_query_details": false },
+		"source_sha256": { },
+		"cases": [],
+	}
+	for sourcePath: String in [
+		"res://benchmark/NavigationPortalComparison.gd",
+		"res://benchmark/NavigationBenchmark.gd",
+		"res://benchmark/NavigationBenchmarkUI.gd",
+		"res://scripts/navigation/NavigationService.gd",
+		"res://scripts/navigation/NavigationGridPathfinder.gd",
+		"res://scripts/navigation/NavigationPathHeap.gd",
+		"res://scripts/common/dataStructures/IntHeap.gd",
+	]:
+		_report["source_sha256"][sourcePath] = FileAccess.get_sha256(sourcePath)
+	for caseIndex: int in range(comparisonCases.size()):
+		if not runAll and caseIndex != selectedIndex:
+			continue
+		var caseData: Dictionary = comparisonCases[caseIndex]
+		var runs: Array[Dictionary] = []
+		var error: String = ""
+		for iteration: int in range(warmups + repeats):
+			_benchmarkUI.SetPortalStatus(
+				"%s / %s %d/%d"
+				% [
+					caseData["label"],
+					"준비" if iteration < warmups else "측정",
+					iteration + 1 if iteration < warmups else iteration - warmups + 1,
+					warmups if iteration < warmups else repeats,
+				],
+			)
+			await get_tree().process_frame
+			var pair: Dictionary = PORTAL_COMPARISON.RunPair(
+				_navigationService,
+				caseData["start"],
+				iteration % 2 == 1,
+				comparePortalHeuristicWeights,
+			)
+			if pair.has("error"):
+				error = pair["error"]
+				break
+			if iteration >= warmups:
+				runs.append(pair)
+		var summary: Dictionary = PORTAL_COMPARISON.Summarize(caseData, runs, warmups, error)
+		summary["source_commit"] = _report["source"]["commit"]
+		_report["cases"].append(summary)
+		_benchmarkUI.ShowPortalResult(summary)
+	_benchmarkUI.SetRunning(false, NavigationBenchmarkUI.Mode.PORTAL_COMPARISON, false)
+	_SaveReport()
+	_isRunning = false

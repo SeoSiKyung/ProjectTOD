@@ -3,9 +3,12 @@ extends Control
 
 const BENCHMARK_SCREENSHOT = preload("res://benchmark/NavigationBenchmarkScreenshot.gd")
 
+const PORTAL_COMPARISON_RUNNER = preload("res://benchmark/NavigationPortalComparison.gd")
+
 enum Mode {
 	PATH_BUILD,
 	MOVEMENT,
+	PORTAL_COMPARISON,
 }
 
 signal RunAllRequested(mode: int)
@@ -14,6 +17,11 @@ signal RunSelectedRequested(mode: int, caseIndex: int)
 var _pathResultsByCase: Dictionary = { }
 var _movementResultsByCase: Dictionary = { }
 var _isSavingScreenshots: bool = false
+var _portalResultsByCase: Dictionary = { }
+var _standardCases: Array[NavigationBenchmarkCase] = []
+var _showingPortalCases: bool = false
+var _implementationLabel: String = ""
+var _portalResultLabel: RichTextLabel
 
 @onready var _panel: PanelContainer = $Panel
 @onready var _content: VBoxContainer = _panel.get_node("Margin/VBox")
@@ -117,9 +125,18 @@ var _isSavingScreenshots: bool = false
 
 
 func _ready() -> void:
+	_portalResultLabel = RichTextLabel.new()
+	_portalResultLabel.bbcode_enabled = true
+	_portalResultLabel.fit_content = true
+	_portalResultLabel.scroll_active = false
+	_portalResultLabel.add_theme_font_size_override("normal_font_size", 18)
+	_portalResultLabel.add_theme_font_size_override("bold_font_size", 18)
+	_content.add_child(_portalResultLabel)
+	_content.move_child(_portalResultLabel, 3)
 	_modeSelect.clear()
 	_modeSelect.add_item("경로 생성", Mode.PATH_BUILD)
 	_modeSelect.add_item("실제 이동", Mode.MOVEMENT)
+	_modeSelect.add_item("Portal 비교", Mode.PORTAL_COMPARISON)
 	_modeSelect.select(0)
 
 	_runAllButton.pressed.connect(_OnRunAllButtonPressed)
@@ -132,11 +149,13 @@ func _ready() -> void:
 
 
 func SetImplementationLabel(revision: String) -> void:
+	_implementationLabel = revision
 	var title: Label = _content.get_node("Title")
 	title.text = "길찾기 벤치마크 / " + revision
 
 
 func SetCases(cases: Array[NavigationBenchmarkCase]) -> void:
+	_standardCases = cases
 	_caseSelect.clear()
 
 	for benchmarkCase: NavigationBenchmarkCase in cases:
@@ -244,12 +263,16 @@ func _SaveAllScreenshots() -> void:
 		else _pathResultsByCase
 	)
 
+	if mode == Mode.PORTAL_COMPARISON:
+		results = _portalResultsByCase
 	if results.is_empty():
 		_statusLabel.text = "저장할 결과가 없습니다. 먼저 측정하세요"
 		return
 
 	var originalCaseIndex: int = _caseSelect.selected
 	var modeName: String = "Movement" if mode == Mode.MOVEMENT else "PathBuild"
+	if mode == Mode.PORTAL_COMPARISON:
+		modeName = "PortalComparison"
 	var directory: String = BENCHMARK_SCREENSHOT.BuildDirectory(modeName)
 	var absoluteDirectory: String = ProjectSettings.globalize_path(directory)
 	var makeDirectoryError: Error = DirAccess.make_dir_recursive_absolute(absoluteDirectory)
@@ -307,6 +330,8 @@ func _ShowSelectedResult() -> void:
 	_ApplyModeLabels(GetSelectedMode())
 
 	match GetSelectedMode():
+		Mode.PORTAL_COMPARISON:
+			_ShowSelectedPortalResult()
 		Mode.MOVEMENT:
 			_ShowSelectedMovementResult()
 		_:
@@ -719,6 +744,26 @@ func _UpdateGroupInputResult(result: Dictionary) -> void:
 
 
 func _ApplyModeLabels(mode: int) -> void:
+	var isPortal: bool = mode == Mode.PORTAL_COMPARISON
+	var title: Label = _content.get_node("Title")
+	title.text = "길찾기 벤치마크 / Portal 연결 비교" if isPortal else "길찾기 벤치마크 / " + _implementationLabel
+	if isPortal != _showingPortalCases:
+		_showingPortalCases = isPortal
+		_caseSelect.clear()
+		if isPortal:
+			for caseData: Dictionary in PORTAL_COMPARISON_RUNNER.CreateCases():
+				_caseSelect.add_item(caseData["label"])
+				_caseSelect.set_item_metadata(_caseSelect.item_count - 1, caseData["id"])
+		else:
+			for benchmarkCase: NavigationBenchmarkCase in _standardCases:
+				_caseSelect.add_item(GetCaseDisplayName(benchmarkCase.caseName))
+				_caseSelect.set_item_metadata(_caseSelect.item_count - 1, benchmarkCase.caseName)
+		if _caseSelect.item_count > 0:
+			_caseSelect.select(0)
+	for nodeName: String in ["GroupInputPanel", "SummaryRow", "DetailRow", "BottomRow", "Hint"]:
+		var section: Control = _content.get_node(nodeName) as Control
+		section.visible = not isPortal
+	_portalResultLabel.visible = isPortal
 	var isMovement: bool = mode == Mode.MOVEMENT
 	_rebuildLabel.visible = isMovement
 	_rebuildValue.visible = isMovement
@@ -816,6 +861,7 @@ func _SetLabelText(parent: Node, path: String, text: String) -> void:
 
 
 func _SetEmptyResult() -> void:
+	_portalResultLabel.text = "전체 실행: 6개 사례 비교 / 선택 실행: 현재 사례 예비 비교"
 	for label: Label in [
 		_avgValue,
 		_p50Value,
@@ -870,13 +916,17 @@ func _SetEmptyResult() -> void:
 
 
 func _ClearModeResults(mode: int) -> void:
-	if mode == Mode.MOVEMENT:
+	if mode == Mode.PORTAL_COMPARISON:
+		_portalResultsByCase.clear()
+	elif mode == Mode.MOVEMENT:
 		_movementResultsByCase.clear()
 	else:
 		_pathResultsByCase.clear()
 
 
 func _HasModeResults(mode: int) -> bool:
+	if mode == Mode.PORTAL_COMPARISON:
+		return not _portalResultsByCase.is_empty()
 	return (
 		not _movementResultsByCase.is_empty()
 		if mode == Mode.MOVEMENT
@@ -966,3 +1016,22 @@ static func GetCaseDisplayName(caseName: String) -> String:
 		"Group5_Close_RadiusOutsideEdge":
 			return "5유닛 밀집 · 반경 경계 바깥"
 	return caseName
+
+
+func SetPortalStatus(message: String) -> void:
+	_statusLabel.text = message
+
+
+func ShowPortalResult(result: Dictionary) -> void:
+	_portalResultsByCase[result["id"]] = result
+	if GetSelectedMode() == Mode.PORTAL_COMPARISON and _GetSelectedCaseName() == result["id"]:
+		_ShowSelectedPortalResult()
+
+
+func _ShowSelectedPortalResult() -> void:
+	var caseName: String = _GetSelectedCaseName()
+	if not _portalResultsByCase.has(caseName):
+		_portalResultLabel.text = "전체 실행: 6개 사례 비교 / 선택 실행: 현재 사례 예비 비교"
+		return
+	_portalResultLabel.text = PORTAL_COMPARISON_RUNNER.FormatResult(_portalResultsByCase[caseName])
+	_statusLabel.text = "Portal 연결 비교 / 실제 이동 검증은 별도"

@@ -20,6 +20,7 @@ _spawnPoints = NodePath("../SpawnPoints")
 _pools = NodePath("../Pools")
 _friendlyUnits = NodePath("../FriendlyUnits")
 navigationData = ExtResource("3_ffq3l")
+enableTimingDiagnostics = true
 
 [node name="DeploymentGridView" type="Node2D" parent="." unique_id=1390217635]
 z_index = 1

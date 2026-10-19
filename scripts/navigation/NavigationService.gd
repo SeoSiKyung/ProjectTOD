@@ -53,6 +53,8 @@ var _hierarchicalPathfinder: NavigationHierarchicalPathfinder
 var _staticQuery: NavigationStaticQuery
 
 var _benchmarkMetrics: NavigationProfileMetrics = null
+var _useIndividualPortalPaths: bool = true
+var _individualPortalHeuristicWeight: float = 1.5
 
 
 #region Public API
@@ -213,8 +215,11 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 	if footprintData == null:
 		return _FindFallbackGridPath(start, target, halfSize)
 
+	phaseStart = _ProfileBegin()
 	_regionQuery.FillRegionIds(_startRegionIds, start)
 	_regionQuery.FillRegionIds(_targetRegionIds, target)
+	if _benchmarkMetrics != null:
+		_benchmarkMetrics.regionLookupUsec += Time.get_ticks_usec() - phaseStart
 	if _startRegionIds.is_empty() or _targetRegionIds.is_empty():
 		return _FindFallbackGridPath(start, target, halfSize)
 
@@ -226,6 +231,7 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 		and _startRegionIds[0] == _targetRegionIds[0]
 	)
 
+	phaseStart = _ProfileBegin()
 	if isSingleSharedRegion:
 		var localPath: PackedVector2Array = _FindPathInsideRegion(
 			start,
@@ -234,6 +240,8 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 			_startRegionIds[0],
 		)
 		if not localPath.is_empty():
+			if _benchmarkMetrics != null:
+				_benchmarkMetrics.sameRegionPathUsec += Time.get_ticks_usec() - phaseStart
 			return localPath
 	else:
 		# Portal 위의 시작/목표처럼 여러 Region에 연결되는 경우에는 양쪽이 공유하는 Region들의 Local Path를 후보로 비교한다.
@@ -256,6 +264,7 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 				bestPath = localPath
 
 	if _benchmarkMetrics != null:
+		_benchmarkMetrics.sameRegionPathUsec += Time.get_ticks_usec() - phaseStart
 		phaseStart = Time.get_ticks_usec()
 	var startConnections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnectionsForRegions(
 		start,
@@ -295,8 +304,11 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 				_benchmarkMetrics.anchorGraphUsec += (Time.get_ticks_usec() - phaseStart)
 
 			if graphPathFound and _hierarchicalPathfinder.lastPathCost < bestCost - Math.EPSILON:
+				phaseStart = _ProfileBegin()
 				bestPath = _hierarchicalPathfinder.BuildPath(target)
 				bestCost = _hierarchicalPathfinder.lastPathCost
+				if _benchmarkMetrics != null:
+					_benchmarkMetrics.pathAssemblyUsec += Time.get_ticks_usec() - phaseStart
 
 	if not bestPath.is_empty():
 		return bestPath
@@ -1490,16 +1502,29 @@ func _FillLocalPathsToPortalAnchors(
 		return
 
 	var gridStart: int = Time.get_ticks_usec() if details != null else 0
-	_gridPathfinder.FillPathsToTargets(
-		_portalGridPathsByTargetIndex,
-		startCell,
-		_portalTargetCells,
-		pathOffset,
-		navigationMap,
-		regionId,
-		localSearchMarginCells,
-		details != null,
-	)
+	if _useIndividualPortalPaths:
+		_gridPathfinder.FillPathsToTargetsIndividually(
+			_portalGridPathsByTargetIndex,
+			startCell,
+			_portalTargetCells,
+			pathOffset,
+			navigationMap,
+			regionId,
+			localSearchMarginCells,
+			details != null,
+			_individualPortalHeuristicWeight,
+		)
+	else:
+		_gridPathfinder.FillPathsToTargets(
+			_portalGridPathsByTargetIndex,
+			startCell,
+			_portalTargetCells,
+			pathOffset,
+			navigationMap,
+			regionId,
+			localSearchMarginCells,
+			details != null,
+		)
 	var gridEnd: int = Time.get_ticks_usec() if details != null else 0
 
 	if _benchmarkMetrics != null:
@@ -1618,6 +1643,10 @@ func _GetWaypointPathCost(start: Vector2, path: PackedVector2Array) -> float:
 
 #region Profiling
 
+func GetProfileMetrics() -> NavigationProfileMetrics:
+	return _benchmarkMetrics
+
+
 func SetProfileMetrics(metrics: NavigationProfileMetrics) -> void:
 	_benchmarkMetrics = metrics
 
@@ -1673,3 +1702,52 @@ func _ResetPortalAnchorSearchScratch() -> void:
 
 	_portalActiveTargetIndices.clear()
 	_portalTargetCells.clear()
+
+
+func BuildRegionConnectionsForBenchmark(
+	position: Vector2,
+	halfSize: int,
+	regionId: int,
+	individual: bool,
+	heuristicWeight: float = 1.0,
+) -> Array[NavigationAnchorTypes.Connection]:
+	var footprint: NavigationFootprintData = _GetFootprintData(halfSize)
+	if footprint == null:
+		return []
+	var previousWeight: float = _individualPortalHeuristicWeight
+	_individualPortalHeuristicWeight = heuristicWeight
+	var previous: bool = _useIndividualPortalPaths
+	_useIndividualPortalPaths = individual
+	var connections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnections(
+		position,
+		halfSize,
+		regionId,
+		footprint,
+	)
+	_useIndividualPortalPaths = previous
+	_individualPortalHeuristicWeight = previousWeight
+	return connections
+
+
+func ValidateRegionConnectionsForBenchmark(
+	position: Vector2,
+	halfSize: int,
+	regionId: int,
+	connections: Array[NavigationAnchorTypes.Connection],
+) -> int:
+	var footprint: NavigationFootprintData = _GetFootprintData(halfSize)
+	if footprint == null:
+		return maxi(1, connections.size())
+	var invalidCount: int = 0
+	for connection: NavigationAnchorTypes.Connection in connections:
+		var anchor: Vector2 = NavigationAnchorGraph.GetAnchorPosition(footprint, connection.nodeKey)
+		var valid: bool = _PathEndsAtPoint(connection.path, anchor)
+		var previous: Vector2 = position
+		for waypoint: Vector2 in connection.path:
+			if not _IsSegmentClearInsideRegion(previous, waypoint, halfSize, regionId):
+				valid = false
+				break
+			previous = waypoint
+		if not valid:
+			invalidCount += 1
+	return invalidCount
