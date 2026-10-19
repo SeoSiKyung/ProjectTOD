@@ -202,6 +202,9 @@ func ShowPathResult(
 	metrics: Dictionary,
 	pathSizeTotal: int,
 	emptyPathCount: int,
+	validatedPathCount: int,
+	invalidPathCount: int,
+	invalidSegmentCount: int,
 	overlapCellTotal: int,
 	comparedCellTotal: int,
 	pathLengthTotal: int,
@@ -216,6 +219,9 @@ func ShowPathResult(
 		"metrics": metrics.duplicate(),
 		"pathSizeTotal": pathSizeTotal,
 		"emptyPathCount": emptyPathCount,
+		"validatedPathCount": validatedPathCount,
+		"invalidPathCount": invalidPathCount,
+		"invalidSegmentCount": invalidSegmentCount,
 		"overlapCellTotal": overlapCellTotal,
 		"comparedCellTotal": comparedCellTotal,
 		"pathLengthTotal": pathLengthTotal,
@@ -355,7 +361,10 @@ func _ShowSelectedPathResult() -> void:
 	_pathSizeValue.text = "%.2f" % (
 		float(result["pathSizeTotal"]) / float(runCount) if runCount > 0 else 0.0
 	)
-	_emptyPathsValue.text = str(result["emptyPathCount"])
+	_emptyPathsValue.text = "%d / %d" % [
+		int(result["emptyPathCount"]),
+		int(result["invalidPathCount"]),
+	]
 	var overlapCellTotal: int = int(result["overlapCellTotal"])
 	var comparedCellTotal: int = int(result["comparedCellTotal"])
 	if comparedCellTotal <= 0:
@@ -414,6 +423,18 @@ func _ShowSelectedPathResult() -> void:
 		fallbackGridUsec,
 	)
 	_UpdateGroupInputResult(result)
+
+	var invalidPathCount: int = int(result["invalidPathCount"])
+	var invalidSegmentCount: int = int(result["invalidSegmentCount"])
+	var validatedPathCount: int = int(result["validatedPathCount"])
+	if invalidPathCount > 0:
+		_statusLabel.text = "측정 종료 — 경로 %d개 검사 / 오류 경로 %d개 / 오류 구간 %d개" % [
+			validatedPathCount,
+			invalidPathCount,
+			invalidSegmentCount,
+		]
+	else:
+		_statusLabel.text = "측정 종료 — 경로 %d개 구간 검사 / 오류 0개" % validatedPathCount
 
 
 func _ShowSelectedMovementResult() -> void:
@@ -819,7 +840,7 @@ func _ApplyPathBuildLabels() -> void:
 	_SetLabelText(_executionVBox, "Heading", "실행 시간")
 	_SetLabelText(_resultVBox, "Heading", "경로 생성 결과")
 	_SetLabelText(_resultGrid, "PathSizeLabel", "평균 경유점 수")
-	_SetLabelText(_resultGrid, "EmptyLabel", "빈 경로")
+	_SetLabelText(_resultGrid, "EmptyLabel", "빈 경로 / 구간 오류")
 	_SetLabelText(_resultGrid, "OverlapLabel", "경로 중복")
 	_SetLabelText(_resultGrid, "PathLengthLabel", "평균 총 길이")
 

@@ -20,12 +20,12 @@ const MOVEMENT_SPEED: float = 96.0
 
 @export var enableDiagnostics: bool = true
 @export var enablePathRebuildRecovery: bool = true
-@export var enableStaticQueryDetails: bool = true
-@export var enablePortalBatchDetails: bool = true
+@export var enableStaticQueryDetails: bool = false
+@export var enablePortalBatchDetails: bool = false
 @export var comparePortalHeuristicWeights: bool = true
 @export var sourceCommitOverride: String = ""
 
-const DIAGNOSTICS_REVISION: String = "observability-v1"
+const DIAGNOSTICS_REVISION: String = "comparison-observability-v2"
 const DIAGNOSTIC_STALL_TICKS: int = 30
 const DIAGNOSTIC_STALL_DISTANCE_SQUARED: float = 0.000001
 var _report: Dictionary = { }
@@ -44,6 +44,9 @@ class BenchmarkRunResult:
 	var pathSize: int = 0
 	var pathLengthTotal: int = 0
 	var emptyPathCount: int = 0
+	var validatedPathCount: int = 0
+	var invalidPathCount: int = 0
+	var invalidSegmentCount: int = 0
 	var overlapCellCount: int = 0
 	var comparedCellCount: int = 0
 	var metrics: Dictionary = { }
@@ -86,7 +89,7 @@ func _ready() -> void:
 	_navigationService.navigationData = navigationData
 	_navigationService.Ready()
 
-	_benchmarkUI.SetImplementationLabel("portal-weighted-v1")
+	_benchmarkUI.SetImplementationLabel("After")
 	_benchmarkUI.SetCases(_cases)
 	_benchmarkUI.RunAllRequested.connect(_RunAllBenchmarks)
 	_benchmarkUI.RunSelectedRequested.connect(_RunSelectedBenchmark)
@@ -187,11 +190,11 @@ func _RunPathBenchmark(
 		return
 
 	for i: int in range(warmupCount):
-		_RunPathFinding(benchmarkCase)
+		_RunPathFinding(benchmarkCase, false)
 
 	var results: Array[BenchmarkRunResult] = []
 	for i: int in range(measurementCount):
-		results.append(_RunPathFinding(benchmarkCase))
+		results.append(_RunPathFinding(benchmarkCase, true))
 
 	_ShowPathResult(benchmarkCase, results)
 	var runs: Array[Dictionary] = []
@@ -202,6 +205,9 @@ func _RunPathBenchmark(
 				"path_size": result.pathSize,
 				"path_length_total": result.pathLengthTotal,
 				"empty_path_count": result.emptyPathCount,
+				"validated_path_count": result.validatedPathCount,
+				"invalid_path_count": result.invalidPathCount,
+				"invalid_segment_count": result.invalidSegmentCount,
 				"overlap_cell_count": result.overlapCellCount,
 				"compared_cell_count": result.comparedCellCount,
 				"navigation_metrics_nested": result.metrics,
@@ -323,7 +329,10 @@ func _ValidateBenchmarkCase(benchmarkCase: NavigationBenchmarkCase) -> bool:
 	return true
 
 
-func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResult:
+func _RunPathFinding(
+	benchmarkCase: NavigationBenchmarkCase,
+	validatePathSegments: bool,
+) -> BenchmarkRunResult:
 	# 동일 요청 반복으로 Anchor Connection Cache가 측정값을 가리지 않도록 요청 캐시만 제거한다.
 	_navigationService.ClearBenchmarkRequestCache()
 
@@ -333,6 +342,8 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 	_navigationService.SetProfileMetrics(metrics)
 
 	var result: BenchmarkRunResult = BenchmarkRunResult.new()
+	var validationStarts: PackedVector2Array = PackedVector2Array()
+	var validationPaths: Array[PackedVector2Array] = []
 
 	var startTime: int = Time.get_ticks_usec()
 
@@ -356,8 +367,12 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 			result.elapsedUsec = Time.get_ticks_usec() - startTime
 
 			result.pathSize = path.size()
+			result.pathLengthTotal = _GetPathLength(benchmarkCase.start, path)
 			if path.is_empty():
 				result.emptyPathCount = 1
+
+			validationStarts.append(benchmarkCase.start)
+			validationPaths.append(path)
 
 		NavigationBenchmarkCase.Type.GROUP_PATHS:
 			var paths: Array[PackedVector2Array] = _navigationService.BuildPaths(
@@ -384,14 +399,49 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 
 			result.overlapCellCount = overlapResult.overlapCellCount
 			result.comparedCellCount = overlapResult.comparedCellCount
+			validationStarts = benchmarkCase.unitStarts
+			validationPaths = paths
 
 	_navigationService.ClearProfileMetrics()
+
+	if validatePathSegments:
+		_ValidatePathSegments(
+			validationStarts,
+			validationPaths,
+			benchmarkCase.halfSize,
+			result,
+		)
 
 	result.metrics = metrics.ToDictionary()
 	result.staticQueryDetails = metrics.GetStaticQueryDetails()
 	result.portalBatchDetails = metrics.GetPortalBatchDetails()
 
 	return result
+
+
+func _ValidatePathSegments(
+	starts: PackedVector2Array,
+	paths: Array[PackedVector2Array],
+	halfSize: int,
+	result: BenchmarkRunResult,
+) -> void:
+	var count: int = mini(starts.size(), paths.size())
+	for index: int in range(count):
+		var path: PackedVector2Array = paths[index]
+		if path.is_empty():
+			continue
+
+		result.validatedPathCount += 1
+		var pathValid: bool = true
+		var previous: Vector2 = starts[index]
+		for waypoint: Vector2 in path:
+			if not _navigationService.SegmentClear(previous, waypoint, halfSize):
+				result.invalidSegmentCount += 1
+				pathValid = false
+			previous = waypoint
+
+		if not pathValid:
+			result.invalidPathCount += 1
 
 
 func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
@@ -726,6 +776,9 @@ func _ShowPathResult(
 
 	var pathSizeTotal: int = 0
 	var emptyPathCount: int = 0
+	var validatedPathCount: int = 0
+	var invalidPathCount: int = 0
+	var invalidSegmentCount: int = 0
 	var overlapCellTotal: int = 0
 	var comparedCellTotal: int = 0
 	var pathLengthTotal: int = 0
@@ -734,6 +787,9 @@ func _ShowPathResult(
 		elapsedTimes.append(result.elapsedUsec)
 		pathSizeTotal += result.pathSize
 		emptyPathCount += result.emptyPathCount
+		validatedPathCount += result.validatedPathCount
+		invalidPathCount += result.invalidPathCount
+		invalidSegmentCount += result.invalidSegmentCount
 		overlapCellTotal += result.overlapCellCount
 		comparedCellTotal += result.comparedCellCount
 		pathLengthTotal += result.pathLengthTotal
@@ -750,6 +806,9 @@ func _ShowPathResult(
 		metricTotals,
 		pathSizeTotal,
 		emptyPathCount,
+		validatedPathCount,
+		invalidPathCount,
+		invalidSegmentCount,
 		overlapCellTotal,
 		comparedCellTotal,
 		pathLengthTotal,
@@ -969,6 +1028,7 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
+		"comparison_role": "After",
 		"change_revision": "portal-weighted-v1",
 		"portal_path_strategy": "목표별 개별 탐색. 복수 목표와 단일 목표 가중치 1.5. 기존 탐색 경계 유지. 경로 길이 증가를 허용하여 탐색량 감소.",
 		"navigation_source_sha256": {
@@ -997,7 +1057,24 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 		"reached_waypoint_advance_enabled": true,
 		"rebuild_policy": "이동 명령당 유닛별 개별 재탐색 1회, 틱당 새 요청 최대 1회. 기존 Agent 목표를 유지하며 목표 보정은 하지 않습니다.",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "changes(4).diff 기준. 검증한 목표별 개별 탐색을 Portal 연결의 기본 방식으로 적용했습니다. Git HEAD만으로 미커밋 변경을 식별할 수 없으므로 길찾기 소스 해시를 함께 기록합니다.",
+		"source_sha256": {
+			"benchmark/NavigationBenchmark.gd": FileAccess.get_sha256(
+				"res://benchmark/NavigationBenchmark.gd"
+			),
+			"benchmark/NavigationBenchmarkUI.gd": FileAccess.get_sha256(
+				"res://benchmark/NavigationBenchmarkUI.gd"
+			),
+			"benchmark/NavigationBenchmarkCase.gd": FileAccess.get_sha256(
+				"res://benchmark/NavigationBenchmarkCase.gd"
+			),
+			"scripts/navigation/NavigationService.gd": FileAccess.get_sha256(
+				"res://scripts/navigation/NavigationService.gd"
+			),
+			"maps/navigation/debug/NavigationProfileMetrics.gd": FileAccess.get_sha256(
+				"res://maps/navigation/debug/NavigationProfileMetrics.gd"
+			),
+		},
+		"working_tree_note": "After 기준 커밋에 비교용 관측 패치를 적용한 상태입니다. Git HEAD와 함께 source_sha256으로 실제 측정 소스를 식별합니다.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
@@ -1021,6 +1098,8 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 			"meaning": "관측 전용입니다. 이 관측 자체가 이동이나 재탐색을 변경하지 않습니다. 실행당 유닛별 첫 정체를 기록하며 작은 진동은 최종 미완료 상태에만 나타날 수 있습니다.",
 		},
 		"timing_notes": [
+			"Path segment validation runs after timed path generation with navigation profiling detached, so it is not included in elapsed_usec or navigation phase metrics.",
+			"Path validation checks static segment clearance only. Empty paths are counted separately and target-policy correctness is not inferred from this check.",
 			"격자 내부 시간은 준비·초기화, 경로 복원을 제외한 탐색, 경로 복원으로 나뉩니다. 모두 grid_batch_usec 안에 포함되므로 상위 시간에 더하지 않습니다.",
 			"추가 타이머는 일괄 탐색 경계와 경로 복원에서만 읽습니다. 탐색 시간에는 반복문 관리와 관측 비용이 포함됩니다. 외부 격자 시간에는 호출·반환과 마지막 계측 대입도 포함됩니다.",
 			"최대 지연 일괄 탐색의 내부 시간은 동일한 호출을 나타냅니다. 별도로 고른 최대 격자 호출이 아닙니다. 기존 상세 계측 옵션을 사용합니다.",
