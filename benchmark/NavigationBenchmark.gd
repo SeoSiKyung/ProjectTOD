@@ -19,7 +19,7 @@ const MOVEMENT_SPEED: float = 96.0
 @export var enableDiagnostics: bool = true
 @export var sourceCommitOverride: String = ""
 
-const DIAGNOSTICS_REVISION: String = "observability-v1"
+const DIAGNOSTICS_REVISION: String = "comparison-observability-v3"
 const DIAGNOSTIC_STALL_TICKS: int = 30
 const DIAGNOSTIC_STALL_DISTANCE_SQUARED: float = 0.000001
 var _report: Dictionary = { }
@@ -39,6 +39,9 @@ class BenchmarkRunResult:
 	var pathSize: int = 0
 	var pathLengthTotal: int = 0
 	var emptyPathCount: int = 0
+	var staticCheckedPathCount: int = 0
+	var initialBlockedPathCount: int = 0
+	var initialBlockedSegmentCount: int = 0
 	var overlapCellCount: int = 0
 	var comparedCellCount: int = 0
 	var metrics: Dictionary = { }
@@ -75,6 +78,7 @@ func _ready() -> void:
 	_navigationService.navigationData = navigationData
 	_navigationService.Ready()
 
+	_benchmarkUI.SetImplementationLabel("Before")
 	_benchmarkUI.SetCases(_cases)
 	_benchmarkUI.RunAllRequested.connect(_RunAllBenchmarks)
 	_benchmarkUI.RunSelectedRequested.connect(_RunSelectedBenchmark)
@@ -187,11 +191,11 @@ func _RunPathBenchmark(
 		return
 
 	for i: int in range(warmupCount):
-		_RunPathFinding(benchmarkCase)
+		_RunPathFinding(benchmarkCase, false)
 
 	var results: Array[BenchmarkRunResult] = []
 	for i: int in range(measurementCount):
-		results.append(_RunPathFinding(benchmarkCase))
+		results.append(_RunPathFinding(benchmarkCase, true))
 
 	_ShowPathResult(benchmarkCase, results)
 	var runs: Array[Dictionary] = []
@@ -202,6 +206,9 @@ func _RunPathBenchmark(
 				"path_size": result.pathSize,
 				"path_length_total": result.pathLengthTotal,
 				"empty_path_count": result.emptyPathCount,
+				"static_checked_path_count": result.staticCheckedPathCount,
+				"initial_blocked_path_count": result.initialBlockedPathCount,
+				"initial_blocked_segment_count": result.initialBlockedSegmentCount,
 				"overlap_cell_count": result.overlapCellCount,
 				"compared_cell_count": result.comparedCellCount,
 				"navigation_metrics_nested": result.metrics,
@@ -317,14 +324,18 @@ func _ValidateBenchmarkCase(benchmarkCase: NavigationBenchmarkCase) -> bool:
 	return true
 
 
-func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResult:
-	# 동일 요청 반복으로 Anchor Connection Cache가 측정값을 가리지 않도록 요청 캐시만 제거한다.
+func _RunPathFinding(
+	benchmarkCase: NavigationBenchmarkCase,
+	measureInitialStaticBlockage: bool,
+) -> BenchmarkRunResult:
 	_navigationService.ClearBenchmarkRequestCache()
 
 	var metrics: NavigationProfileMetrics = NavigationProfileMetrics.new()
 	_navigationService.SetProfileMetrics(metrics)
 
 	var result: BenchmarkRunResult = BenchmarkRunResult.new()
+	var validationStarts: PackedVector2Array = PackedVector2Array()
+	var validationPaths: Array[PackedVector2Array] = []
 
 	var startTime: int = Time.get_ticks_usec()
 
@@ -348,8 +359,12 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 			result.elapsedUsec = Time.get_ticks_usec() - startTime
 
 			result.pathSize = path.size()
+			result.pathLengthTotal = _GetPathLength(benchmarkCase.start, path)
 			if path.is_empty():
 				result.emptyPathCount = 1
+
+			validationStarts.append(benchmarkCase.start)
+			validationPaths.append(path)
 
 		NavigationBenchmarkCase.Type.GROUP_PATHS:
 			var paths: Array[PackedVector2Array] = _navigationService.BuildPaths(
@@ -376,12 +391,47 @@ func _RunPathFinding(benchmarkCase: NavigationBenchmarkCase) -> BenchmarkRunResu
 
 			result.overlapCellCount = overlapResult.overlapCellCount
 			result.comparedCellCount = overlapResult.comparedCellCount
+			validationStarts = benchmarkCase.unitStarts
+			validationPaths = paths
 
 	_navigationService.ClearProfileMetrics()
+
+	if measureInitialStaticBlockage:
+		_MeasureInitialStaticBlockage(
+			validationStarts,
+			validationPaths,
+			benchmarkCase.halfSize,
+			result,
+		)
 
 	result.metrics = metrics.ToDictionary()
 
 	return result
+
+
+func _MeasureInitialStaticBlockage(
+	starts: PackedVector2Array,
+	paths: Array[PackedVector2Array],
+	halfSize: int,
+	result: BenchmarkRunResult,
+) -> void:
+	var count: int = mini(starts.size(), paths.size())
+	for index: int in range(count):
+		var path: PackedVector2Array = paths[index]
+		if path.is_empty():
+			continue
+
+		result.staticCheckedPathCount += 1
+		var pathClear: bool = true
+		var previous: Vector2 = starts[index]
+		for waypoint: Vector2 in path:
+			if not _navigationService.SegmentClear(previous, waypoint, halfSize):
+				result.initialBlockedSegmentCount += 1
+				pathClear = false
+			previous = waypoint
+
+		if not pathClear:
+			result.initialBlockedPathCount += 1
 
 
 func _RunMovement(benchmarkCase: NavigationBenchmarkCase) -> MovementRunResult:
@@ -693,6 +743,9 @@ func _ShowPathResult(
 
 	var pathSizeTotal: int = 0
 	var emptyPathCount: int = 0
+	var staticCheckedPathCount: int = 0
+	var initialBlockedPathCount: int = 0
+	var initialBlockedSegmentCount: int = 0
 	var overlapCellTotal: int = 0
 	var comparedCellTotal: int = 0
 	var pathLengthTotal: int = 0
@@ -701,6 +754,9 @@ func _ShowPathResult(
 		elapsedTimes.append(result.elapsedUsec)
 		pathSizeTotal += result.pathSize
 		emptyPathCount += result.emptyPathCount
+		staticCheckedPathCount += result.staticCheckedPathCount
+		initialBlockedPathCount += result.initialBlockedPathCount
+		initialBlockedSegmentCount += result.initialBlockedSegmentCount
 		overlapCellTotal += result.overlapCellCount
 		comparedCellTotal += result.comparedCellCount
 		pathLengthTotal += result.pathLengthTotal
@@ -717,6 +773,9 @@ func _ShowPathResult(
 		metricTotals,
 		pathSizeTotal,
 		emptyPathCount,
+		staticCheckedPathCount,
+		initialBlockedPathCount,
+		initialBlockedSegmentCount,
 		overlapCellTotal,
 		comparedCellTotal,
 		pathLengthTotal,
@@ -918,8 +977,26 @@ func _TimeStatistics(samples: Array[int]) -> Dictionary:
 func _BeginReport(mode: int, isRunAll: bool) -> void:
 	_report = {
 		"schema": DIAGNOSTICS_REVISION,
+		"comparison_role": "Before",
 		"source": _ReadSourceCommit(),
-		"working_tree_note": "Git HEAD identifies the commit, not uncommitted changes. The diagnostic patch is observability-v1. Record any other local changes separately.",
+		"source_sha256": {
+			"benchmark/NavigationBenchmark.gd": FileAccess.get_sha256(
+				"res://benchmark/NavigationBenchmark.gd"
+			),
+			"benchmark/NavigationBenchmarkUI.gd": FileAccess.get_sha256(
+				"res://benchmark/NavigationBenchmarkUI.gd"
+			),
+			"benchmark/NavigationBenchmarkCase.gd": FileAccess.get_sha256(
+				"res://benchmark/NavigationBenchmarkCase.gd"
+			),
+			"scripts/navigation/NavigationService.gd": FileAccess.get_sha256(
+				"res://scripts/navigation/NavigationService.gd"
+			),
+			"maps/navigation/debug/NavigationProfileMetrics.gd": FileAccess.get_sha256(
+				"res://maps/navigation/debug/NavigationProfileMetrics.gd"
+			),
+		},
+		"working_tree_note": "Before 기준 커밋에 비교용 관측 패치를 적용한 상태입니다. Git HEAD와 함께 source_sha256으로 실제 측정 소스를 식별합니다.",
 		"timestamp": Time.get_datetime_string_from_system(),
 		"mode": "Movement" if mode == NavigationBenchmarkUI.Mode.MOVEMENT else "PathBuild",
 		"selection": "Run All" if isRunAll else "Run Selected",
@@ -943,6 +1020,8 @@ func _BeginReport(mode: int, isRunAll: bool) -> void:
 			"meaning": "Observation only; no repath or movement change. First event per unit per run. Small oscillations may only appear in final unfinished states.",
 		},
 		"timing_notes": [
+			"Initial static-blockage scanning runs after timed path generation with navigation profiling detached, so it is not included in elapsed_usec or navigation phase metrics.",
+			"Initial static-blockage scanning checks adjacent segments of the raw generated path only. A blocked raw segment is not the same as final movement failure because shortcutting, avoidance, and runtime path recovery when available can change execution. Empty paths are counted separately.",
 			"All times are CPU elapsed microseconds, not simulated travel time or rendered frame time.",
 			"command_exclusive_phases partition command_process_usec. Group/validation/bookkeeping/probe overhead is the residual.",
 			"Navigation metrics and movement metrics are NESTED views; do not add them to the exclusive phases.",

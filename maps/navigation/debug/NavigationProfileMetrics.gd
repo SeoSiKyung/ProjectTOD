@@ -41,6 +41,9 @@ var groupJoinFallbackSuccesses: int = 0
 
 #region Phase Time
 
+var regionLookupUsec: int = 0
+var sameRegionPathUsec: int = 0
+var pathAssemblyUsec: int = 0
 var startAnchorConnectionUsec: int = 0
 var targetAnchorConnectionUsec: int = 0
 var anchorGraphUsec: int = 0
@@ -148,6 +151,9 @@ func ToDictionary() -> Dictionary:
 		"group_join_fallback_calls": groupJoinFallbackCalls,
 		"group_join_fallback_successes": groupJoinFallbackSuccesses,
 		# Phase Time
+		"region_lookup_usec": regionLookupUsec,
+		"same_region_path_usec": sameRegionPathUsec,
+		"path_assembly_usec": pathAssemblyUsec,
 		"start_anchor_connection_usec": startAnchorConnectionUsec,
 		"target_anchor_connection_usec": targetAnchorConnectionUsec,
 		"anchor_graph_usec": anchorGraphUsec,

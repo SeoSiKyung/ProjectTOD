@@ -183,6 +183,9 @@ func ShowPathResult(
 	metrics: Dictionary,
 	pathSizeTotal: int,
 	emptyPathCount: int,
+	staticCheckedPathCount: int,
+	initialBlockedPathCount: int,
+	initialBlockedSegmentCount: int,
 	overlapCellTotal: int,
 	comparedCellTotal: int,
 	pathLengthTotal: int,
@@ -197,6 +200,9 @@ func ShowPathResult(
 		"metrics": metrics.duplicate(),
 		"pathSizeTotal": pathSizeTotal,
 		"emptyPathCount": emptyPathCount,
+		"staticCheckedPathCount": staticCheckedPathCount,
+		"initialBlockedPathCount": initialBlockedPathCount,
+		"initialBlockedSegmentCount": initialBlockedSegmentCount,
 		"overlapCellTotal": overlapCellTotal,
 		"comparedCellTotal": comparedCellTotal,
 		"pathLengthTotal": pathLengthTotal,
@@ -330,7 +336,10 @@ func _ShowSelectedPathResult() -> void:
 	_pathSizeValue.text = "%.2f" % (
 		float(result["pathSizeTotal"]) / float(runCount) if runCount > 0 else 0.0
 	)
-	_emptyPathsValue.text = str(result["emptyPathCount"])
+	_emptyPathsValue.text = "%d / %d" % [
+		int(result["emptyPathCount"]),
+		int(result["initialBlockedPathCount"]),
+	]
 	var overlapCellTotal: int = int(result["overlapCellTotal"])
 	var comparedCellTotal: int = int(result["comparedCellTotal"])
 	if comparedCellTotal <= 0:
@@ -389,6 +398,18 @@ func _ShowSelectedPathResult() -> void:
 		fallbackGridUsec,
 	)
 	_UpdateGroupInputResult(result)
+
+	var initialBlockedPathCount: int = int(result["initialBlockedPathCount"])
+	var initialBlockedSegmentCount: int = int(result["initialBlockedSegmentCount"])
+	var staticCheckedPathCount: int = int(result["staticCheckedPathCount"])
+	if initialBlockedPathCount > 0:
+		_statusLabel.text = "측정 종료 — 원시 경로 %d개 정적 검사 / 초기 막힘 %d개 / 막힌 인접 구간 %d개" % [
+			staticCheckedPathCount,
+			initialBlockedPathCount,
+			initialBlockedSegmentCount,
+		]
+	else:
+		_statusLabel.text = "측정 종료 — 원시 경로 %d개 정적 검사 / 초기 막힘 0개" % staticCheckedPathCount
 
 
 func _ShowSelectedMovementResult() -> void:
@@ -774,7 +795,7 @@ func _ApplyPathBuildLabels() -> void:
 	_SetLabelText(_executionVBox, "Heading", "실행 시간")
 	_SetLabelText(_resultVBox, "Heading", "경로 생성 결과")
 	_SetLabelText(_resultGrid, "PathSizeLabel", "평균 경유점 수")
-	_SetLabelText(_resultGrid, "EmptyLabel", "빈 경로")
+	_SetLabelText(_resultGrid, "EmptyLabel", "빈 경로 / 초기 막힘")
 	_SetLabelText(_resultGrid, "OverlapLabel", "경로 중복")
 	_SetLabelText(_resultGrid, "PathLengthLabel", "평균 총 길이")
 
