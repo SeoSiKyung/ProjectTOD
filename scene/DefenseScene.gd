@@ -3,11 +3,16 @@ extends Node2D
 signal DefenseFinished(result: DefenseResult)
 
 @onready var _defenseSceneManager: DefenseSceneManager = $DefenseSceneManager
+@onready var _selectController: SelectController = $SelectController
 @onready var _deploymentGridView: DefenseDeploymentGridView = $DeploymentGridView
 @onready var _deploymentInfoView: DefenseDeploymentInfoView = $DeploymentInfoView
+@onready var _worldCamera: WorldCamera2D = $Camera2D
+@onready var _worldMap: Sprite2D = $WorldMap
 
 @onready var _deploymentView: DefenseDeploymentView = %DeploymentView
 @onready var _battleHUDView: DefenseBattleHUDView = %BattleHUDView
+@onready var _minimapView: MinimapView = $CanvasLayer/MinimapView
+@onready var _deploymentDock: Control = $CanvasLayer/DeploymentView/DeploymentDock
 @onready var _resultView: DefenseResultView = %ResultView
 
 var _deploymentFlowController: DefenseDeploymentFlowController
@@ -22,6 +27,8 @@ var _isBattlePaused: bool = false
 #region Lifecycle
 
 func _ready() -> void:
+	_selectController.SetSelectionEnabled(false)
+
 	_InitializeStartData()
 
 	if not _CreateCP():
@@ -40,6 +47,8 @@ func _ready() -> void:
 
 	if not _defenseSceneManager.Initialize(_startData):
 		return
+
+	_worldCamera.SetWorldRect(_defenseSceneManager.GetNavigationWorldRect())
 
 	_deploymentFlowController.InitializeGridView()
 	_deploymentFlowController.ConnectSignals()
@@ -121,6 +130,12 @@ func _InitializeStartData() -> void:
 
 func _InitializeUI() -> void:
 	_battleHUDView.pause_pressed.connect(_OnPauseButtonPressed)
+
+	_minimapView.Initialize(_worldCamera, _worldMap.texture)
+
+	_minimapView.DockSideChanged.connect(_OnMinimapDockSideChanged)
+	_OnMinimapDockSideChanged(_minimapView.dockSide)
+
 	_resultView.Confirmed.connect(_OnResultConfirmed)
 
 #endregion
@@ -129,6 +144,8 @@ func _InitializeUI() -> void:
 #region Battle
 
 func _OnDeploymentFinished() -> void:
+	_selectController.SetSelectionEnabled(true)
+
 	_battleHUDView.ShowBattle()
 	_UpdateBattleHUD()
 
@@ -145,6 +162,9 @@ func _OnPauseButtonPressed() -> void:
 
 
 func _OnDefenseFinished(result: DefenseResult) -> void:
+	_selectController.SetSelectionEnabled(false)
+	_selectController.ClearSelection()
+
 	_isBattlePaused = false
 	_battleHUDView.SetPaused(false)
 	_battleHUDView.SetPauseDisabled(true)
@@ -167,6 +187,19 @@ func _UpdateBattleHUD() -> void:
 	)
 
 #endregion
+
+
+func _OnMinimapDockSideChanged(side: MinimapView.DockSide) -> void:
+	var panelMargin: float = 16.0
+	var reservedWidth: float = _minimapView.screenMargin + _minimapView.minimapSize.x + panelMargin
+
+	_deploymentDock.offset_left = panelMargin
+	_deploymentDock.offset_right = -panelMargin
+
+	if side == MinimapView.DockSide.LEFT:
+		_deploymentDock.offset_left = reservedWidth
+	else:
+		_deploymentDock.offset_right = -reservedWidth
 
 
 #region Result Events

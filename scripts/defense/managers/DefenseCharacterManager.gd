@@ -66,6 +66,7 @@ func TakeDamage(character: Unit, damage: int) -> bool:
 
 	character.TakeDamage(damage)
 	if character.IsDead():
+		character.Die()
 		CharacterDied.emit(character)
 
 	return true

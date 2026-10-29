@@ -159,7 +159,7 @@ func _Refresh() -> void:
 	var hasSelection: bool = false
 
 	if selectController != null:
-		hasSelection = selectController.HasFriendlySelection()
+		hasSelection = selectController.HasControllableSelection()
 
 	_panel.visible = hasSelection or not hideWithoutSelection
 	_moveButton.disabled = not hasSelection

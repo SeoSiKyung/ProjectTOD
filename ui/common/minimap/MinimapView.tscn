@@ -1,0 +1,26 @@
+[gd_scene format=3 uid="uid://c5jc5yxgntvud"]
+
+[ext_resource type="Script" uid="uid://du0tbmnb3mffs" path="res://ui/common/minimap/MinimapView.gd" id="1_n7a65"]
+[ext_resource type="Script" uid="uid://bm64v4nmsuc03" path="res://ui/common/parchment/ParchmentPanel.gd" id="2_gwdc5"]
+
+[node name="MinimapView" type="Control" unique_id=975459575]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_n7a65")
+borderColor = Color(0.32, 0.23, 0.13, 0.7)
+cameraFillColor = Color(0.94, 0.72, 0.22, 0.1)
+cameraBorderColor = Color(1, 0.72, 0.15, 1)
+
+[node name="ParchmentPanel" type="Container" parent="." unique_id=750439286]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_gwdc5")
+metadata/_custom_type_script = "uid://bm64v4nmsuc03"
+
+[node name="MapCanvas" type="Control" parent="ParchmentPanel" unique_id=1095036082]
+layout_mode = 2

@@ -5,8 +5,12 @@ class_name Unit
 @export_range(8, 256, 2) var footprintSize: int = 32
 @export var playerControllable: bool = true
 
+signal HealthChanged(currentHp: int, maxHp: int)
+signal Damaged(damage: int)
+signal ReuseReset
+
 signal MoveSpeedChanged(moveSpeed: int)
-@export var moveSpeed: int = 96:
+@export var moveSpeed: int = 3:
 	set(value):
 		if value < 0:
 			push_error("Unit: moveSpeed는 0 이상의 값이어야 합니다.")
@@ -19,6 +23,7 @@ signal MoveSpeedChanged(moveSpeed: int)
 		MoveSpeedChanged.emit(moveSpeed)
 
 @onready var fsm: UnitFSM = $UnitFSM
+@onready var selectionView: UnitSelectionView = $SelectionView
 
 var characterKey: int = -1
 var characterType: CharacterType.Type = CharacterType.COUNT
@@ -108,6 +113,7 @@ func ResetVitals() -> void:
 		currentHp = 0
 		maxMp = 0
 		currentMp = 0
+		HealthChanged.emit(currentHp, maxHp)
 		return
 
 	_RefreshVitalCapacity(true)
@@ -117,7 +123,13 @@ func TakeDamage(damage: int) -> void:
 	if damage <= 0 or IsDead():
 		return
 
+	var previousHp: int = currentHp
 	currentHp = maxi(currentHp - damage, 0)
+	HealthChanged.emit(currentHp, maxHp)
+
+	var appliedDamage: int = previousHp - currentHp
+	if appliedDamage > 0:
+		Damaged.emit(appliedDamage)
 
 
 func IsDead() -> bool:
@@ -203,6 +215,8 @@ func ResetForReuse() -> void:
 	if fsm != null:
 		fsm.ResetForReuse()
 
+	ReuseReset.emit()
+
 
 func _RebuildFinalStats(resetVitals: bool) -> void:
 	if _baseStats == null:
@@ -223,10 +237,11 @@ func _RefreshVitalCapacity(resetVitals: bool) -> void:
 
 	if resetVitals:
 		maxHp = newMaxHp
-		currentHp = newMaxHp
 		maxMp = newMaxMp
+		currentHp = newMaxHp
 		currentMp = newMaxMp
 		_OnVitalCapacityRefreshed(true)
+		HealthChanged.emit(currentHp, maxHp)
 		return
 
 	var hpRecovery: int = _CalculateHpRecoveryOnCapacityIncrease(maxHp, newMaxHp)
@@ -237,6 +252,7 @@ func _RefreshVitalCapacity(resetVitals: bool) -> void:
 	currentHp = clampi(currentHp + hpRecovery, 0, maxHp)
 	currentMp = clampi(currentMp + mpRecovery, 0, maxMp)
 	_OnVitalCapacityRefreshed(false)
+	HealthChanged.emit(currentHp, maxHp)
 
 
 func _CalculateMaxHp() -> int:

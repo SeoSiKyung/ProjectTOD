@@ -34,8 +34,8 @@ func TakeDamage(damage: int) -> bool:
 		return false
 
 	_cp.TakeDamage(damage)
-
 	if _cp.IsDead():
+		_cp.Die()
 		CPDestroyed.emit()
 
 	return true

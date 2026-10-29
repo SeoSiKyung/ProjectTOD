@@ -6,7 +6,9 @@
 [ext_resource type="Resource" uid="uid://ct7nb5rwp5lkd" path="res://maps/2_navigation.res" id="4_8rkap"]
 [ext_resource type="PackedScene" uid="uid://cghlf0d5cnser" path="res://unit/types/scenes/Ally.tscn" id="5_wohdj"]
 [ext_resource type="Texture2D" uid="uid://dxe8oq2jcsank" path="res://maps/2.png" id="6_8rkap"]
+[ext_resource type="Script" uid="uid://dj1tfl748rbk8" path="res://scripts/common/camera/WorldCamera2D.gd" id="7_3sjdf"]
 [ext_resource type="Script" uid="uid://dwb6dp01f41m8" path="res://unit/SelectController.gd" id="8_u7dgu"]
+[ext_resource type="PackedScene" uid="uid://c5jc5yxgntvud" path="res://ui/common/minimap/MinimapView.tscn" id="10_cp4ls"]
 [ext_resource type="Script" uid="uid://c7v7m5a54m0tv" path="res://unit/CommandPanel.gd" id="11_o4skl"]
 
 [node name="OffenseScene" type="Node2D" unique_id=2102705416]
@@ -20,16 +22,19 @@ navigationData = ExtResource("4_8rkap")
 [node name="CommandController" type="Node" parent="." unique_id=496005023]
 script = ExtResource("3_dlxae")
 
-[node name="2" type="Sprite2D" parent="." unique_id=1085897008]
+[node name="WorldMap" type="Sprite2D" parent="." unique_id=1085897008]
 texture = ExtResource("6_8rkap")
 centered = false
 
 [node name="SelectController" type="Node2D" parent="." unique_id=877086300]
+z_index = 20
 script = ExtResource("8_u7dgu")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=573415892]
+position = Vector2(1920, 1080)
 anchor_mode = 0
 zoom = Vector2(0.5, 0.5)
+script = ExtResource("7_3sjdf")
 
 [node name="UnitRoot" type="Node2D" parent="." unique_id=915067606]
 
@@ -86,3 +91,5 @@ unitId = 4
 
 [node name="CommandPannel" type="CanvasLayer" parent="." unique_id=1036861275]
 script = ExtResource("11_o4skl")
+
+[node name="MinimapView" parent="CommandPannel" unique_id=975459575 instance=ExtResource("10_cp4ls")]

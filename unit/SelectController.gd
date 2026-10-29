@@ -143,9 +143,8 @@ func GetSelectedUnits() -> Array[Unit]:
 	return result
 
 
-func GetSelectedFriendlyUnits() -> Array[Unit]:
+func GetSelectedControllableUnits() -> Array[Unit]:
 	var result: Array[Unit] = []
-
 	for unit: Unit in GetSelectedUnits():
 		if not unit.playerControllable:
 			continue
@@ -155,8 +154,8 @@ func GetSelectedFriendlyUnits() -> Array[Unit]:
 	return result
 
 
-func HasFriendlySelection() -> bool:
-	return not GetSelectedFriendlyUnits().is_empty()
+func HasControllableSelection() -> bool:
+	return not GetSelectedControllableUnits().is_empty()
 
 
 func GetControlGroupUnits(slot: int) -> Array[Unit]:
@@ -215,6 +214,19 @@ func GetUnitAtWorldPosition(worldPosition: Vector2) -> Unit:
 			bestUnit = unit
 
 	return bestUnit
+
+
+func SetSelectionEnabled(enabled: bool) -> void:
+	set_process_unhandled_input(enabled)
+
+	if enabled:
+		return
+
+	_leftPressed = false
+	_dragActive = false
+	_additiveSelection = false
+
+	queue_redraw()
 
 
 func ClearSelection() -> void:
@@ -313,28 +325,28 @@ func _HandleClickSelection(worldPosition: Vector2, additive: bool) -> void:
 func _HandleDragSelection(additive: bool) -> void:
 	var selectionRect: Rect2 = _MakeRect(_dragStartWorld, _dragCurrentWorld)
 
-	var friendlyUnits: Array[Unit] = []
-	var enemyUnits: Array[Unit] = []
+	var controllableUnits: Array[Unit] = []
+	var nonControllableUnits: Array[Unit] = []
 
 	for unit: Unit in _GetUnits():
 		if not _UnitInsideSelectionRect(unit, selectionRect):
 			continue
 
 		if unit.playerControllable:
-			friendlyUnits.append(unit)
+			controllableUnits.append(unit)
 		else:
-			enemyUnits.append(unit)
+			nonControllableUnits.append(unit)
 
-	if not friendlyUnits.is_empty():
-		friendlyUnits.sort_custom(
+	if not controllableUnits.is_empty():
+		controllableUnits.sort_custom(
 			func(a: Unit, b: Unit) -> bool:
 				return a.unitId < b.unitId,
 		)
 
-		_ApplySelection(friendlyUnits, additive)
+		_ApplySelection(controllableUnits, additive)
 		return
 
-	if enemyUnits.is_empty():
+	if nonControllableUnits.is_empty():
 		return
 
 	var center: Vector2 = selectionRect.position + selectionRect.size * 0.5
@@ -342,7 +354,7 @@ func _HandleDragSelection(additive: bool) -> void:
 	var selectedEnemy: Unit = null
 	var bestDistance: float = INF
 
-	for unit: Unit in enemyUnits:
+	for unit: Unit in nonControllableUnits:
 		var distance: float = unit.global_position.distance_squared_to(center)
 
 		if distance < bestDistance:
@@ -479,8 +491,18 @@ func _GetUnits() -> Array[Unit]:
 	var nodes: Array[Node] = get_tree().get_nodes_in_group("unit")
 
 	for node: Node in nodes:
-		if node is Unit:
-			result.append(node as Unit)
+		var unit: Unit = node as Unit
+		if unit == null:
+			continue
+
+		if not unit.is_visible_in_tree() or unit.IsDead():
+			continue
+
+		if unit.fsm != null:
+			if unit.fsm.currentState == UnitFSM.State.DIE:
+				continue
+
+		result.append(unit)
 
 	return result
 
@@ -491,29 +513,29 @@ func _InitializeUnits() -> void:
 
 
 func _InitializeUnit(unit: Unit) -> void:
-	if unit == null:
+	if not is_instance_valid(unit):
 		return
 
-	var selectNode: Sprite2D = unit.get_node_or_null("select") as Sprite2D
+	var resetCallback: Callable = _ForgetUnit.bind(unit)
+	if not unit.ReuseReset.is_connected(resetCallback):
+		unit.ReuseReset.connect(resetCallback)
 
-	if selectNode == null:
-		return
+	if unit.fsm != null:
+		var stateCallback: Callable = _OnUnitStateChanged.bind(unit)
+		if not unit.fsm.state_changed.is_connected(stateCallback):
+			unit.fsm.state_changed.connect(stateCallback)
 
-	if unit.playerControllable:
-		selectNode.self_modulate = friendlySelectColor
-	else:
-		selectNode.self_modulate = enemySelectColor
+	if unit.selectionView != null:
+		unit.selectionView.ConfigureFaction(unit.faction, friendlySelectColor, enemySelectColor)
 
-	selectNode.visible = _selectedUnits.has(unit)
+	_SetSelectionVisual(unit, _selectedUnits.has(unit))
 
 
 func _SetSelectionVisual(unit: Unit, selected: bool) -> void:
-	var selectNode: Sprite2D = unit.get_node_or_null("select") as Sprite2D
-
-	if selectNode == null:
+	if unit.selectionView == null:
 		return
 
-	selectNode.visible = selected
+	unit.selectionView.SetSelected(selected)
 
 
 func _OnNodeAdded(node: Node) -> void:
@@ -549,3 +571,27 @@ func _draw() -> void:
 
 	draw_rect(rect, selectionFillColor, true)
 	draw_rect(rect, selectionBorderColor, false, selectionBorderWidth)
+
+
+func _OnUnitStateChanged(
+	_previousState: UnitFSM.State,
+	currentState: UnitFSM.State,
+	unit: Unit,
+) -> void:
+	if currentState == UnitFSM.State.DIE:
+		_ForgetUnit(unit)
+
+
+func _ForgetUnit(unit: Unit) -> void:
+	var wasSelected: bool = _selectedUnits.has(unit)
+	_selectedUnits.erase(unit)
+
+	for slot: int in _controlGroups.keys():
+		var group: Array = _controlGroups[slot]
+		group.erase(unit)
+
+	if is_instance_valid(unit):
+		_SetSelectionVisual(unit, false)
+
+	if wasSelected:
+		selection_changed.emit(GetSelectedUnits())

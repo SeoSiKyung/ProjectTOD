@@ -64,6 +64,13 @@ func GetUnit(unitId: int) -> Unit:
 	return _unitRuntime.GetUnit(unitId)
 
 
+func GetNavigationWorldRect() -> Rect2:
+	if navigationData == null:
+		return Rect2()
+
+	return navigationData.GetWorldRect()
+
+
 func IssueMoveCommand(units: Array[Unit], targetWorld: Vector2) -> int:
 	if not _isInitialized or _unitRuntime == null:
 		return UnitRuntime.INVALID_COMMAND_ID

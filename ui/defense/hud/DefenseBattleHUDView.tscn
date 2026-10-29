@@ -1,11 +1,60 @@
 [gd_scene format=3 uid="uid://d1jn5c1rulh83"]
 
 [ext_resource type="Script" uid="uid://brj3k5wkt2gpk" path="res://ui/defense/hud/DefenseBattleHUDView.gd" id="1_script"]
-[ext_resource type="Script" path="res://ui/common/parchment/ParchmentPanel.gd" id="2_parchment_panel"]
+[ext_resource type="Script" uid="uid://bm64v4nmsuc03" path="res://ui/common/parchment/ParchmentPanel.gd" id="2_parchment_panel"]
 [ext_resource type="PackedScene" uid="uid://bnpnyy5pnwxco" path="res://ui/common/buttons/BasicButton.tscn" id="3_button"]
 [ext_resource type="PackedScene" uid="uid://dk6t3xam1p8r2" path="res://ui/common/parchment/ParchmentProgressBar.tscn" id="4_progress"]
 
-[node name="DefenseBattleHUDView" type="Control"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rjmgq"]
+bg_color = Color(0.22, 0.13, 0.06, 0.82)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.2, 0.09, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nia2q"]
+bg_color = Color(0.55, 0.18, 0.11, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.41250002, 0.135, 0.082499996, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ngofr"]
+bg_color = Color(0.22, 0.13, 0.06, 0.82)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.2, 0.09, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_x06dj"]
+bg_color = Color(0.18, 0.34, 0.52, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.135, 0.255, 0.39, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="DefenseBattleHUDView" type="Control" unique_id=1827283075]
+process_mode = 3
 visible = false
 layout_mode = 3
 anchors_preset = 15
@@ -16,8 +65,9 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_script")
 
-[node name="HUDPanel" type="Container" parent="."]
+[node name="HUDPanel" type="Container" parent="." unique_id=977861818]
 layout_mode = 1
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -430.0
@@ -28,22 +78,22 @@ grow_horizontal = 0
 mouse_filter = 2
 script = ExtResource("2_parchment_panel")
 
-[node name="BattleHUDContainer" type="VBoxContainer" parent="HUDPanel"]
+[node name="BattleHUDContainer" type="VBoxContainer" parent="HUDPanel" unique_id=1985147775]
 layout_mode = 2
 theme_override_constants/separation = 9
 
-[node name="BattleHeader" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer"]
+[node name="BattleHeader" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer" unique_id=1731265934]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/BattleHeader"]
+[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/BattleHeader" unique_id=706627195]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"ParchmentTitleLabel"
 text = "전투 현황"
 vertical_alignment = 1
 
-[node name="ElapsedTime" type="Label" parent="HUDPanel/BattleHUDContainer/BattleHeader"]
+[node name="ElapsedTime" type="Label" parent="HUDPanel/BattleHUDContainer/BattleHeader" unique_id=908186345]
 custom_minimum_size = Vector2(72, 0)
 layout_mode = 2
 theme_type_variation = &"ParchmentTitleLabel"
@@ -52,7 +102,7 @@ text = "00:00"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="PauseButton" parent="HUDPanel/BattleHUDContainer/BattleHeader" instance=ExtResource("3_button")]
+[node name="PauseButton" parent="HUDPanel/BattleHUDContainer/BattleHeader" unique_id=476080522 instance=ExtResource("3_button")]
 custom_minimum_size = Vector2(108, 46)
 layout_mode = 2
 textKey = "일시정지"
@@ -60,115 +110,119 @@ maxFontSize = 18
 minFontSize = 14
 horizontalPadding = 14.0
 
-[node name="HeaderDivider" type="ColorRect" parent="HUDPanel/BattleHUDContainer"]
+[node name="HeaderDivider" type="ColorRect" parent="HUDPanel/BattleHUDContainer" unique_id=1671802545]
 custom_minimum_size = Vector2(0, 1)
 layout_mode = 2
 mouse_filter = 2
 color = Color(0.32156864, 0.22745098, 0.13333334, 0.3)
 
-[node name="CPHUD" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer"]
+[node name="CPHUD" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer" unique_id=2038883381]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="CPLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD"]
+[node name="CPLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD" unique_id=2103982933]
 layout_mode = 2
 theme_type_variation = &"ParchmentTitleLabel"
 theme_override_font_sizes/font_size = 19
 text = "지휘소"
 
-[node name="Hp" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer/CPHUD"]
+[node name="Hp" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer/CPHUD" unique_id=1218353493]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Name" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp"]
+[node name="Name" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp" unique_id=637023293]
 custom_minimum_size = Vector2(28, 0)
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
 text = "HP"
 vertical_alignment = 1
 
-[node name="HpBar" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp" instance=ExtResource("4_progress")]
+[node name="HpBar" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp" unique_id=1183697036 instance=ExtResource("4_progress")]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_styles/background = SubResource("StyleBoxFlat_rjmgq")
+theme_override_styles/fill = SubResource("StyleBoxFlat_nia2q")
 fillColor = Color(0.55, 0.18, 0.11, 1)
 
-[node name="HpLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp"]
+[node name="HpLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Hp" unique_id=1367155374]
 custom_minimum_size = Vector2(92, 0)
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="Mp" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer/CPHUD"]
+[node name="Mp" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer/CPHUD" unique_id=1379840602]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Name" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp"]
+[node name="Name" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp" unique_id=20954356]
 custom_minimum_size = Vector2(28, 0)
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
 text = "MP"
 vertical_alignment = 1
 
-[node name="MpBar" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp" instance=ExtResource("4_progress")]
+[node name="MpBar" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp" unique_id=1333240334 instance=ExtResource("4_progress")]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_styles/background = SubResource("StyleBoxFlat_ngofr")
+theme_override_styles/fill = SubResource("StyleBoxFlat_x06dj")
 fillColor = Color(0.18, 0.34, 0.52, 1)
 
-[node name="MpLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp"]
+[node name="MpLabel" type="Label" parent="HUDPanel/BattleHUDContainer/CPHUD/Mp" unique_id=1017484817]
 custom_minimum_size = Vector2(92, 0)
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
 horizontal_alignment = 2
 vertical_alignment = 1
 
-[node name="PopulationDivider" type="ColorRect" parent="HUDPanel/BattleHUDContainer"]
+[node name="PopulationDivider" type="ColorRect" parent="HUDPanel/BattleHUDContainer" unique_id=1908446150]
 custom_minimum_size = Vector2(0, 1)
 layout_mode = 2
 mouse_filter = 2
 color = Color(0.32156864, 0.22745098, 0.13333334, 0.3)
 
-[node name="PopulationTitle" type="Label" parent="HUDPanel/BattleHUDContainer"]
+[node name="PopulationTitle" type="Label" parent="HUDPanel/BattleHUDContainer" unique_id=731686630]
 layout_mode = 2
 theme_type_variation = &"ParchmentTitleLabel"
 theme_override_font_sizes/font_size = 19
 text = "병력"
 
-[node name="Population" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer"]
+[node name="Population" type="HBoxContainer" parent="HUDPanel/BattleHUDContainer" unique_id=323509490]
 layout_mode = 2
 theme_override_constants/separation = 8
 alignment = 1
 
-[node name="Recruited" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population"]
+[node name="Recruited" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population" unique_id=425107218]
 layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
 
-[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Recruited"]
+[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Recruited" unique_id=1690849654]
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
 text = "징집"
 horizontal_alignment = 1
 
-[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Recruited"]
+[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Recruited" unique_id=1731262948]
 layout_mode = 2
 theme_type_variation = &"ParchmentTitleLabel"
 theme_override_font_sizes/font_size = 20
 text = "0명"
 horizontal_alignment = 1
 
-[node name="Surviving" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population"]
+[node name="Surviving" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population" unique_id=1509281894]
 layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
 
-[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Surviving"]
+[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Surviving" unique_id=1688461642]
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
 text = "생존"
 horizontal_alignment = 1
 
-[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Surviving"]
+[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Surviving" unique_id=269877267]
 layout_mode = 2
 theme_type_variation = &"ParchmentTitleLabel"
 theme_override_colors/font_color = Color(0.25, 0.38, 0.13, 1)
@@ -176,18 +230,18 @@ theme_override_font_sizes/font_size = 20
 text = "0명"
 horizontal_alignment = 1
 
-[node name="Dead" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population"]
+[node name="Dead" type="VBoxContainer" parent="HUDPanel/BattleHUDContainer/Population" unique_id=718911581]
 layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
 
-[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Dead"]
+[node name="Title" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Dead" unique_id=1849478226]
 layout_mode = 2
 theme_type_variation = &"ParchmentSmallLabel"
 text = "사망"
 horizontal_alignment = 1
 
-[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Dead"]
+[node name="Value" type="Label" parent="HUDPanel/BattleHUDContainer/Population/Dead" unique_id=816662203]
 layout_mode = 2
 theme_type_variation = &"ParchmentTitleLabel"
 theme_override_colors/font_color = Color(0.48, 0.16, 0.11, 1)

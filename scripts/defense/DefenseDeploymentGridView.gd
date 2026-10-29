@@ -179,14 +179,28 @@ func _DrawGrid() -> void:
 
 				var placeableRect: Rect2 = _GetCellRect(cell)
 				draw_rect(placeableRect, PLACEABLE_FILL_COLOR, true)
-				draw_rect(placeableRect, PLACEABLE_BORDER_COLOR, false, 2.0)
+				_DrawCellBorder(placeableRect, PLACEABLE_BORDER_COLOR)
 				continue
 
 			if not _CanInteractCell(cell):
 				continue
 
 			var rect: Rect2 = _GetCellRect(cell)
-			draw_rect(rect, GRID_COLOR, false, 2.0)
+			_DrawCellBorder(rect, GRID_COLOR)
+
+
+func _DrawCellBorder(rect: Rect2, color: Color) -> void:
+	var points: PackedVector2Array = PackedVector2Array(
+		[
+			rect.position,
+			Vector2(rect.end.x, rect.position.y),
+			rect.end,
+			Vector2(rect.position.x, rect.end.y),
+			rect.position,
+		]
+	)
+
+	draw_polyline(points, color, -1.0)
 
 
 func _DrawHoverCell() -> void:

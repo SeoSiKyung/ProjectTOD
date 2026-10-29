@@ -546,7 +546,7 @@ func _GetCommandableSelectedUnits() -> Array[Unit]:
 	if selectController == null:
 		return result
 
-	for unit: Unit in selectController.GetSelectedFriendlyUnits():
+	for unit: Unit in selectController.GetSelectedControllableUnits():
 		if unit == null:
 			continue
 
@@ -579,11 +579,11 @@ func _IsValidUnitTarget(target: Unit) -> bool:
 
 
 func _IsFriendlyTarget(target: Unit) -> bool:
-	return _IsValidUnitTarget(target) and target.playerControllable
+	return _IsValidUnitTarget(target) and target.faction == Faction.Type.ALLY
 
 
 func _IsHostileTarget(target: Unit) -> bool:
-	return _IsValidUnitTarget(target) and not target.playerControllable
+	return _IsValidUnitTarget(target) and target.faction == Faction.Type.ENEMY
 
 
 func _OnSelectionChanged(_selectedUnits: Variant) -> void:
