@@ -121,6 +121,20 @@ static func SegmentIntersectsCenteredAabb(start: Vector2, end: Vector2, half: Ve
 	return SegmentAabbEntryFraction(start, end - start, half) >= 0.0
 
 
+static func AabbDistanceSquared(
+	firstCenter: Vector2,
+	firstHalfSize: Vector2,
+	secondCenter: Vector2,
+	secondHalfSize: Vector2,
+) -> float:
+	var combinedHalfSize: Vector2 = firstHalfSize + secondHalfSize
+	var delta: Vector2 = (firstCenter - secondCenter).abs() - combinedHalfSize
+
+	var dx: float = maxf(delta.x, 0.0)
+	var dy: float = maxf(delta.y, 0.0)
+	return dx * dx + dy * dy
+
+
 static func DivideInt(value: int, divisor: int) -> int:
 	@warning_ignore("integer_division")
 	return value / divisor
@@ -144,6 +158,26 @@ static func CeilSquareRoot(value: int) -> int:
 			low = middle + 1
 
 	return low
+
+
+static func IsNearlyEqual(a: float, b: float) -> bool:
+	return absf(a - b) <= EPSILON
+
+
+static func IsNearlyZero(value: float) -> bool:
+	return absf(value) <= EPSILON
+
+
+static func IsLess(a: float, b: float) -> bool:
+	return a < b - EPSILON
+
+
+static func IsGreater(a: float, b: float) -> bool:
+	return a > b + EPSILON
+
+
+static func IsSamePoint(a: Vector2, b: Vector2) -> bool:
+	return a.distance_squared_to(b) <= EPSILON
 
 
 #region Battle
