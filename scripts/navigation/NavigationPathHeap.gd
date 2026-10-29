@@ -10,13 +10,13 @@ func _init(state: NavigationPathSearchState) -> void:
 
 
 func _Less(aIndex: int, bIndex: int) -> bool:
-	if absf(_state.f[aIndex] - _state.f[bIndex]) > Math.EPSILON:
+	if not Math.IsNearlyEqual(_state.f[aIndex], _state.f[bIndex]):
 		return _state.f[aIndex] < _state.f[bIndex]
 
-	if absf(_state.turnCost[aIndex] - _state.turnCost[bIndex]) > Math.EPSILON:
+	if not Math.IsNearlyEqual(_state.turnCost[aIndex], _state.turnCost[bIndex]):
 		return _state.turnCost[aIndex] < _state.turnCost[bIndex]
 
-	if absf(_state.h[aIndex] - _state.h[bIndex]) > Math.EPSILON:
+	if not Math.IsNearlyEqual(_state.h[aIndex], _state.h[bIndex]):
 		return _state.h[aIndex] < _state.h[bIndex]
 
 	return aIndex < bIndex

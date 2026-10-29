@@ -42,7 +42,7 @@ func FindGraphPath(
 			var previous: NavigationAnchorTypes.Connection = _targetConnectionByNode[nodeKey]
 			previousCost = previous.cost
 
-		if connection.cost >= previousCost - Math.EPSILON:
+		if not Math.IsLess(connection.cost, previousCost):
 			continue
 
 		_targetConnectionByNode[nodeKey] = connection
@@ -50,7 +50,7 @@ func FindGraphPath(
 	for connection: NavigationAnchorTypes.Connection in startConnections:
 		var nodeKey: Vector2i = connection.nodeKey
 		var previousCost: float = float(_gScore.get(nodeKey, Math.BIG_NUMBER))
-		if connection.cost >= previousCost - Math.EPSILON:
+		if not Math.IsLess(connection.cost, previousCost):
 			continue
 
 		_gScore[nodeKey] = connection.cost
@@ -73,7 +73,7 @@ func FindGraphPath(
 			continue
 
 		var currentF: float = float(_fScore.get(currentKey, Math.BIG_NUMBER))
-		if currentF >= bestGoalCost - Math.EPSILON:
+		if not Math.IsLess(currentF, bestGoalCost):
 			break
 
 		_closed[currentKey] = true
@@ -89,7 +89,7 @@ func FindGraphPath(
 			]
 
 			var totalCost: float = currentG + targetConnection.cost
-			if totalCost < bestGoalCost - Math.EPSILON:
+			if Math.IsLess(totalCost, bestGoalCost):
 				bestGoalCost = totalCost
 				bestGoalNode = currentKey
 
@@ -107,7 +107,7 @@ func FindGraphPath(
 
 			var tentativeG: float = currentG + edge.route.cost
 			var previousG: float = float(_gScore.get(nextKey, Math.BIG_NUMBER))
-			if tentativeG >= previousG - Math.EPSILON:
+			if not Math.IsLess(tentativeG, previousG):
 				continue
 
 			if metrics != null:
@@ -203,7 +203,7 @@ static func _PopBestNode(open: Array[Vector2i], fScore: Dictionary[Vector2i, flo
 
 
 static func _AppendUniquePoint(path: PackedVector2Array, point: Vector2) -> void:
-	if not path.is_empty() and path[path.size() - 1].distance_squared_to(point) <= Math.EPSILON:
+	if not path.is_empty() and Math.IsSamePoint(path[path.size() - 1], point):
 		return
 
 	path.append(point)

@@ -349,10 +349,7 @@ func _RecoverInvalidPath() -> void:
 		if capturePathRebuildTiming:
 			lastPathRebuildUsec = Time.get_ticks_usec() - rebuildStart
 			_navigationService.SetProfileMetrics(previousMetrics)
-		if (
-			not path.is_empty()
-			and path[path.size() - 1].distance_squared_to(agent.moveTarget) > Math.EPSILON
-		):
+		if not path.is_empty() and not Math.IsSamePoint(path[path.size() - 1], agent.moveTarget):
 			path = PackedVector2Array()
 		agent.ApplyRebuiltPath(path)
 		if capturePathRebuildTiming:

@@ -21,7 +21,6 @@ var _regionQuery: NavigationRegionQuery
 
 var _portalMap: PackedByteArray = PackedByteArray()
 var _regionMap: PackedInt32Array = PackedInt32Array()
-var _regions: Array[NavigationRegionData] = []
 
 var _startRegionIds: Array[int] = []
 var _targetRegionIds: Array[int] = []
@@ -29,23 +28,10 @@ var _targetRegionIds: Array[int] = []
 var _footprintDataByHalfSize: Dictionary[int, NavigationFootprintData] = { }
 
 var _anchorGraphByHalfSize: Dictionary[int, NavigationAnchorTypes.GraphData] = { }
-var _regionAnchorTopologyCache: Dictionary[Vector2i, NavigationAnchorTypes.RegionTopology] = { }
 
-var _anchorConnectionCache: NavigationAnchorConnectionCache
+var _anchorConnector: NavigationAnchorConnector
 
-var _bestAnchorConnectionByNode: Dictionary[Vector2i, NavigationAnchorTypes.Connection] = { }
-var _reachableAnchorComponents: Dictionary[int, bool] = { }
-var _addedAnchorNodes: Dictionary[Vector2i, bool] = { }
-var _unreachableAnchorComponents: Dictionary[int, bool] = { }
-var _probeAnchorByComponent: Dictionary[int, Vector2i] = { }
-var _probeDistanceByComponent: Dictionary[int, float] = { }
-var _remainingAnchorNodesByPortal: Dictionary[int, Array] = { }
-
-var _portalAnchorPathsByNode: Dictionary[Vector2i, PackedVector2Array] = { }
-var _portalNodesByTargetIndex: Dictionary[int, Array] = { }
-var _portalActiveTargetIndices: Array[int] = []
-var _portalTargetCells: Array[Vector2i] = []
-var _portalGridPathsByTargetIndex: Dictionary[int, PackedVector2Array] = { }
+var _localPathfinder: NavigationLocalPathfinder
 
 var _gridPathfinder: NavigationGridPathfinder
 var _hierarchicalPathfinder: NavigationHierarchicalPathfinder
@@ -53,8 +39,6 @@ var _hierarchicalPathfinder: NavigationHierarchicalPathfinder
 var _staticQuery: NavigationStaticQuery
 
 var _benchmarkMetrics: NavigationProfileMetrics = null
-var _useIndividualPortalPaths: bool = true
-var _individualPortalHeuristicWeight: float = 1.5
 
 
 #region Public API
@@ -76,17 +60,7 @@ func CanPlaceStatic(center: Vector2, halfSize: int) -> bool:
 
 
 func SegmentClear(start: Vector2, end: Vector2, halfSize: int) -> bool:
-	if _benchmarkMetrics != null:
-		_benchmarkMetrics.segmentClearQueryCalls += 1
-
-		var startTime: int = Time.get_ticks_usec()
-		var result: bool = _staticQuery.SegmentClear(start, end, halfSize, _benchmarkMetrics)
-
-		_benchmarkMetrics.segmentClearQueryUsec += (Time.get_ticks_usec() - startTime)
-
-		return result
-
-	return _staticQuery.SegmentClear(start, end, halfSize)
+	return _localPathfinder.SegmentClear(start, end, halfSize, _benchmarkMetrics)
 
 
 func GetNearestPlaceablePoint(
@@ -94,72 +68,14 @@ func GetNearestPlaceablePoint(
 	halfSize: int,
 	referencePosition: Vector2,
 ) -> Vector2:
-	if CanPlaceStatic(position, halfSize):
-		return position
-
-	var navigationMap: NavigationFootprintMapData = _GetFootprintMap(halfSize)
-
-	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
-	var centerCell: Vector2i = _WorldToNearestPathCell(position, pathOffset)
-	centerCell.x = clampi(centerCell.x, 0, _gridWidth - 1)
-	centerCell.y = clampi(centerCell.y, 0, _gridHeight - 1)
-
-	var maxRadius: int = maxi(_gridWidth, _gridHeight)
-	for radius: int in range(maxRadius + 1):
-		var best: Vector2i = Vector2i(-1, -1)
-		var bestTargetDistance: float = Math.BIG_NUMBER
-		var bestReferenceDistance: float = Math.BIG_NUMBER
-
-		var perimeterCount: int = _GetPerimeterCellCount(radius)
-		for perimeterIndex: int in range(perimeterCount):
-			var cell: Vector2i = _GetPerimeterCell(centerCell, radius, perimeterIndex)
-			if not Grid.IsCellInGrid(cell, _gridWidth, _gridHeight):
-				continue
-
-			var index: int = Grid.CellToIndex(cell, _gridWidth)
-			if navigationMap.placeableMap[index] == 0:
-				continue
-
-			var center: Vector2 = _PathCellToWorld(cell, pathOffset)
-			var targetDistance: float = center.distance_squared_to(position)
-			var referenceDistance: float = center.distance_squared_to(referencePosition)
-
-			var better: bool = false
-			if targetDistance < bestTargetDistance - Math.EPSILON:
-				better = true
-			elif absf(targetDistance - bestTargetDistance) <= Math.EPSILON:
-				if referenceDistance < bestReferenceDistance - Math.EPSILON:
-					better = true
-				elif absf(referenceDistance - bestReferenceDistance) <= Math.EPSILON:
-					if best.x < 0 or cell.y < best.y or (cell.y == best.y and cell.x < best.x):
-						better = true
-
-			if not better:
-				continue
-
-			best = cell
-			bestTargetDistance = targetDistance
-			bestReferenceDistance = referenceDistance
-
-		if best.x >= 0:
-			return _PathCellToWorld(best, pathOffset)
-
-	return position
+	return _localPathfinder.GetNearestPlaceablePoint(position, halfSize, referencePosition)
 
 
 func GetComponentId(position: Vector2, halfSize: int) -> int:
-	if not _navigationReady or not CanPlaceStatic(position, halfSize):
+	if not _navigationReady:
 		return -1
 
-	var navigationMap: NavigationFootprintMapData = _GetFootprintMap(halfSize)
-
-	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
-	var pathCell: Vector2i = _GetNearestPathCell(position, halfSize, pathOffset)
-	if pathCell.x < 0:
-		return -1
-
-	var index: int = Grid.CellToIndex(pathCell, _gridWidth)
-	return navigationMap.componentMap[index]
+	return _localPathfinder.GetComponentId(position, halfSize, _benchmarkMetrics)
 
 
 func GetNearestReachablePoint(
@@ -167,36 +83,22 @@ func GetNearestReachablePoint(
 	halfSize: int,
 	referencePosition: Vector2,
 ) -> Vector2:
-	var componentId: int = GetComponentId(referencePosition, halfSize)
-	if componentId < 0:
+	if not _navigationReady:
 		return referencePosition
 
-	# 원하는 위치가 그대로 배치 가능하고 기준 위치와 같은 Component라면 정확한 원래 좌표를 사용한다.
-	if GetComponentId(position, halfSize) == componentId:
-		return position
-
-	# 막혀 있거나 다른 Component라면 기준 Component 안에서 가장 가까운 Path Cell을 찾는다.
-	var navigationMap: NavigationFootprintMapData = _GetFootprintMap(halfSize)
-
-	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
-
-	var reachableCell: Vector2i = _GetNearestCellInComponent(
+	return _localPathfinder.GetNearestReachablePoint(
 		position,
-		pathOffset,
-		componentId,
-		navigationMap,
+		halfSize,
+		referencePosition,
+		_benchmarkMetrics,
 	)
-	if reachableCell.x < 0:
-		return referencePosition
-
-	return _PathCellToWorld(reachableCell, pathOffset)
 
 
 func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Array:
 	if not _navigationReady:
 		return PackedVector2Array()
 
-	if start.distance_squared_to(target) <= Math.EPSILON:
+	if Math.IsSamePoint(start, target):
 		return PackedVector2Array()
 
 	# FindPath()는 목적지를 보정하지 않는다. 전달된 목적지 자체가 이동 불가능하면 실패한다.
@@ -233,11 +135,13 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 
 	phaseStart = _ProfileBegin()
 	if isSingleSharedRegion:
-		var localPath: PackedVector2Array = _FindPathInsideRegion(
+		var localPath: PackedVector2Array = _localPathfinder.FindPathInsideRegion(
 			start,
 			target,
 			halfSize,
 			_startRegionIds[0],
+			localSearchMarginCells,
+			_benchmarkMetrics,
 		)
 		if not localPath.is_empty():
 			if _benchmarkMetrics != null:
@@ -249,39 +153,47 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 			if not _targetRegionIds.has(startRegionId):
 				continue
 
-			var localPath: PackedVector2Array = _FindPathInsideRegion(
+			var localPath: PackedVector2Array = _localPathfinder.FindPathInsideRegion(
 				start,
 				target,
 				halfSize,
 				startRegionId,
+				localSearchMarginCells,
+				_benchmarkMetrics,
 			)
 			if localPath.is_empty():
 				continue
 
 			var localCost: float = _GetWaypointPathCost(start, localPath)
-			if localCost < bestCost - Math.EPSILON:
+			if Math.IsLess(localCost, bestCost):
 				bestCost = localCost
 				bestPath = localPath
 
 	if _benchmarkMetrics != null:
 		_benchmarkMetrics.sameRegionPathUsec += Time.get_ticks_usec() - phaseStart
 		phaseStart = Time.get_ticks_usec()
-	var startConnections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnectionsForRegions(
+	var startConnections: Array[NavigationAnchorTypes.Connection] = _anchorConnector.BuildConnectionsForRegions(
 		start,
 		halfSize,
 		_startRegionIds,
 		footprintData,
+		localSearchMarginCells,
+		anchorConnectionCacheCapacity,
+		_benchmarkMetrics,
 	)
 	if _benchmarkMetrics != null:
 		_benchmarkMetrics.startAnchorConnectionUsec += (Time.get_ticks_usec() - phaseStart)
 
 	if _benchmarkMetrics != null:
 		phaseStart = Time.get_ticks_usec()
-	var targetConnections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnectionsForRegions(
+	var targetConnections: Array[NavigationAnchorTypes.Connection] = _anchorConnector.BuildConnectionsForRegions(
 		target,
 		halfSize,
 		_targetRegionIds,
 		footprintData,
+		localSearchMarginCells,
+		anchorConnectionCacheCapacity,
+		_benchmarkMetrics,
 	)
 	if _benchmarkMetrics != null:
 		_benchmarkMetrics.targetAnchorConnectionUsec += (Time.get_ticks_usec() - phaseStart)
@@ -303,7 +215,7 @@ func FindPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Ar
 			if _benchmarkMetrics != null:
 				_benchmarkMetrics.anchorGraphUsec += (Time.get_ticks_usec() - phaseStart)
 
-			if graphPathFound and _hierarchicalPathfinder.lastPathCost < bestCost - Math.EPSILON:
+			if graphPathFound and Math.IsLess(_hierarchicalPathfinder.lastPathCost, bestCost):
 				phaseStart = _ProfileBegin()
 				bestPath = _hierarchicalPathfinder.BuildPath(target)
 				bestCost = _hierarchicalPathfinder.lastPathCost
@@ -396,7 +308,7 @@ func BuildPaths(
 	# 7. 합류 지점 → 목적지 공통 Path를 한 번만 생성
 	phaseStart = _ProfileBegin()
 	var sharedPath: PackedVector2Array = PackedVector2Array()
-	if joinPoint.distance_squared_to(target) <= Math.EPSILON:
+	if Math.IsSamePoint(joinPoint, target):
 		sharedPath.append(target)
 	else:
 		sharedPath = FindPath(joinPoint, target, halfSize)
@@ -473,8 +385,6 @@ func _ApplyNavigationData() -> void:
 	_portalMap = navigationData.portalMap
 	_regionMap = navigationData.regionMap
 
-	_regions = navigationData.regions
-
 
 func _ValidateNavigationData() -> bool:
 	if _navCellSize <= 0.0:
@@ -550,18 +460,29 @@ func _InitNavigationRuntimeData() -> void:
 		_footprintDataByHalfSize[footprint.halfSize] = footprint
 		_anchorGraphByHalfSize[footprint.halfSize] = NavigationAnchorGraph.Build(footprint)
 
-	_anchorConnectionCache = NavigationAnchorConnectionCache.new()
-	_regionAnchorTopologyCache.clear()
-
 	_gridPathfinder = NavigationGridPathfinder.new(
 		_gridWidth,
 		_gridHeight,
 		_navCellSize,
 		_worldRect,
 	)
+
 	_hierarchicalPathfinder = NavigationHierarchicalPathfinder.new()
 
 	_staticQuery = NavigationStaticQuery.new(navigationData)
+
+	_localPathfinder = NavigationLocalPathfinder.new(
+		navigationData,
+		_gridPathfinder,
+		_staticQuery,
+		_regionQuery,
+	)
+
+	_anchorConnector = NavigationAnchorConnector.new(
+		navigationData,
+		_gridPathfinder,
+		_localPathfinder,
+	)
 
 #endregion
 
@@ -617,7 +538,7 @@ func _BuildPathToSharedPath(
 		return result
 
 	var sharedPathStartIndex: int = 0
-	if sharedPath[0].distance_squared_to(joinPoint) <= Math.EPSILON:
+	if Math.IsSamePoint(sharedPath[0], joinPoint):
 		sharedPathStartIndex = 1
 
 	# 1. 목적지 쪽부터 같은 방향으로 이어진 Raw Segment들을 하나의 직선 구간으로 묶어서 합류 가능 여부를 검사한다.
@@ -656,7 +577,7 @@ func _BuildPathToSharedPath(
 			var previousDirection: Vector2 = currentPoint - previousPoint
 
 			if (
-				absf(previousDirection.cross(runDirection)) > Math.EPSILON
+				not Math.IsNearlyZero(previousDirection.cross(runDirection))
 				or previousDirection.dot(runDirection) <= 0.0
 			):
 				break
@@ -688,7 +609,7 @@ func _BuildPathToSharedPath(
 			if _benchmarkMetrics != null:
 				_benchmarkMetrics.groupJoinSegmentSuccesses += 1
 
-			if unitStart.distance_squared_to(joinCandidate) > Math.EPSILON:
+			if not Math.IsSamePoint(unitStart, joinCandidate):
 				_AppendUniquePoint(result, joinCandidate)
 
 			# joinCandidate가 이 직선 구간의 어느 Raw Segment에 있는지 찾는다.
@@ -707,7 +628,7 @@ func _BuildPathToSharedPath(
 				)
 
 				var pointProgress: float = (routePoint - runStart).dot(runDelta)
-				if pointProgress + Math.EPSILON < candidateProgress:
+				if Math.IsLess(pointProgress, candidateProgress):
 					continue
 
 				resumeIndex = index
@@ -756,7 +677,7 @@ func _BuildPathToSharedPath(
 	var localPath: PackedVector2Array = FindPath(unitStart, joinPoint, halfSize)
 	if localPath.is_empty():
 		# 이미 joinPoint에 있는 경우 FindPath()가 빈 배열을 반환하는 것은 정상.
-		if unitStart.distance_squared_to(joinPoint) > Math.EPSILON:
+		if not Math.IsSamePoint(unitStart, joinPoint):
 			return result
 	else:
 		if _benchmarkMetrics != null:
@@ -785,177 +706,11 @@ func _GetSharedRoutePoint(
 #endregion
 
 
-#region Footprint Data
-
-func _GetFootprintMap(halfSize: int) -> NavigationFootprintMapData:
-	var footprintData: NavigationFootprintData = _GetFootprintData(halfSize)
-	if footprintData == null:
-		return null
-
-	return footprintData.navigationMap
-
-
 func _GetFootprintData(halfSize: int) -> NavigationFootprintData:
 	if not _footprintDataByHalfSize.has(halfSize):
 		return null
 
 	return _footprintDataByHalfSize[halfSize]
-
-#endregion
-
-
-#region Nearest Cell Search
-
-func _GetNearestCellInComponent(
-	position: Vector2,
-	pathOffset: Vector2,
-	componentId: int,
-	navigationMap: NavigationFootprintMapData,
-) -> Vector2i:
-	var centerCell: Vector2i = _WorldToNearestPathCell(position, pathOffset)
-	centerCell.x = clampi(centerCell.x, 0, _gridWidth - 1)
-	centerCell.y = clampi(centerCell.y, 0, _gridHeight - 1)
-
-	var best: Vector2i = Vector2i(-1, -1)
-	var bestDistance: float = Math.BIG_NUMBER
-	var maxRadius: int = maxi(_gridWidth, _gridHeight)
-	for radius: int in range(maxRadius + 1):
-		var perimeterCount: int = _GetPerimeterCellCount(radius)
-		for perimeterIndex: int in range(perimeterCount):
-			var cell: Vector2i = _GetPerimeterCell(centerCell, radius, perimeterIndex)
-			if not Grid.IsCellInGrid(cell, _gridWidth, _gridHeight):
-				continue
-
-			var index: int = Grid.CellToIndex(cell, _gridWidth)
-			if navigationMap.componentMap[index] != componentId:
-				continue
-
-			var point: Vector2 = _PathCellToWorld(cell, pathOffset)
-			var distance: float = point.distance_squared_to(position)
-			if distance < bestDistance - Math.EPSILON:
-				bestDistance = distance
-				best = cell
-
-		if (
-			best.x >= 0
-			and _IsNearestCellSearchComplete(
-				position,
-				centerCell,
-				pathOffset,
-				radius + 1,
-				bestDistance,
-			)
-		):
-			break
-
-	return best
-
-
-func _GetNearestPathCell(position: Vector2, halfSize: int, pathOffset: Vector2) -> Vector2i:
-	var navigationMap: NavigationFootprintMapData = _GetFootprintMap(halfSize)
-
-	var centerCell: Vector2i = _WorldToNearestPathCell(position, pathOffset)
-	centerCell.x = clampi(centerCell.x, 0, _gridWidth - 1)
-	centerCell.y = clampi(centerCell.y, 0, _gridHeight - 1)
-
-	var best: Vector2i = Vector2i(-1, -1)
-	var bestDistance: float = Math.BIG_NUMBER
-	var maxRadius: int = maxi(_gridWidth, _gridHeight)
-	for radius: int in range(maxRadius + 1):
-		var perimeterCount: int = _GetPerimeterCellCount(radius)
-		for perimeterIndex: int in range(perimeterCount):
-			var cell: Vector2i = _GetPerimeterCell(centerCell, radius, perimeterIndex)
-			if not Grid.IsCellInGrid(cell, _gridWidth, _gridHeight):
-				continue
-
-			var index: int = Grid.CellToIndex(cell, _gridWidth)
-			if navigationMap.placeableMap[index] == 0:
-				continue
-
-			var center: Vector2 = _PathCellToWorld(cell, pathOffset)
-			if not _staticQuery.SegmentClear(position, center, halfSize, _benchmarkMetrics):
-				continue
-
-			var distance: float = center.distance_squared_to(position)
-			if distance < bestDistance - Math.EPSILON:
-				bestDistance = distance
-				best = cell
-			elif absf(distance - bestDistance) <= Math.EPSILON:
-				if best.x < 0 or cell.y < best.y or (cell.y == best.y and cell.x < best.x):
-					best = cell
-
-		if (
-			best.x >= 0
-			and _IsNearestCellSearchComplete(
-				position,
-				centerCell,
-				pathOffset,
-				radius + 1,
-				bestDistance,
-			)
-		):
-			break
-
-	return best
-
-
-func _GetPerimeterCellCount(radius: int) -> int:
-	if radius == 0:
-		return 1
-
-	return radius * 8
-
-
-func _GetPerimeterCell(centerCell: Vector2i, radius: int, perimeterIndex: int) -> Vector2i:
-	if radius == 0:
-		return centerCell
-
-	var minX: int = centerCell.x - radius
-	var maxX: int = centerCell.x + radius
-	var minY: int = centerCell.y - radius
-	var maxY: int = centerCell.y + radius
-
-	var diameter: int = radius * 2
-	var horizontalCount: int = diameter + 1
-
-	# 위쪽 변: 왼쪽 → 오른쪽
-	if perimeterIndex < horizontalCount:
-		return Vector2i(minX + perimeterIndex, minY)
-	perimeterIndex -= horizontalCount
-
-	# 좌 / 우 변: 위 → 아래
-	var sideCount: int = (diameter - 1) * 2
-	if perimeterIndex < sideCount:
-		var rowOffset: int = (perimeterIndex >> 1) + 1
-		var x: int = minX
-		if (perimeterIndex & 1) != 0:
-			x = maxX
-
-		return Vector2i(x, minY + rowOffset)
-
-	perimeterIndex -= sideCount
-	# 아래쪽 변: 왼쪽 → 오른쪽
-	return Vector2i(minX + perimeterIndex, maxY)
-
-
-func _IsNearestCellSearchComplete(
-	position: Vector2,
-	centerCell: Vector2i,
-	pathOffset: Vector2,
-	nextRadius: int,
-	bestDistance: float,
-) -> bool:
-	var center: Vector2 = _PathCellToWorld(centerCell, pathOffset)
-	var offset: Vector2 = position - center
-	var radiusDistance: float = float(nextRadius) * _navCellSize
-
-	var minXDistance: float = maxf(radiusDistance - absf(offset.x), 0.0)
-	var minYDistance: float = maxf(radiusDistance - absf(offset.y), 0.0)
-	var outerMinDistance: float = minf(minXDistance, minYDistance)
-
-	return outerMinDistance * outerMinDistance > bestDistance + Math.EPSILON
-
-#endregion
 
 
 #region Grid Pathfinding
@@ -964,651 +719,27 @@ func _FindFallbackGridPath(start: Vector2, target: Vector2, halfSize: int) -> Pa
 	var startUsec: int = 0
 	if _benchmarkMetrics != null:
 		startUsec = Time.get_ticks_usec()
-	var path: PackedVector2Array = _FindCompleteGridPath(start, target, halfSize)
+	var path: PackedVector2Array = _localPathfinder.FindCompleteGridPath(
+		start,
+		target,
+		halfSize,
+		_benchmarkMetrics,
+	)
 	if _benchmarkMetrics != null:
 		_benchmarkMetrics.fallbackGridUsec += (Time.get_ticks_usec() - startUsec)
 
 	return path
 
-
-func _FindCompleteGridPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Array:
-	var path: PackedVector2Array = _FindGridPath(start, target, halfSize)
-	if not _PathEndsAtPoint(path, target):
-		return PackedVector2Array()
-
-	return path
-
-
-func _FindGridPath(start: Vector2, target: Vector2, halfSize: int) -> PackedVector2Array:
-	return _FindGridPathInternal(start, target, halfSize, -1)
-
-
-func _FindPathInsideRegion(
-	start: Vector2,
-	target: Vector2,
-	halfSize: int,
-	regionId: int,
-) -> PackedVector2Array:
-	var result: PackedVector2Array = PackedVector2Array()
-
-	if _IsSegmentClearInsideRegion(start, target, halfSize, regionId):
-		result.append(target)
-		return result
-
-	result = _FindLocalPath(start, target, halfSize, regionId)
-	if not _PathEndsAtPoint(result, target):
-		return PackedVector2Array()
-
-	return result
-
-
-func _FindLocalPath(
-	start: Vector2,
-	target: Vector2,
-	halfSize: int,
-	regionId: int,
-) -> PackedVector2Array:
-	# 먼저 Start-Target 주변으로 제한된 A*를 시도한다.
-	var quickPath: PackedVector2Array = _FindGridPathInternal(
-		start,
-		target,
-		halfSize,
-		regionId,
-		localSearchMarginCells,
-	)
-
-	var completedQuickPath: PackedVector2Array = _CompleteLocalPathIfPossible(
-		target,
-		quickPath,
-		halfSize,
-		regionId,
-	)
-
-	if not completedQuickPath.is_empty():
-		return completedQuickPath
-
-	# 제한 범위 안에서 못 찾았으면 기존 전체 Region 탐색.
-	return _FindGridPathInternal(start, target, halfSize, regionId, -1)
-
-
-func _CompleteLocalPathIfPossible(
-	target: Vector2,
-	path: PackedVector2Array,
-	halfSize: int,
-	regionId: int,
-) -> PackedVector2Array:
-	if path.is_empty():
-		return PackedVector2Array()
-
-	var result: PackedVector2Array = path
-	var last: Vector2 = result[result.size() - 1]
-	if last.distance_squared_to(target) <= Math.EPSILON:
-		return result
-
-	if not _IsSegmentClearInsideRegion(last, target, halfSize, regionId):
-		return PackedVector2Array()
-
-	result.append(target)
-
-	return result
-
-
-func _FindGridPathInternal(
-	start: Vector2,
-	target: Vector2,
-	halfSize: int,
-	regionId: int,
-	searchMarginCells: int = -1,
-) -> PackedVector2Array:
-	if not _navigationReady:
-		return PackedVector2Array()
-
-	if _benchmarkMetrics != null:
-		_benchmarkMetrics.gridSearchCalls += 1
-
-	var navigationMap: NavigationFootprintMapData = _GetFootprintMap(halfSize)
-
-	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
-
-	var startCell: Vector2i = _GetNearestPathCell(start, halfSize, pathOffset)
-	var targetCell: Vector2i = _GetNearestPathCell(target, halfSize, pathOffset)
-	if startCell.x < 0 or targetCell.x < 0:
-		return PackedVector2Array()
-
-	var path: PackedVector2Array = _gridPathfinder.FindPath(
-		startCell,
-		targetCell,
-		target,
-		pathOffset,
-		navigationMap,
-		regionId,
-		searchMarginCells,
-		_benchmarkMetrics,
-	)
-	if path.is_empty():
-		return path
-
-	var last: Vector2 = path[path.size() - 1]
-	var finalPoint: Vector2 = _staticQuery.FurthestClearPoint(
-		last,
-		target,
-		halfSize,
-		_benchmarkMetrics,
-	)
-	if last.distance_squared_to(finalPoint) > Math.EPSILON:
-		path.append(finalPoint)
-
-	return path
-
 #endregion
 
 
-#region Region / Portal
-
-func _IsSegmentClearInsideRegion(
-	start: Vector2,
-	end: Vector2,
-	halfSize: int,
-	regionId: int,
-) -> bool:
-	return (
-		SegmentClear(start, end, halfSize)
-		and _regionQuery.IsSegmentInsideRegion(start, end, regionId)
-	)
-
-#endregion
-
-
-#region Anchor Graph / Topology Cache
+#region Anchor Graph
 
 func _GetAnchorGraph(halfSize: int) -> NavigationAnchorTypes.GraphData:
 	if not _anchorGraphByHalfSize.has(halfSize):
 		return null
 
 	return _anchorGraphByHalfSize[halfSize]
-
-
-func _GetRegionAnchorTopology(
-	halfSize: int,
-	regionId: int,
-	footprint: NavigationFootprintData,
-) -> NavigationAnchorTypes.RegionTopology:
-	var cacheKey: Vector2i = Vector2i(halfSize, regionId)
-	if _regionAnchorTopologyCache.has(cacheKey):
-		return _regionAnchorTopologyCache[cacheKey]
-
-	var region: NavigationRegionData = null
-	if 0 <= regionId and regionId < _regions.size():
-		region = _regions[regionId]
-
-	var topology: NavigationAnchorTypes.RegionTopology = NavigationAnchorTopology.Build(
-		regionId,
-		region,
-		footprint,
-	)
-
-	_regionAnchorTopologyCache[cacheKey] = topology
-
-	return topology
-
-#endregion
-
-
-#region Anchor Connection
-
-func _MakeRegionAnchorConnectionsForRegions(
-	position: Vector2,
-	halfSize: int,
-	regionIds: Array[int],
-	footprint: NavigationFootprintData,
-) -> Array[NavigationAnchorTypes.Connection]:
-	if regionIds.size() == 1:
-		return _MakeRegionAnchorConnections(position, halfSize, regionIds[0], footprint)
-
-	var result: Array[NavigationAnchorTypes.Connection] = []
-
-	if regionIds.is_empty():
-		return result
-
-	_bestAnchorConnectionByNode.clear()
-	for regionId: int in regionIds:
-		var connections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnections(
-			position,
-			halfSize,
-			regionId,
-			footprint,
-		)
-		for connection: NavigationAnchorTypes.Connection in connections:
-			if not _bestAnchorConnectionByNode.has(connection.nodeKey):
-				_bestAnchorConnectionByNode[connection.nodeKey] = connection
-				continue
-
-			var previous: NavigationAnchorTypes.Connection = (
-				_bestAnchorConnectionByNode[connection.nodeKey]
-			)
-			if connection.cost < previous.cost - Math.EPSILON:
-				_bestAnchorConnectionByNode[connection.nodeKey] = connection
-
-	for nodeKey: Vector2i in _bestAnchorConnectionByNode:
-		result.append(_bestAnchorConnectionByNode[nodeKey])
-
-	return result
-
-
-func _MakeRegionAnchorConnections(
-	position: Vector2,
-	halfSize: int,
-	regionId: int,
-	footprint: NavigationFootprintData,
-) -> Array[NavigationAnchorTypes.Connection]:
-	var cacheKey: Vector4 = Vector4(position.x, position.y, float(halfSize), float(regionId))
-	if _anchorConnectionCache.Has(cacheKey):
-		if _benchmarkMetrics != null:
-			_benchmarkMetrics.anchorCacheHits += 1
-		return _anchorConnectionCache.Get(cacheKey)
-	if _benchmarkMetrics != null:
-		_benchmarkMetrics.anchorCacheMisses += 1
-
-	var connections: Array[NavigationAnchorTypes.Connection] = _BuildRegionAnchorConnections(
-		position,
-		halfSize,
-		regionId,
-		footprint,
-	)
-	_anchorConnectionCache.Set(cacheKey, connections, anchorConnectionCacheCapacity)
-
-	return connections
-
-
-func _BuildRegionAnchorConnections(
-	position: Vector2,
-	halfSize: int,
-	regionId: int,
-	footprint: NavigationFootprintData,
-) -> Array[NavigationAnchorTypes.Connection]:
-	var result: Array[NavigationAnchorTypes.Connection] = []
-
-	_reachableAnchorComponents.clear()
-	_addedAnchorNodes.clear()
-	_unreachableAnchorComponents.clear()
-
-	var topology: NavigationAnchorTypes.RegionTopology = _GetRegionAnchorTopology(
-		halfSize,
-		regionId,
-		footprint,
-	)
-	var nodes: Array[Vector2i] = topology.nodes
-	if nodes.is_empty():
-		return result
-
-	var componentByNode: Dictionary[Vector2i, int] = topology.componentByNode
-
-	var directCheckStartUsec: int = 0
-	if _benchmarkMetrics != null:
-		directCheckStartUsec = Time.get_ticks_usec()
-
-	# 1. 직선 연결 가능한 Anchor는 즉시 추가
-	for nodeKey: Vector2i in nodes:
-		if _benchmarkMetrics != null:
-			_benchmarkMetrics.anchorDirectCheckCount += 1
-
-		var anchor: Vector2 = NavigationAnchorGraph.GetAnchorPosition(footprint, nodeKey)
-		if not _IsSegmentClearInsideRegion(position, anchor, halfSize, regionId):
-			continue
-
-		if _benchmarkMetrics != null:
-			_benchmarkMetrics.anchorDirectSuccessCount += 1
-
-		var path: PackedVector2Array = PackedVector2Array()
-		path.append(anchor)
-
-		result.append(_CreateAnchorConnection(nodeKey, path, position.distance_to(anchor)))
-		_addedAnchorNodes[nodeKey] = true
-
-		var componentId: int = int(componentByNode[nodeKey])
-		_reachableAnchorComponents[componentId] = true
-
-	if _benchmarkMetrics != null:
-		_benchmarkMetrics.anchorDirectCheckUsec += (Time.get_ticks_usec() - directCheckStartUsec)
-
-	# 2. 아직 reachability가 확인되지 않은 component마다 가장 가까운 Anchor 하나만 probe
-	NavigationAnchorConnectionPlanner.FillProbeByComponent(
-		_probeAnchorByComponent,
-		_probeDistanceByComponent,
-		position,
-		nodes,
-		componentByNode,
-		_addedAnchorNodes,
-		_reachableAnchorComponents,
-		footprint,
-	)
-
-	var probeStartUsec: int = 0
-	if _benchmarkMetrics != null:
-		probeStartUsec = Time.get_ticks_usec()
-
-	for componentId: int in _probeAnchorByComponent:
-		if _benchmarkMetrics != null:
-			_benchmarkMetrics.anchorProbeCount += 1
-
-		var nodeKey: Vector2i = _probeAnchorByComponent[componentId]
-		var anchor: Vector2 = NavigationAnchorGraph.GetAnchorPosition(footprint, nodeKey)
-
-		var path: PackedVector2Array = _FindLocalPath(position, anchor, halfSize, regionId)
-		if not _EnsurePathEndsAtAnchor(position, path, anchor, halfSize, regionId):
-			# 같은 baked component의 다른 Anchor도 도달 불가능하므로 전부 생략 가능.
-			_unreachableAnchorComponents[componentId] = true
-			continue
-
-		if _benchmarkMetrics != null:
-			_benchmarkMetrics.anchorProbeSuccessCount += 1
-
-		_reachableAnchorComponents[componentId] = true
-		_addedAnchorNodes[nodeKey] = true
-
-		result.append(_CreateAnchorConnection(nodeKey, path, _GetWaypointPathCost(position, path)))
-
-	if _benchmarkMetrics != null:
-		_benchmarkMetrics.anchorProbeUsec += (Time.get_ticks_usec() - probeStartUsec)
-
-	# 3. 남은 Anchor를 Portal별로 묶어서 한 번의 A*로 계산.
-	NavigationAnchorConnectionPlanner.FillRemainingByPortal(
-		_remainingAnchorNodesByPortal,
-		nodes,
-		componentByNode,
-		_addedAnchorNodes,
-		_reachableAnchorComponents,
-		_unreachableAnchorComponents,
-	)
-
-	for portalId: int in _remainingAnchorNodesByPortal:
-		var portalNodes: Array = _remainingAnchorNodesByPortal[portalId]
-		if portalNodes.is_empty():
-			continue
-
-		var batchStartUsec: int = 0
-		if _benchmarkMetrics != null:
-			batchStartUsec = Time.get_ticks_usec()
-		_FillLocalPathsToPortalAnchors(position, portalNodes, halfSize, regionId, footprint)
-		if _benchmarkMetrics != null:
-			_benchmarkMetrics.anchorPortalBatchUsec += (Time.get_ticks_usec() - batchStartUsec)
-
-		for nodeKey: Vector2i in portalNodes:
-			var path: PackedVector2Array
-			if _portalAnchorPathsByNode.has(nodeKey):
-				path = _portalAnchorPathsByNode[nodeKey]
-			else:
-				var fallbackStartUsec: int = 0
-				if _benchmarkMetrics != null:
-					fallbackStartUsec = Time.get_ticks_usec()
-					_benchmarkMetrics.anchorIndividualFallbackCount += 1
-
-				var anchor: Vector2 = NavigationAnchorGraph.GetAnchorPosition(footprint, nodeKey)
-				path = _FindLocalPath(position, anchor, halfSize, regionId)
-				var fallbackSuccess: bool = _EnsurePathEndsAtAnchor(
-					position,
-					path,
-					anchor,
-					halfSize,
-					regionId,
-				)
-
-				if _benchmarkMetrics != null:
-					_benchmarkMetrics.anchorIndividualFallbackUsec += (
-						Time.get_ticks_usec() - fallbackStartUsec
-					)
-
-				if not fallbackSuccess:
-					continue
-
-				if _benchmarkMetrics != null:
-					_benchmarkMetrics.anchorIndividualFallbackSuccessCount += 1
-
-			result.append(
-				_CreateAnchorConnection(nodeKey, path, _GetWaypointPathCost(position, path))
-			)
-
-	return result
-
-
-func _EnsurePathEndsAtAnchor(
-	start: Vector2,
-	path: PackedVector2Array,
-	anchor: Vector2,
-	halfSize: int,
-	regionId: int,
-) -> bool:
-	var last: Vector2 = start
-	if not path.is_empty():
-		last = path[path.size() - 1]
-
-	if last.distance_squared_to(anchor) <= Math.EPSILON:
-		return true
-
-	if not _IsSegmentClearInsideRegion(last, anchor, halfSize, regionId):
-		return false
-
-	path.append(anchor)
-	return true
-
-
-func _CreateAnchorConnection(
-	nodeKey: Vector2i,
-	path: PackedVector2Array,
-	cost: float,
-) -> NavigationAnchorTypes.Connection:
-	var connection: NavigationAnchorTypes.Connection = NavigationAnchorTypes.Connection.new()
-	connection.nodeKey = nodeKey
-	connection.path = path
-	connection.cost = cost
-
-	return connection
-
-#endregion
-
-
-#region Portal Anchor
-
-func _FillLocalPathsToPortalAnchors(
-	start: Vector2,
-	nodeKeys: Array,
-	halfSize: int,
-	regionId: int,
-	footprint: NavigationFootprintData,
-) -> void:
-	var details: NavigationProfileMetrics = (
-		_benchmarkMetrics
-		if _benchmarkMetrics != null and _benchmarkMetrics.capturePortalBatchDetails
-		else null
-	)
-	var detailStart: int = Time.get_ticks_usec() if details != null else 0
-	_ResetPortalAnchorSearchScratch()
-
-	if nodeKeys.is_empty():
-		if details != null:
-			details.RecordPortalBatchDetails(
-				start,
-				regionId,
-				Time.get_ticks_usec() - detailStart,
-				0,
-				0,
-			)
-		return
-
-	var benchmarkStartUsec: int = 0
-	if _benchmarkMetrics != null:
-		benchmarkStartUsec = Time.get_ticks_usec()
-		_benchmarkMetrics.anchorPortalBatchSearchCalls += 1
-
-	var navigationMap: NavigationFootprintMapData = _GetFootprintMap(halfSize)
-
-	var pathOffset: Vector2 = _PathLatticeOffset(halfSize)
-	var startCell: Vector2i = _GetNearestPathCell(start, halfSize, pathOffset)
-	if startCell.x < 0:
-		if details != null:
-			details.RecordPortalBatchDetails(
-				start,
-				regionId,
-				Time.get_ticks_usec() - detailStart,
-				0,
-				0,
-			)
-		return
-
-	var startIndex: int = Grid.CellToIndex(startCell, _gridWidth)
-	var startComponent: int = navigationMap.componentMap[startIndex]
-	if startComponent < 0:
-		if details != null:
-			details.RecordPortalBatchDetails(
-				start,
-				regionId,
-				Time.get_ticks_usec() - detailStart,
-				0,
-				0,
-			)
-		return
-
-	for nodeKey: Vector2i in nodeKeys:
-		var anchor: Vector2 = NavigationAnchorGraph.GetAnchorPosition(footprint, nodeKey)
-		var targetCell: Vector2i = _GetNearestPathCell(anchor, halfSize, pathOffset)
-		if targetCell.x < 0:
-			continue
-
-		var targetIndex: int = Grid.CellToIndex(targetCell, _gridWidth)
-		if navigationMap.componentMap[targetIndex] != startComponent:
-			continue
-
-		if not _portalNodesByTargetIndex.has(targetIndex):
-			_portalNodesByTargetIndex[targetIndex] = []
-
-		var nodes: Array = _portalNodesByTargetIndex[targetIndex]
-
-		# Reset 단계에서 이전 호출의 Array는 모두 비워져 있으므로 empty이면 이번 호출에서 처음 등장한 targetIndex다.
-		if nodes.is_empty():
-			_portalActiveTargetIndices.append(targetIndex)
-			_portalTargetCells.append(targetCell)
-
-		nodes.append(nodeKey)
-
-	if _portalTargetCells.is_empty():
-		if details != null:
-			details.RecordPortalBatchDetails(
-				start,
-				regionId,
-				Time.get_ticks_usec() - detailStart,
-				0,
-				0,
-			)
-		return
-
-	var gridStart: int = Time.get_ticks_usec() if details != null else 0
-	if _useIndividualPortalPaths:
-		_gridPathfinder.FillPathsToTargetsIndividually(
-			_portalGridPathsByTargetIndex,
-			startCell,
-			_portalTargetCells,
-			pathOffset,
-			navigationMap,
-			regionId,
-			localSearchMarginCells,
-			details != null,
-			_individualPortalHeuristicWeight,
-		)
-	else:
-		_gridPathfinder.FillPathsToTargets(
-			_portalGridPathsByTargetIndex,
-			startCell,
-			_portalTargetCells,
-			pathOffset,
-			navigationMap,
-			regionId,
-			localSearchMarginCells,
-			details != null,
-		)
-	var gridEnd: int = Time.get_ticks_usec() if details != null else 0
-
-	if _benchmarkMetrics != null:
-		_benchmarkMetrics.anchorPortalBatchExpanded += _gridPathfinder.lastExpandedCount
-		_benchmarkMetrics.anchorPortalBatchRelaxed += _gridPathfinder.lastRelaxedCount
-
-	for targetIndex: int in _portalGridPathsByTargetIndex:
-		var basePath: PackedVector2Array = _portalGridPathsByTargetIndex[targetIndex]
-
-		var nodeValues: Array = _portalNodesByTargetIndex[targetIndex]
-
-		for nodeKey: Vector2i in nodeValues:
-			var path: PackedVector2Array = basePath.duplicate()
-
-			var anchor: Vector2 = NavigationAnchorGraph.GetAnchorPosition(footprint, nodeKey)
-
-			if _EnsurePathEndsAtAnchor(start, path, anchor, halfSize, regionId):
-				_portalAnchorPathsByNode[nodeKey] = path
-
-	var detailEnd: int = Time.get_ticks_usec() if details != null else 0
-	if _benchmarkMetrics != null:
-		var elapsedUsec: int = (Time.get_ticks_usec() - benchmarkStartUsec)
-		if elapsedUsec > _benchmarkMetrics.anchorBatchMaxUsec:
-			_benchmarkMetrics.anchorBatchMaxUsec = elapsedUsec
-			_benchmarkMetrics.anchorBatchMaxExpanded = _gridPathfinder.lastExpandedCount
-			_benchmarkMetrics.anchorBatchMaxRelaxed = _gridPathfinder.lastRelaxedCount
-			_benchmarkMetrics.anchorBatchMaxTargetCount = _portalTargetCells.size()
-			_benchmarkMetrics.anchorBatchMaxSearchArea = _gridPathfinder.lastSearchArea
-	if details != null:
-		details.RecordPortalBatchDetails(
-			start,
-			regionId,
-			gridStart - detailStart,
-			gridEnd - gridStart,
-			detailEnd - gridEnd,
-			_portalTargetCells.size(),
-			_gridPathfinder.lastExpandedCount,
-			_gridPathfinder.lastRelaxedCount,
-			_gridPathfinder.lastSearchArea,
-			true,
-			_gridPathfinder.lastBatchPreparationUsec,
-			_gridPathfinder.lastBatchSearchUsec,
-			_gridPathfinder.lastBatchReconstructionUsec,
-			_gridPathfinder.lastBatchReconstructionCalls,
-			_portalGridPathsByTargetIndex.size(),
-			_gridPathfinder.lastBatchReconstructedWaypoints,
-		)
-
-#endregion
-
-
-#region Coordinates
-
-func _PathLatticeOffset(halfSize: int) -> Vector2:
-	var offset: float = _LatticeAxisOffset(float(halfSize))
-	return Vector2(offset, offset)
-
-
-func _LatticeAxisOffset(halfExtent: float) -> float:
-	var offset: float = fposmod(maxf(halfExtent, 0.0), _navCellSize)
-	if offset <= Math.EPSILON or _navCellSize - offset <= Math.EPSILON:
-		return 0.0
-
-	return offset
-
-
-func _PathCellToWorld(cell: Vector2i, pathOffset: Vector2) -> Vector2:
-	return (
-		_worldRect.position
-		+ Vector2(
-			float(cell.x) * _navCellSize + pathOffset.x,
-			float(cell.y) * _navCellSize + pathOffset.y,
-		)
-	)
-
-
-func _WorldToNearestPathCell(position: Vector2, pathOffset: Vector2) -> Vector2i:
-	var local: Vector2 = position - _worldRect.position - pathOffset
-	return Vector2i(roundi(local.x / _navCellSize), roundi(local.y / _navCellSize))
-
-
-func _WorldToCellFloor(position: Vector2) -> Vector2i:
-	var local: Vector2 = position - _worldRect.position
-	return Vector2i(floori(local.x / _navCellSize), floori(local.y / _navCellSize))
 
 #endregion
 
@@ -1619,11 +750,11 @@ func _PathEndsAtPoint(path: PackedVector2Array, point: Vector2) -> bool:
 	if path.is_empty():
 		return false
 
-	return path[path.size() - 1].distance_squared_to(point) <= Math.EPSILON
+	return Math.IsSamePoint(path[path.size() - 1], point)
 
 
 func _AppendUniquePoint(path: PackedVector2Array, point: Vector2) -> void:
-	if not path.is_empty() and path[path.size() - 1].distance_squared_to(point) <= Math.EPSILON:
+	if not path.is_empty() and Math.IsSamePoint(path[path.size() - 1], point):
 		return
 
 	path.append(point)
@@ -1653,13 +784,6 @@ func SetProfileMetrics(metrics: NavigationProfileMetrics) -> void:
 
 func ClearProfileMetrics() -> void:
 	_benchmarkMetrics = null
-
-
-func ClearBenchmarkRequestCache() -> void:
-	# 같은 Start/Target 반복 측정에서 exact-position Anchor cache가 실제 path request 비용을 가리지 않도록 요청 단위 cache만 비운다.
-	# Footprint map / baked graph / topology는 유지한다.
-	if _anchorConnectionCache != null:
-		_anchorConnectionCache.Clear()
 
 
 func _ProfileBegin() -> int:
@@ -1692,16 +816,11 @@ func _ProfileGroupJoinPoint(startUsec: int) -> void:
 #endregion
 
 
-func _ResetPortalAnchorSearchScratch() -> void:
-	_portalAnchorPathsByNode.clear()
-	_portalGridPathsByTargetIndex.clear()
+#region Benchmark
 
-	for targetIndex: int in _portalActiveTargetIndices:
-		var nodes: Array = _portalNodesByTargetIndex[targetIndex]
-		nodes.clear()
-
-	_portalActiveTargetIndices.clear()
-	_portalTargetCells.clear()
+func ClearBenchmarkRequestCache() -> void:
+	if _anchorConnector != null:
+		_anchorConnector.ClearRequestCache()
 
 
 func BuildRegionConnectionsForBenchmark(
@@ -1714,19 +833,18 @@ func BuildRegionConnectionsForBenchmark(
 	var footprint: NavigationFootprintData = _GetFootprintData(halfSize)
 	if footprint == null:
 		return []
-	var previousWeight: float = _individualPortalHeuristicWeight
-	_individualPortalHeuristicWeight = heuristicWeight
-	var previous: bool = _useIndividualPortalPaths
-	_useIndividualPortalPaths = individual
-	var connections: Array[NavigationAnchorTypes.Connection] = _MakeRegionAnchorConnections(
+
+	return _anchorConnector.BuildRegionConnectionsForBenchmark(
 		position,
 		halfSize,
 		regionId,
 		footprint,
+		localSearchMarginCells,
+		anchorConnectionCacheCapacity,
+		individual,
+		heuristicWeight,
+		_benchmarkMetrics,
 	)
-	_useIndividualPortalPaths = previous
-	_individualPortalHeuristicWeight = previousWeight
-	return connections
 
 
 func ValidateRegionConnectionsForBenchmark(
@@ -1744,10 +862,27 @@ func ValidateRegionConnectionsForBenchmark(
 		var valid: bool = _PathEndsAtPoint(connection.path, anchor)
 		var previous: Vector2 = position
 		for waypoint: Vector2 in connection.path:
-			if not _IsSegmentClearInsideRegion(previous, waypoint, halfSize, regionId):
+			if not _localPathfinder.IsSegmentClearInsideRegion(
+				previous,
+				waypoint,
+				halfSize,
+				regionId,
+				_benchmarkMetrics,
+			):
 				valid = false
 				break
 			previous = waypoint
 		if not valid:
 			invalidCount += 1
 	return invalidCount
+
+#endregion
+
+
+#region Coordinates
+
+func _WorldToCellFloor(position: Vector2) -> Vector2i:
+	var local: Vector2 = position - _worldRect.position
+	return Vector2i(floori(local.x / _navCellSize), floori(local.y / _navCellSize))
+
+#endregion

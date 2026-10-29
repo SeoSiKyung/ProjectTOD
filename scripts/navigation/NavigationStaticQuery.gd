@@ -99,7 +99,7 @@ func FurthestClearPoint(
 	halfSize: int,
 	metrics: NavigationProfileMetrics = null,
 ) -> Vector2:
-	if start.distance_squared_to(target) <= Math.EPSILON:
+	if Math.IsSamePoint(start, target):
 		return start
 
 	if SegmentClear(start, target, halfSize, metrics):
@@ -145,16 +145,16 @@ func _CanPlaceStaticWithHalf(center: Vector2, halfSize: float) -> bool:
 	var rectMin: Vector2 = center - half
 	var rectMax: Vector2 = center + half
 
-	if rectMin.x < _worldRect.position.x - Math.EPSILON:
+	if Math.IsLess(rectMin.x, _worldRect.position.x):
 		return false
 
-	if rectMin.y < _worldRect.position.y - Math.EPSILON:
+	if Math.IsLess(rectMin.y, _worldRect.position.y):
 		return false
 
-	if rectMax.x > worldEnd.x + Math.EPSILON:
+	if Math.IsGreater(rectMax.x, worldEnd.x):
 		return false
 
-	if rectMax.y > worldEnd.y + Math.EPSILON:
+	if Math.IsGreater(rectMax.y, worldEnd.y):
 		return false
 
 	var localMin: Vector2 = rectMin - _worldRect.position
@@ -186,7 +186,7 @@ func _IsRecoveringSegmentClear(
 		_navCellSize * 0.5,
 		maxf(_navigationData.staticContactSlop, 0.0) * 4.0,
 	)
-	if delta.length() > recoveryLimit + Math.EPSILON:
+	if Math.IsGreater(delta.length(), recoveryLimit):
 		return false
 
 	var firstValid: Vector2 = end
@@ -242,7 +242,7 @@ func _IsStaticSegmentClearFromValidStart(
 	var expandedHalf: Vector2 = _CollisionHalf(half, cellHalf)
 	var deltaX: float = float(end.x) - float(start.x)
 	var deltaY: float = float(end.y) - float(start.y)
-	var pruneRows: bool = absf(deltaY) > Math.EPSILON
+	var pruneRows: bool = not Math.IsNearlyZero(deltaY)
 
 	# 모든 grid cell이 아니라 실제 blocked cell만 검사.
 	for y: int in range(minCell.y, maxCell.y + 1):

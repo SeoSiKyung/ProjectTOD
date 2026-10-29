@@ -46,7 +46,7 @@ func FillRegionIds(result: Array[int], position: Vector2) -> void:
 
 func IsSegmentInsideRegion(start: Vector2, end: Vector2, regionId: int) -> bool:
 	var distance: float = start.distance_to(end)
-	if distance <= Math.EPSILON:
+	if Math.IsNearlyZero(distance):
 		return true
 
 	var stepLength: float = _navCellSize * 0.5

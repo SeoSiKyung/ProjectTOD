@@ -165,37 +165,6 @@ func _physics_process(fixedDelta: float) -> void:
 		_CheckVictory()
 
 	if enableTimingDiagnostics:
-		var elapsed: int = Time.get_ticks_usec() - callbackStart
-		if elapsed >= slowCallbackThresholdMs * 1000.0:
-			print(
-				"[디펜스 계측/process] 프레임=%d 콜백전체=%.3fms CP파괴=%s"
-				% [Engine.get_process_frames(), elapsed / 1000.0, _cpDestroyed],
-			)
-
-			if enableDetailedTimingDiagnostics:
-				_PrintTargetTimingSample()
-				_unitRuntime.PrintTimingSample(0)
-
-
-func _physics_process(fixedDelta: float) -> void:
-	if _phase != DefensePhase.BATTLE:
-		return
-
-	_BeginTimingSample()
-	var callbackStart: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
-	_unitRuntime.Simulate(fixedDelta)
-	var movementEnd: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
-	var pendingRetargets: bool = (
-		enableTimingDiagnostics and _targetingManager.HasPendingEnemyRetargets()
-	)
-
-	_targetingManager.Update()
-	var targetingEnd: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
-	_combatManager.Update()
-	_combatManager.FlushAttacks()
-
-	_ResolvePendingBattleEnd()
-	if enableTimingDiagnostics:
 		var callbackEnd: int = Time.get_ticks_usec()
 		var elapsed: int = callbackEnd - callbackStart
 		_RecordRetargetTiming(elapsed, pendingRetargets)

@@ -96,10 +96,10 @@ func FindPath(
 		var curWorld: Vector2 = _PathCellToWorld(curCell, pathOffset)
 
 		var targetDistance: float = curWorld.distance_squared_to(target)
-		if targetDistance < bestTargetDistance - Math.EPSILON:
+		if Math.IsLess(targetDistance, bestTargetDistance):
 			bestTargetDistance = targetDistance
 			bestIndex = currentIndex
-		elif absf(targetDistance - bestTargetDistance) <= Math.EPSILON and currentIndex < bestIndex:
+		elif Math.IsNearlyEqual(targetDistance, bestTargetDistance) and currentIndex < bestIndex:
 			bestIndex = currentIndex
 
 		if currentIndex == targetIndex:
@@ -180,11 +180,11 @@ func FindPath(
 			var tentativeTurn: float = _state.turnCost[currentIndex] + directionChange
 
 			var better: bool = false
-			if tentativeG < _state.g[nextIndex] - Math.EPSILON:
+			if Math.IsLess(tentativeG, _state.g[nextIndex]):
 				better = true
 			elif (
-				absf(tentativeG - _state.g[nextIndex]) <= Math.EPSILON
-				and tentativeTurn < _state.turnCost[nextIndex] - Math.EPSILON
+				Math.IsNearlyEqual(tentativeG, _state.g[nextIndex])
+				and Math.IsLess(tentativeTurn, _state.turnCost[nextIndex])
 			):
 				better = true
 
@@ -382,11 +382,11 @@ func FillPathsToTargets(
 			var tentativeG: float = _state.g[currentIndex] + stepCost
 			var tentativeTurn: float = _state.turnCost[currentIndex] + directionChange
 			var better: bool = false
-			if tentativeG < _state.g[nextIndex] - Math.EPSILON:
+			if Math.IsLess(tentativeG, _state.g[nextIndex]):
 				better = true
 			elif (
-				absf(tentativeG - _state.g[nextIndex]) <= Math.EPSILON
-				and tentativeTurn < _state.turnCost[nextIndex] - Math.EPSILON
+				Math.IsNearlyEqual(tentativeG, _state.g[nextIndex])
+				and Math.IsLess(tentativeTurn, _state.turnCost[nextIndex])
 			):
 				better = true
 
