@@ -1,6 +1,7 @@
 class_name DefenseSceneManager
 extends Node
 
+const BASE_PHYSICS_TICKS_PER_SECOND: int = 60
 const ATTACK_BUFFER_CAPACITY_MULTIPLIER: int = 2
 
 signal DefenseFinished(result: DefenseResult)
@@ -55,7 +56,6 @@ var _trapManager: DefenseTrapManager
 var _enemyManager: DefenseEnemyManager
 var _cpManager: DefenseCPManager
 var _spawnManager: DefenseSpawnManager
-var _timeManager: DefenseTimeManager
 var _targetingManager: DefenseTargetingManager
 var _combatManager: DefenseCombatManager
 var _unitLifecycle: DefenseUnitLifecycle
@@ -68,13 +68,14 @@ var _spawnController: DefenseSpawnController
 var _pendingDefeat: bool = false
 var _cpDestroyed: bool = false
 
+var _elapsedBattleTimeSeconds: float = 0.0
+
 var _phase: DefensePhase = DefensePhase.TOWER_DEPLOYMENT
 
 
 #region Lifecycle
 
 func _ready() -> void:
-	set_process(false)
 	set_physics_process(false)
 
 	if not _InitializeNavigation():
@@ -134,18 +135,35 @@ func Initialize(startData: DefenseStartData) -> bool:
 	return true
 
 
-func _process(_delta: float) -> void:
+func _physics_process(fixedDelta: float) -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
 	_BeginTimingSample()
 	var callbackStart: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
-	_timeManager.Update()
 
-	var elapsedTimeMs: int = _timeManager.GetElapsedTimeMs()
+	_elapsedBattleTimeSeconds += fixedDelta
+	var elapsedTimeMs: int = int(_elapsedBattleTimeSeconds * 1000.0)
 	_spawnManager.Update(elapsedTimeMs)
 
-	_CheckVictory()
+	_unitRuntime.Simulate(fixedDelta)
+	var movementEnd: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
+
+	var pendingRetargets: bool = (
+		enableTimingDiagnostics and _targetingManager.HasPendingEnemyRetargets()
+	)
+
+	_targetingManager.Update()
+	var targetingEnd: int = Time.get_ticks_usec() if enableTimingDiagnostics else 0
+
+	_combatManager.Update()
+	_combatManager.FlushAttacks()
+
+	_ResolvePendingBattleEnd()
+
+	if _phase == DefensePhase.BATTLE:
+		_CheckVictory()
+
 	if enableTimingDiagnostics:
 		var elapsed: int = Time.get_ticks_usec() - callbackStart
 		if elapsed >= slowCallbackThresholdMs * 1000.0:
@@ -245,7 +263,6 @@ func _AssignRuntimeReferences(runtime: DefenseRuntime) -> void:
 
 	_cpManager = runtime.cpManager
 	_spawnManager = runtime.spawnManager
-	_timeManager = runtime.timeManager
 	_targetingManager = runtime.targetingManager
 	_combatManager = runtime.combatManager
 
@@ -327,10 +344,12 @@ func _StartBattle() -> void:
 	_cpDestroyed = false
 
 	_spawnManager.Initialize(_spawnDataList)
-	_timeManager.Initialize()
+	_elapsedBattleTimeSeconds = 0.0
+
+	SetBattleSpeed(1)
+	get_tree().paused = false
 
 	_phase = DefensePhase.BATTLE
-	set_process(true)
 	set_physics_process(true)
 
 
@@ -338,38 +357,32 @@ func PauseBattle() -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
-	_timeManager.Pause()
-
-	set_process(false)
-	set_physics_process(false)
+	get_tree().paused = true
 
 
 func ResumeBattle() -> void:
 	if _phase != DefensePhase.BATTLE:
 		return
 
-	_timeManager.Resume()
-
-	set_process(true)
-	set_physics_process(true)
+	get_tree().paused = false
 
 
 func _FinishDefense(isVictory: bool) -> DefenseResult:
 	if _phase != DefensePhase.BATTLE:
 		return null
 
-	_timeManager.Pause()
-
 	var result: DefenseResult = _CreateResult(isVictory)
 
 	_phase = DefensePhase.FINISHED
-	set_process(false)
 	set_physics_process(false)
 
 	if not _CleanupBattle():
 		push_error("DefenseSceneManager: 전투 종료 정리가 완전히 완료되지 않았습니다.")
 
 	DefenseFinished.emit(result)
+
+	get_tree().paused = false
+	SetBattleSpeed(1)
 
 	return result
 
@@ -405,7 +418,7 @@ func _CreateResult(isVictory: bool) -> DefenseResult:
 	result.survivingPopulation = _towerManager.GetSurvivingPopulation()
 	result.deadPopulation = _towerManager.GetDeadPopulation()
 
-	result.elapsedTimeMs = _timeManager.GetElapsedTimeMs()
+	result.elapsedTimeMs = GetElapsedTimeMs()
 
 	return result
 
@@ -429,6 +442,21 @@ func _CleanupBattle() -> bool:
 	return true
 
 #endregion
+
+
+func _exit_tree() -> void:
+	get_tree().paused = false
+
+	Engine.time_scale = 1
+	Engine.physics_ticks_per_second = BASE_PHYSICS_TICKS_PER_SECOND
+
+
+func SetBattleSpeed(speed: int) -> void:
+	if speed != 1 and speed != 2:
+		return
+
+	Engine.time_scale = speed
+	Engine.physics_ticks_per_second = BASE_PHYSICS_TICKS_PER_SECOND * speed
 
 
 #region Public API
@@ -472,7 +500,7 @@ func GetTotalRecruitedPopulation() -> int:
 
 
 func GetElapsedTimeMs() -> int:
-	return _timeManager.GetElapsedTimeMs()
+	return int(_elapsedBattleTimeSeconds * 1000.0)
 
 
 func GetCPMaxHp() -> int:

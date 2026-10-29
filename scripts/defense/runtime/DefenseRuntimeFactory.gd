@@ -27,7 +27,6 @@ static func Create(
 	# Battle runtime
 	runtime.cpManager = DefenseCPManager.new()
 	runtime.spawnManager = DefenseSpawnManager.new()
-	runtime.timeManager = DefenseTimeManager.new()
 
 	var spawnPositionManager: DefenseSpawnPositionManager = DefenseSpawnPositionManager.new(
 		spawnPoints,

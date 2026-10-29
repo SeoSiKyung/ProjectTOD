@@ -10,7 +10,6 @@ var enemyManager: DefenseEnemyManager
 
 var cpManager: DefenseCPManager
 var spawnManager: DefenseSpawnManager
-var timeManager: DefenseTimeManager
 var targetingManager: DefenseTargetingManager
 var combatManager: DefenseCombatManager
 
