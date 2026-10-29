@@ -12,8 +12,12 @@ func _init(pool: Node2D) -> void:
 	_pool = pool
 
 
+func CanReturn(object: Node2D) -> bool:
+	return object != null and _characterKeyByActiveObject.has(object)
+
+
 func Return(object: Node2D) -> bool:
-	if not _characterKeyByActiveObject.has(object):
+	if not CanReturn(object):
 		return false
 
 	var characterKey: int = _characterKeyByActiveObject[object]

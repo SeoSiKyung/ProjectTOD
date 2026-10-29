@@ -64,7 +64,27 @@ func _RemoveFromManager(
 	characterManager: DefenseCharacterManager,
 	poolManager: DefensePoolManager = null,
 ) -> bool:
-	# 먼저 전투 데이터에서 제거한다. 실패하면 Runtime 제거 또는 Pool 반환을 진행하면 안 된다.
+	if not characterManager.HasCharacter(character):
+		push_error(
+			"DefenseCharacterRemovalService: CharacterManager에 등록되지 않은 Character입니다. unitId: "
+			+ str(character.unitId)
+		)
+		return false
+
+	if not _unitLifecycle.IsManagedUnit(character):
+		push_error(
+			"DefenseCharacterRemovalService: Runtime에 등록되지 않은 Character입니다. unitId: "
+			+ str(character.unitId)
+		)
+		return false
+
+	if poolManager != null and not poolManager.CanReturn(character):
+		push_error(
+			"DefenseCharacterRemovalService: Pool에 등록되지 않은 Character입니다. unitId: "
+			+ str(character.unitId)
+		)
+		return false
+
 	if not characterManager.UnregisterCharacter(character):
 		push_error(
 			"DefenseCharacterRemovalService: Character 연결 해제에 실패했습니다. unitId: "

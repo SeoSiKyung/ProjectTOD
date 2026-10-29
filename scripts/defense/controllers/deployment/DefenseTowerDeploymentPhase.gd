@@ -24,9 +24,7 @@ func Enter() -> bool:
 		Math.RatioToPercent(_selectedRecruitRatio),
 	)
 
-	_RefreshDeploymentInfo()
-	RefreshPlacementPreview()
-	_deploymentGridView.queue_redraw()
+	_RefreshStateUI()
 
 	return true
 
@@ -77,7 +75,8 @@ func Place(cell: Vector2i) -> bool:
 
 	_deploymentInfoView.SetRecruitRatio(cell, _selectedRecruitRatio)
 
-	_RefreshDeploymentInfo()
+	_ClampSelectedRecruitRatioToRemaining()
+	_RefreshStateUI()
 
 	return true
 
@@ -87,7 +86,7 @@ func Remove(cell: Vector2i) -> void:
 		return
 
 	_deploymentInfoView.RemoveRecruitRatio(cell)
-	_RefreshDeploymentInfo()
+	_RefreshStateUI()
 
 
 func CanInteract(cell: Vector2i) -> bool:
@@ -122,8 +121,7 @@ func OnCharacterSelected(characterKey: int) -> void:
 func OnRecruitRatioChanged(value: float) -> void:
 	_selectedRecruitRatio = Math.PercentToRatio(int(value))
 
-	_RefreshDeploymentInfo()
-	RefreshPlacementPreview()
+	_RefreshStateUI()
 
 
 func RefreshPlacementPreview() -> void:
@@ -132,6 +130,21 @@ func RefreshPlacementPreview() -> void:
 		previewTexture = _deploymentView.GetCharacterIconTexture(_selectedCharacterKey)
 
 	_deploymentGridView.SetPlacementPreview(previewTexture)
+
+
+func _ClampSelectedRecruitRatioToRemaining() -> void:
+	var remainingRatio: int = _defenseSceneManager.GetMaxRecruitRatio() - _defenseSceneManager.GetTotalRecruitRatio()
+	if _selectedRecruitRatio <= remainingRatio:
+		return
+
+	_selectedRecruitRatio = maxi(remainingRatio, 0)
+
+	_deploymentView.SetRecruitRatioValue(Math.RatioToPercent(_selectedRecruitRatio))
+
+
+func _RefreshStateUI() -> void:
+	_RefreshDeploymentInfo()
+	RefreshPlacementPreview()
 
 
 func _RefreshDeploymentInfo() -> void:

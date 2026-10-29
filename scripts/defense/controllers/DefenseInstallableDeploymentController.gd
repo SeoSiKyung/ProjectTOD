@@ -172,12 +172,16 @@ func CompleteDeployment() -> void:
 	_deploymentUnitsByCell.clear()
 
 
-func _SpawnDeploymentUnit(characterData: CharacterData, position: Vector2) -> Unit:
+func _SpawnDeploymentUnit(
+	characterData: CharacterData,
+	position: Vector2,
+	ignoredUnitId: int = -1,
+) -> Unit:
 	var unit: Unit = _unitFactory.Create(characterData, position)
 	if unit == null:
 		return null
 
-	if not _CanPlaceUnit(unit, position):
+	if not _CanPlaceUnit(unit, position, ignoredUnitId):
 		unit.queue_free()
 		return null
 
@@ -188,7 +192,7 @@ func _SpawnDeploymentUnit(characterData: CharacterData, position: Vector2) -> Un
 	return unit
 
 
-func _CanPlaceUnit(unit: Unit, position: Vector2) -> bool:
+func _CanPlaceUnit(unit: Unit, position: Vector2, ignoredUnitId: int = -1) -> bool:
 	var halfSize: int = unit.GetHalfSize()
 	if not _navigationService.CanPlaceStatic(position, halfSize):
 		return false
@@ -199,7 +203,12 @@ func _CanPlaceUnit(unit: Unit, position: Vector2) -> bool:
 		_nearbyUnitIdBuffer,
 	)
 
-	return nearbyCount == 0
+	for index: int in range(nearbyCount):
+		var nearbyUnitId: int = _nearbyUnitIdBuffer[index]
+		if nearbyUnitId != ignoredUnitId:
+			return false
+
+	return true
 
 
 func _ReplaceDeploymentUnit(
@@ -214,28 +223,36 @@ func _ReplaceDeploymentUnit(
 	var previousCharacterKey: int = deployment.characterKey
 	var position: Vector2 = previousUnit.position
 
-	# 새 객체가 기존 객체와 충돌하지 않도록 기존 객체만 Runtime에서 잠시 제거
-	if not _unitLifecycle.UnregisterUnit(previousUnit):
-		return false
-
-	var newUnit: Unit = _SpawnDeploymentUnit(characterData, position)
+	var newUnit: Unit = _SpawnDeploymentUnit(characterData, position, previousUnit.unitId)
 	if newUnit == null:
-		if not _unitLifecycle.RegisterUnit(previousUnit):
-			push_error("DefenseInstallableDeploymentController: " + "기존 Unit Runtime 복구에 실패했습니다.")
-
 		return false
 
 	if not _deploymentManager.UpdateDeployment(cell, characterData.characterKey):
-		_unitLifecycle.DestroyUnit(newUnit)
-
-		if not _unitLifecycle.RegisterUnit(previousUnit):
-			push_error("DefenseInstallableDeploymentController: " + "기존 Unit Runtime 복구에 실패했습니다.")
-
+		if not _unitLifecycle.DestroyUnit(newUnit):
+			push_error(
+				"DefenseInstallableDeploymentController: "
+				+ "새 배치 Unit 롤백 제거에 실패했습니다. cell: " + str(cell)
+			)
 		return false
 
-	previousUnit.queue_free()
-	_deploymentUnitsByCell[cell] = newUnit
+	if not _unitLifecycle.DestroyUnit(previousUnit):
+		if not _deploymentManager.UpdateDeployment(cell, previousCharacterKey):
+			push_error(
+				"DefenseInstallableDeploymentController: " + "배치 데이터 롤백에 실패했습니다. cell: " + str(cell)
+			)
 
+		if not _unitLifecycle.DestroyUnit(newUnit):
+			push_error(
+				"DefenseInstallableDeploymentController: "
+				+ "새 배치 Unit 롤백 제거에 실패했습니다. cell: " + str(cell)
+			)
+
+		push_error(
+			"DefenseInstallableDeploymentController: " + "기존 배치 Unit 제거에 실패했습니다. cell: " + str(cell)
+		)
+		return false
+
+	_deploymentUnitsByCell[cell] = newUnit
 	return true
 
 

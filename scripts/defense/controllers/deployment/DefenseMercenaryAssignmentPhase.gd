@@ -17,9 +17,7 @@ func Enter() -> bool:
 
 	_deploymentView.ConfigureMercenaryPhase()
 
-	_RefreshAssignmentUI()
-	RefreshPlacementPreview()
-	_deploymentGridView.queue_redraw()
+	_RefreshStateUI()
 
 	return true
 
@@ -42,7 +40,8 @@ func Place(cell: Vector2i) -> bool:
 		_deploymentView.SetStatusText("선택한 대상에 용병을 배치할 수 없습니다.")
 		return false
 
-	_RefreshAssignmentUI()
+	_RefreshStateUI()
+
 	return true
 
 
@@ -60,7 +59,7 @@ func Remove(cell: Vector2i) -> void:
 	if not _defenseSceneManager.UnassignMercenary(mercenaryKey):
 		return
 
-	_RefreshAssignmentUI()
+	_RefreshStateUI()
 
 
 func CanInteract(cell: Vector2i) -> bool:
@@ -89,11 +88,12 @@ func RefreshPlacementPreview() -> void:
 	_deploymentGridView.SetPlacementPreview(previewTexture)
 
 
-func _RefreshAssignmentUI() -> void:
+func _RefreshStateUI() -> void:
 	_RefreshAssignmentLabels()
 	_UpdateButtonStates()
 	_UpdateSummary()
 	_UpdateSelectedTargetFocus()
+	RefreshPlacementPreview()
 
 
 func _RefreshAssignmentLabels() -> void:

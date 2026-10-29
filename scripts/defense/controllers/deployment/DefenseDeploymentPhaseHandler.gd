@@ -88,6 +88,10 @@ func OnMercenaryDragStarted(mercenaryKey: int) -> void:
 	OnMercenarySelected(mercenaryKey)
 
 
+func _RefreshStateUI() -> void:
+	pass
+
+
 func _CanPlaceStaticAtCell(cell: Vector2i) -> bool:
 	var position: Vector2 = _deploymentGrid.CellToWorldCenter(cell)
 

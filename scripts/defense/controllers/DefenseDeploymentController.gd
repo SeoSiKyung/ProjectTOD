@@ -183,27 +183,30 @@ func _ReplaceDeploymentUnit(
 	characterData: CharacterData,
 	recruitRatio: int,
 ) -> bool:
-	var unit: Unit = _deploymentUnitsByCell.get(cell)
-	if unit == null:
+	var previousUnit: Unit = _deploymentUnitsByCell.get(cell)
+	if previousUnit == null:
 		push_error("DefenseDeploymentController: 배치 데이터에 대응하는 Unit이 없습니다. cell: " + str(cell))
 		return false
 
 	var previousCharacterKey: int = deployment.characterKey
 	var previousRecruitRatio: int = deployment.recruitRatio
 
-	if not _deploymentManager.UpdateDeployment(cell, characterData.characterKey, recruitRatio):
-		return false
-
-	var newUnit: Unit = _SpawnDeploymentUnit(characterData, unit.position)
+	var newUnit: Unit = _SpawnDeploymentUnit(characterData, previousUnit.position)
 	if newUnit == null:
-		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
 		return false
 
-	if not _unitLifecycle.DestroyUnit(unit):
+	if not _deploymentManager.UpdateDeployment(cell, characterData.characterKey, recruitRatio):
 		if not _unitLifecycle.DestroyUnit(newUnit):
 			push_error("DefenseDeploymentController: 새 배치 Unit 롤백 제거에 실패했습니다. cell: " + str(cell))
 
-		_deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio)
+		return false
+
+	if not _unitLifecycle.DestroyUnit(previousUnit):
+		if not _deploymentManager.UpdateDeployment(cell, previousCharacterKey, previousRecruitRatio):
+			push_error("DefenseDeploymentController: 배치 데이터 롤백에 실패했습니다. cell: " + str(cell))
+
+		if not _unitLifecycle.DestroyUnit(newUnit):
+			push_error("DefenseDeploymentController: 새 배치 Unit 롤백 제거에 실패했습니다. cell: " + str(cell))
 
 		push_error("DefenseDeploymentController: 기존 배치 Unit 제거에 실패했습니다. cell: " + str(cell))
 		return false

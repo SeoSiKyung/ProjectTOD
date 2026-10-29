@@ -249,6 +249,10 @@ func GetMercenaryIconTexture(mercenaryKey: int) -> Texture2D:
 	return button.GetIconTexture()
 
 
+func SetRecruitRatioValue(percent: int) -> void:
+	_deploymentDock.SetRecruitRatioValue(percent)
+
+
 func SetStatusText(text: String) -> void:
 	_deploymentDock.SetStatusText(text)
 

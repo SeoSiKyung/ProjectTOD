@@ -32,10 +32,7 @@ func Enter() -> bool:
 
 	_deploymentView.ConfigureInstallablePhase()
 
-	_UpdateButtonStates()
-	_RefreshInfo()
-	RefreshPlacementPreview()
-	_deploymentGridView.queue_redraw()
+	_RefreshStateUI()
 
 	return true
 
@@ -50,8 +47,7 @@ func Place(cell: Vector2i) -> bool:
 		return false
 
 	if _defenseSceneManager.GetInstallableRemainingCount(_selectedCharacterKey) <= 0:
-		_UpdateButtonStates()
-		RefreshPlacementPreview()
+		_RefreshStateUI()
 		return false
 
 	var success: bool
@@ -73,9 +69,7 @@ func Place(cell: Vector2i) -> bool:
 		_deploymentView.SetStatusText("해당 셀에 병기/함정을 배치할 수 없습니다.")
 		return false
 
-	_UpdateButtonStates()
-	_RefreshInfo()
-	RefreshPlacementPreview()
+	_RefreshStateUI()
 
 	return true
 
@@ -84,9 +78,7 @@ func Remove(cell: Vector2i) -> void:
 	if not _defenseSceneManager.RemoveInstallableDeployment(cell):
 		return
 
-	_UpdateButtonStates()
-	_RefreshInfo()
-	RefreshPlacementPreview()
+	_RefreshStateUI()
 
 
 func CanInteract(cell: Vector2i) -> bool:
@@ -127,6 +119,12 @@ func RefreshPlacementPreview() -> void:
 		previewTexture = _deploymentView.GetCharacterIconTexture(_selectedCharacterKey)
 
 	_deploymentGridView.SetPlacementPreview(previewTexture)
+
+
+func _RefreshStateUI() -> void:
+	_UpdateButtonStates()
+	_RefreshInfo()
+	RefreshPlacementPreview()
 
 
 func _UpdateButtonStates() -> void:
