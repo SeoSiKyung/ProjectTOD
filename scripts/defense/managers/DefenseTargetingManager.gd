@@ -9,7 +9,7 @@ var _battleContext: DefenseBattleFacade
 var _unitRuntime: UnitRuntime
 var _stageSnapshot: StageSnapshot
 
-var _candidateUnitIdBuffer: PackedInt32Array = []
+var _targetSelector: DefenseTargetSelector
 
 var _targetByAttacker: Dictionary[Unit, Unit] = { }
 var _pendingEnemyRetargets: Array[Enemy] = []
@@ -44,7 +44,7 @@ func _init(battleContext: DefenseBattleFacade, unitRuntime: UnitRuntime) -> void
 	_unitRuntime = unitRuntime
 	_stageSnapshot = unitRuntime.GetStageSnapshot()
 
-	_candidateUnitIdBuffer.resize(_stageSnapshot.GetSlotCapacity())
+	_targetSelector = DefenseTargetSelector.new(_battleContext, _stageSnapshot)
 
 	var physicsTicksPerSecond: int = Engine.physics_ticks_per_second
 	_targetAcquisitionIntervalFrames = maxi(
@@ -190,7 +190,7 @@ func IssueInitialEnemyChases(enemies: Array[Unit]) -> void:
 		return
 
 	var selectionStart: int = Time.get_ticks_usec() if timingEnabled else 0
-	var target: Unit = _GetDefaultEnemyTarget(enemies[0] as Enemy)
+	var target: Unit = _targetSelector.FindDefaultEnemyTarget(enemies[0] as Enemy)
 	if timingEnabled:
 		timingDefaultSelectionUsec += Time.get_ticks_usec() - selectionStart
 	if target == null:
@@ -206,17 +206,6 @@ func IssueInitialEnemyChases(enemies: Array[Unit]) -> void:
 
 		IssueChaseGroupTarget(group, target)
 		startIndex = endIndex
-
-
-func IsWithinRange(attacker: Unit, target: Unit, range: int) -> bool:
-	if attacker == null or target == null or range < 0:
-		return false
-
-	if not _stageSnapshot.HasUnit(attacker.unitId) or not _stageSnapshot.HasUnit(target.unitId):
-		return false
-
-	var distanceSquared: float = _GetFootprintDistanceSquared(attacker.unitId, target.unitId)
-	return distanceSquared <= range * range
 
 
 func _UpdateExistingTargets() -> void:
@@ -250,7 +239,7 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterType.Typ
 
 	if (
 		_IsStaticCombatType(characterType)
-		and not IsWithinRange(character, target, acquisitionRange)
+		and not _targetSelector.IsWithinRange(character, target, acquisitionRange)
 	):
 		ClearTarget(character)
 		_ReturnUnitToIdle(character)
@@ -265,7 +254,10 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterType.Typ
 		if not _stageSnapshot.HasUnit(trap.unitId) or not _stageSnapshot.HasUnit(target.unitId):
 			return
 
-		var distanceSquared: float = _GetFootprintDistanceSquared(trap.unitId, target.unitId)
+		var distanceSquared: float = _targetSelector.GetFootprintDistanceSquared(
+			trap.unitId,
+			target.unitId,
+		)
 		if trap.CanTrigger(target, distanceSquared):
 			_EnterAttack(trap, target, characterType)
 		elif trap.fsm.currentState == UnitFSM.State.ATTACK:
@@ -273,7 +265,7 @@ func _UpdateCharacterTargeting(character: Unit, characterType: CharacterType.Typ
 
 		return
 
-	if IsWithinRange(character, target, attackRange):
+	if _targetSelector.IsWithinRange(character, target, attackRange):
 		_EnterAttack(character, target, characterType)
 		return
 
@@ -329,7 +321,7 @@ func _QueueEnemyRetarget(enemy: Enemy) -> void:
 			return
 
 	var selectionStart: int = Time.get_ticks_usec() if timingEnabled else 0
-	var target: Unit = _GetDefaultEnemyTarget(enemy)
+	var target: Unit = _targetSelector.FindDefaultEnemyTarget(enemy)
 	if timingEnabled:
 		timingDefaultSelectionUsec += Time.get_ticks_usec() - selectionStart
 
@@ -419,69 +411,6 @@ func _FinishRetargetCycle() -> void:
 	}
 
 
-func _GetDefaultEnemyTarget(enemy: Enemy) -> Unit:
-	if enemy == null or not _battleContext.IsManagedUnit(enemy):
-		return null
-
-	var policy: TargetPolicy = _GetEnemyTargetPolicy(enemy)
-	if policy == null:
-		return null
-
-	var bestTarget: Unit = null
-	var bestPriority: int = TargetPolicy.INVALID_PRIORITY
-	var bestDistanceSquared: float = INF
-	var bestUnitId: int = -1
-
-	var cp: Unit = _battleContext.GetCP()
-	if cp != null and _battleContext.IsValidTarget(enemy, cp):
-		var cpPriority: int = policy.GetPriority(enemy, cp, TargetPolicy.SelectionContext.DEFAULT)
-		if cpPriority != TargetPolicy.INVALID_PRIORITY:
-			bestTarget = cp
-			bestPriority = cpPriority
-			bestDistanceSquared = _GetFootprintDistanceSquared(enemy.unitId, cp.unitId)
-			bestUnitId = cp.unitId
-
-	var candidateTypes: Array[CharacterType.Type] = [
-		CharacterType.TOWER,
-		CharacterType.MACHINE,
-		CharacterType.TRAP,
-	]
-	for characterType: CharacterType.Type in candidateTypes:
-		var characterCount: int = _battleContext.GetCharacterCount(characterType)
-		for index: int in characterCount:
-			var candidate: Unit = _battleContext.GetCharacterByIndex(characterType, index)
-			if not _battleContext.IsValidTarget(enemy, candidate):
-				continue
-
-			var priority: int = policy.GetPriority(
-				enemy,
-				candidate,
-				TargetPolicy.SelectionContext.DEFAULT,
-			)
-			if priority == TargetPolicy.INVALID_PRIORITY:
-				continue
-
-			var distanceSquared: float = _GetFootprintDistanceSquared(
-				enemy.unitId,
-				candidate.unitId,
-			)
-
-			if _IsBetterTarget(
-				priority,
-				distanceSquared,
-				candidate.unitId,
-				bestPriority,
-				bestDistanceSquared,
-				bestUnitId,
-			):
-				bestTarget = candidate
-				bestPriority = priority
-				bestDistanceSquared = distanceSquared
-				bestUnitId = candidate.unitId
-
-	return bestTarget
-
-
 func _GetEnemyTargetPolicy(enemy: Enemy) -> TargetPolicy:
 	if enemy == null:
 		return null
@@ -489,32 +418,9 @@ func _GetEnemyTargetPolicy(enemy: Enemy) -> TargetPolicy:
 	return enemy.GetTargetPolicy()
 
 
-func _IsBetterTarget(
-	priority: int,
-	distanceSquared: float,
-	unitId: int,
-	bestPriority: int,
-	bestDistanceSquared: float,
-	bestUnitId: int,
-) -> bool:
-	if priority > bestPriority:
-		return true
-
-	if priority < bestPriority:
-		return false
-
-	if distanceSquared < bestDistanceSquared:
-		return true
-
-	if distanceSquared > bestDistanceSquared:
-		return false
-
-	return bestUnitId < 0 or unitId < bestUnitId
-
-
 func _IssueDefaultEnemyChase(enemy: Enemy) -> bool:
 	var selectionStart: int = Time.get_ticks_usec() if timingEnabled else 0
-	var target: Unit = _GetDefaultEnemyTarget(enemy)
+	var target: Unit = _targetSelector.FindDefaultEnemyTarget(enemy)
 	if timingEnabled:
 		timingDefaultSelectionUsec += Time.get_ticks_usec() - selectionStart
 	if target == null:
@@ -642,7 +548,10 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterType.Type, cursor: i
 			if characterType == CharacterType.ENEMY:
 				targetPolicy = _GetEnemyTargetPolicy(character as Enemy)
 
-			var newTarget: Unit = _FindBestEnemyInAcquisitionRange(character, targetPolicy)
+			var newTarget: Unit = _targetSelector.FindBestTargetInAcquisitionRange(
+				character,
+				targetPolicy,
+			)
 			if newTarget != null and newTarget != currentTarget:
 				_SetAcquiredTarget(character, newTarget, characterType)
 
@@ -650,64 +559,6 @@ func _UpdateTargetAcquisitionByType(characterType: CharacterType.Type, cursor: i
 			_RefreshEnemyChase(character as Enemy)
 
 	return cursor
-
-
-func _FindBestEnemyInAcquisitionRange(attacker: Unit, policy: TargetPolicy = null) -> Unit:
-	if attacker == null or not attacker.HasCharacterStats() or attacker.IsDead():
-		return null
-
-	var acquisitionRange: int = attacker.GetStat(CharacterStats.Type.ACQUISITION_RANGE)
-	if not _battleContext.IsManagedUnit(attacker) or acquisitionRange < 0:
-		return null
-
-	var candidateCount: int = _FindCandidateUnitIds(
-		attacker,
-		acquisitionRange,
-		_candidateUnitIdBuffer,
-	)
-
-	var bestTarget: Unit = null
-	var bestPriority: int = TargetPolicy.INVALID_PRIORITY
-	var bestDistanceSquared: float = INF
-	var bestUnitId: int = -1
-
-	for index: int in candidateCount:
-		var unitId: int = _candidateUnitIdBuffer[index]
-		if unitId == attacker.unitId:
-			continue
-
-		var candidate: Unit = _battleContext.GetUnit(unitId)
-		if not _battleContext.IsValidTarget(attacker, candidate):
-			continue
-
-		var priority: int = 0
-		if policy != null:
-			priority = policy.GetPriority(
-				attacker,
-				candidate,
-				TargetPolicy.SelectionContext.ACQUISITION,
-			)
-			if priority == TargetPolicy.INVALID_PRIORITY:
-				continue
-
-		var distanceSquared: float = _GetFootprintDistanceSquared(attacker.unitId, candidate.unitId)
-		if distanceSquared > acquisitionRange * acquisitionRange:
-			continue
-
-		if _IsBetterTarget(
-			priority,
-			distanceSquared,
-			unitId,
-			bestPriority,
-			bestDistanceSquared,
-			bestUnitId,
-		):
-			bestTarget = candidate
-			bestPriority = priority
-			bestDistanceSquared = distanceSquared
-			bestUnitId = unitId
-
-	return bestTarget
 
 
 func _ShouldAcquireTarget(
@@ -731,8 +582,16 @@ func _ShouldAcquireTarget(
 			)
 			return priority != TargetPolicy.INVALID_PRIORITY
 		CharacterType.TOWER, \
-				CharacterType.MACHINE, \
-				CharacterType.TRAP:
+				CharacterType.MACHINE:
+			if currentTarget == null:
+				return true
+
+			if not character.HasCharacterStats():
+				return false
+
+			var attackRange: int = character.GetStat(CharacterStats.Type.ATK_RANGE)
+			return not _targetSelector.IsWithinRange(character, currentTarget, attackRange)
+		CharacterType.TRAP:
 			return currentTarget == null
 
 	return false
@@ -754,33 +613,6 @@ func _SetAcquiredTarget(character: Unit, target: Unit, characterType: CharacterT
 				CharacterType.MACHINE, \
 				CharacterType.TRAP:
 			SetTarget(character, target)
-
-
-func _FindCandidateUnitIds(attacker: Unit, range: int, resultBuffer: PackedInt32Array) -> int:
-	if attacker == null or range < 0 or not _stageSnapshot.HasUnit(attacker.unitId):
-		return 0
-
-	var attackerPosition: Vector2 = _stageSnapshot.GetPosition(attacker.unitId)
-	var attackerHalfSize: int = _stageSnapshot.GetHalfSize(attacker.unitId)
-	var searchExtent: int = range + attackerHalfSize
-
-	return _stageSnapshot.FindUnitIdsInRect(
-		attackerPosition,
-		Vector2(searchExtent, searchExtent),
-		resultBuffer,
-	)
-
-
-func _GetFootprintDistanceSquared(firstUnitId: int, secondUnitId: int) -> float:
-	var firstPosition: Vector2 = _stageSnapshot.GetPosition(firstUnitId)
-	var secondPosition: Vector2 = _stageSnapshot.GetPosition(secondUnitId)
-	var combinedHalfSize: float = float(
-		_stageSnapshot.GetHalfSize(firstUnitId) + _stageSnapshot.GetHalfSize(secondUnitId)
-	)
-
-	var dx: float = maxf(absf(firstPosition.x - secondPosition.x) - combinedHalfSize, 0.0)
-	var dy: float = maxf(absf(firstPosition.y - secondPosition.y) - combinedHalfSize, 0.0)
-	return dx * dx + dy * dy
 
 
 func _IsStaticCombatType(characterType: CharacterType.Type) -> bool:
